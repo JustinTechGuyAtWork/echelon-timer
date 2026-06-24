@@ -1,5 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
+<!--
+==================================================================================
+  ECHELON — Routine Builder & Timer   (single-file web app)
+==================================================================================
+  WHAT THIS IS
+    A self-contained web app for building, timing, and running fitness classes.
+    Everything (markup, styles, logic, even the logo) lives in THIS ONE FILE plus
+    a few icon files + manifest.json (only needed for "Add to Home Screen").
+    No build step, no frameworks, no server, no external libraries. It runs by
+    double-clicking the file or from a web link, and works offline.
+
+  HOW THE FILE IS ORGANIZED (top to bottom)
+    1. <head>            page meta + Add-to-Home-Screen tags (manifest, icons).
+    2. <style>           all CSS. Colors are CSS variables ("design tokens") so the
+                         whole look/brand is controlled from one place. See the
+                         theming note at the top of <style>.
+    3. <body>            the markup. The app is several full-screen "views"
+                         (library, builder, catalog, plans, plan editor) plus
+                         overlays (run timer, settings/export modals). Only one
+                         view is shown at a time; the rest carry the .hidden class.
+                         Most lists/rows are built by JavaScript, so the markup is
+                         mostly empty containers with ids the script fills in.
+    4. <script>          all the logic, wrapped in one IIFE. See the big
+                         "ARCHITECTURE" comment at the top of the script for the
+                         data model and how everything connects.
+
+  THE DATA MODEL (everything the user creates) — saved as JSON in localStorage
+    key "tempo.v1":
+      state = {
+        settings:  { studioName, mode, theme, beeps, autostart, loadLabel,
+                     accent, logo, logoCustom },
+        routines:  [ { id, name, description, tags:[], createdAt, updatedAt,
+                       blocks:[ { id, name, exercises:[
+                         { id, name, spring, side, duration, rest, reps } ] } ] } ],
+        catalog:   [ exercise-shaped templates the user reuses ],
+        sequences: [ { id, name, routineIds:[] } ]   // "class plans"
+      }
+    Data is PER DEVICE/BROWSER (not synced). Settings > Backup/Restore moves it.
+
+  WHERE TO CHANGE COMMON THINGS
+    • Brand colors / theme ....... the :root and html[data-theme="light"] blocks in <style>
+    • Default brand name / logo .. defaultSettings() + the ECHELON_LOGO constant in <script>
+    • Field labels / wording ..... mostly inline in the build* functions and the markup
+    • Add a setting .............. defaultSettings(), normalizeState(), the Settings modal
+                                   markup, openSettings(), saveSettings()
+    • Timer behavior ............. the "Run mode" section (beginRun/tick/advanceStep...)
+    • Exports (PDF/CSV/text) ..... exportPDF / exportCSV / buildText in <script>
+  IMPORTANT: keep it dependency-free and single-file. Test by opening the file in a
+  browser; there is no build/compile step.
+==================================================================================
+-->
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -14,6 +65,28 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Echelon" />
 <style>
+  /* ================================================================
+     THEMING
+     The entire color scheme is defined as CSS variables ("tokens").
+     Every component below uses var(--name), so to re-brand the app you
+     only edit the values here — not the components.
+       :root                     = the DARK theme (the default).
+       html[data-theme="light"]  = overrides for the LIGHT theme. The
+                                   script toggles the data-theme attribute
+                                   on <html> (see applyTheme()).
+     Token meanings:
+       --bg/--panel/--panel-2  background layers (page, cards, inputs/chips)
+       --line                  hairline borders
+       --text/--muted          primary text / secondary text
+       --gold + --gold-dim     the teal accent fill (buttons, progress) + its darker stop
+       --gold-soft             translucent accent for chip/pill backgrounds
+       --accent-text           teal tuned for legibility as small TEXT (per theme)
+       --gold-ink              label color on accent-filled buttons
+       --rest / --rest-soft    the "rest" color (amber) used in the timer
+       --danger                delete/remove red
+     NOTE: a user-chosen brand color (Settings) overrides --gold etc. at runtime
+     via updateBrand(); --gold-ink/--accent-text are recomputed there for contrast.
+     ================================================================ */
   /* ---------- Theme (Echelon: deep teal-navy + teal accent) ---------- */
   :root {
     --bg: #06202b;
@@ -506,28 +579,77 @@
 
 <script>
 "use strict";
+/* ==========================================================================
+   ARCHITECTURE  (read this first)
+   --------------------------------------------------------------------------
+   Everything is wrapped in one IIFE — `(function(){ ... })();` — so none of
+   the variables/functions leak to the global page. There is no framework;
+   it's plain DOM.
+
+   THE PATTERN (state -> render -> events -> state):
+     • `state` is the single source of truth (the JSON object described in the
+       file header). It lives in memory and is mirrored to localStorage.
+     • render* functions (renderLibrary, renderBuilder, renderBlocks, ...) READ
+       `state` and rebuild the relevant DOM. To change what's on screen, change
+       `state` then call the matching render*.
+     • Event handlers (wired in the "Events" section near the bottom) MUTATE
+       `state`, then call save() and the right render*.
+     • save() writes the whole `state` to localStorage. Most edits don't call
+       save() directly — they call markDirty()/markPlanDirty() which DEBOUNCE a
+       save (so typing doesn't hit storage on every keystroke). The Back/Home
+       buttons and beforeunload flush it immediately.
+     • loadState()/normalizeState() run once at startup: they read localStorage
+       and REPAIR/upgrade it (fill missing fields, drop corrupt records, migrate
+       an old logo to the new one). This is why opening an old save still works.
+
+   VIEWS: showLibrary()/showBuilder()/showCatalog()/showPlans()/showPlanEditor()
+     swap which <section> is visible (hideAllViews() hides them all first).
+     The run timer and the settings/export dialogs are OVERLAYS opened with
+     openOverlay()/closeOverlay() (which also trap focus and inert the page).
+
+   HANDY HELPERS used everywhere: `$(id)` = getElementById, `el(tag,cls,txt)` =
+     make an element, `uid()` = unique id, `fmtTime(sec)` = "m:ss", `toast(msg)`
+     = brief popup, `announce(msg)` = screen-reader message.
+
+   SECTIONS BELOW (in order): Storage · Helpers · Overlay focus · Routing ·
+     Library · Builder · Exercise catalog · Class plans · Run mode (timer) ·
+     Audio · Exports · Settings/backup/theme · Events (wiring) · Init.
+   ========================================================================== */
 (function () {
   // ===========================================================================
-  // Storage
+  // Storage  — the localStorage key, id generator, and the embedded logo.
+  //   `state` (defined a bit lower) is saved as JSON under STORE_KEY. uid()
+  //   gives every routine/block/exercise/etc. a stable unique id used to find
+  //   and update it later.
   // ===========================================================================
-  var STORE_KEY = "tempo.v1";
+  var STORE_KEY = "tempo.v1";        // bump this only if you intentionally want a clean slate for everyone
   var idCounter = 0;
   function uid() { return "id-" + Math.random().toString(36).slice(2, 9) + "-" + (idCounter++); }
 
-  // Echelon logo (embedded so the app stays a single offline file).
+  // Echelon logo (embedded as a data: URL so the app stays a single offline file).
+  // It's the DEFAULT/built-in logo; a user-uploaded logo replaces it (see logoCustom).
   var ECHELON_LOGO = "data:image/png;base64,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";
 
+  // The settings every NEW install starts with. (Existing installs keep their own
+  // saved settings; missing fields get filled in by normalizeState below.)
   function defaultSettings() {
     return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: false, loadLabel: "Load", accent: "", logo: ECHELON_LOGO, logoCustom: false };
   }
+  // Read the saved state from localStorage at startup. If nothing is saved (or it's
+  // unreadable), start fresh. Whatever we load is run through normalizeState first.
   function loadState() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) return normalizeState(JSON.parse(raw));
-    } catch (e) { /* fall through */ }
+    } catch (e) { /* corrupt/old data -> fall through to a clean default */ }
     return { settings: defaultSettings(), routines: [], catalog: [], sequences: [] };
   }
-  // Self-heal anything malformed so one bad record can't crash the app.
+  // normalizeState = the safety net + upgrade path. It takes whatever was loaded
+  // (which could be old, partial, or hand-edited) and guarantees a valid shape:
+  // fills in missing fields with defaults, drops junk records, coerces wrong types,
+  // backfills ids/timestamps, and migrates an out-of-date built-in logo to the
+  // current one. Because of this, one bad record can't crash the app, and old
+  // saves keep working after updates. Same function runs on Restore (imported file).
   function normalizeState(parsed) {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       return { settings: defaultSettings(), routines: [], catalog: [], sequences: [] };
@@ -586,6 +708,8 @@
       });
     return parsed;
   }
+  // Force one exercise (or catalog "move", same shape) into a valid form.
+  // duration = work seconds, rest = seconds of rest after it, side = L/R/both/"".
   function normalizeExercise(e) {
     e.id = e.id || uid();
     e.name = typeof e.name === "string" ? e.name : "";
@@ -596,24 +720,27 @@
     e.reps = typeof e.reps === "string" ? e.reps : (e.reps != null ? String(e.reps) : "");
     return e;
   }
-  function num(v) { return (typeof v === "number" && isFinite(v) && v >= 0) ? v : 0; }
+  function num(v) { return (typeof v === "number" && isFinite(v) && v >= 0) ? v : 0; } // safe non-negative number, else 0
 
-  var state = loadState();
+  var state = loadState();          // <-- the one in-memory copy of all data; everything reads/writes this
+  // Persist the whole `state` to localStorage. Returns false if it failed (e.g.
+  // storage full) so callers like restore() can react instead of falsely succeeding.
   function save() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; }
     catch (e) { toast("Could not save — browser storage may be full."); return false; }
   }
 
   // ===========================================================================
-  // Helpers
+  // Helpers  — small utilities used all over the app.
   // ===========================================================================
-  function $(id) { return document.getElementById(id); }
-  function el(tag, cls, txt) {
+  function $(id) { return document.getElementById(id); }            // shorthand: $("foo") = the element with id "foo"
+  function el(tag, cls, txt) {                                       // make an element: el("div","card","Hi")
     var e = document.createElement(tag);
     if (cls) e.className = cls;
-    if (txt != null) e.textContent = txt;
+    if (txt != null) e.textContent = txt;                            // textContent (not innerHTML) -> safe from HTML injection
     return e;
   }
+  // Seconds -> clock string. Shows "m:ss" under an hour, "h:mm:ss" at/over an hour.
   function fmtTime(total) {
     total = Math.max(0, Math.round(total));
     var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
@@ -621,13 +748,15 @@
     var ss = s < 10 ? "0" + s : "" + s;
     return h > 0 ? h + ":" + mm + ":" + ss : m + ":" + ss;
   }
+  // Escape user text before putting it into an HTML string (used by the PDF export
+  // and anywhere we build markup as a string). Prevents broken/injected markup.
   function escapeHtml(str) {
     return String(str == null ? "" : str)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
-  function sideLabel(side) { return side === "L" ? "Left" : side === "R" ? "Right" : side === "both" ? "Both sides" : ""; }
+  function sideLabel(side) { return side === "L" ? "Left" : side === "R" ? "Right" : side === "both" ? "Both sides" : ""; } // stored code -> human label
 
-  // Total duration = sum of all exercise work + rest across all blocks.
+  // Total routine length in seconds = sum of every exercise's work + rest, across all blocks.
   function routineDuration(r) {
     var t = 0;
     r.blocks.forEach(function (b) {
@@ -635,21 +764,28 @@
     });
     return t;
   }
-  function exerciseCount(r) {
+  function exerciseCount(r) {                                        // how many exercises in a routine (all blocks)
     var n = 0;
     r.blocks.forEach(function (b) { n += b.exercises.length; });
     return n;
   }
 
+  // toast = the small popup message at the bottom; auto-hides after 2.4s.
   var toastTimer;
   function toast(msg) {
     var t = $("toast"); t.textContent = msg; t.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2400);
   }
-  function announce(msg) { var r = $("sr-live"); if (r) r.textContent = msg; }
+  function announce(msg) { var r = $("sr-live"); if (r) r.textContent = msg; } // speak a message to screen readers (the live region)
 
-  // Overlay focus management
+  // ---------------------------------------------------------------------------
+  // Overlay focus management — when a dialog/overlay (run timer, settings, export)
+  // opens, we (a) remember what was focused, (b) make the page behind it `inert`
+  // (un-clickable / skipped by Tab & screen readers), and (c) move focus into the
+  // overlay. closeOverlay() reverses all three. This keeps keyboard/AT users
+  // inside the dialog while it's open.
+  // ---------------------------------------------------------------------------
   var lastFocus = null;
   function bgEls() { return [document.querySelector("header.topbar"), document.querySelector(".app")]; }
   function openOverlay(id, focusId) {
@@ -667,10 +803,12 @@
   }
 
   // ===========================================================================
-  // Routing
+  // Routing  — there's no URL routing; "navigation" just shows one <section> and
+  //   hides the others. show*() = go to a view; hideAllViews() hides them all.
+  //   currentEditId / currentPlanId remember which routine/plan is being edited.
   // ===========================================================================
-  var currentEditId = null;
-  var catalogReturnView = "library"; // where ☰ Moves was opened from, so Back returns there
+  var currentEditId = null;          // id of the routine currently open in the builder
+  var catalogReturnView = "library"; // where ☰ Moves was opened from, so its Back returns there
   function hideAllViews() {
     $("view-builder").classList.add("hidden");
     $("view-library").classList.add("hidden");
@@ -709,10 +847,13 @@
   }
 
   // ===========================================================================
-  // Library
+  // Library  — the home screen: the grid of routine cards + the tag filter row.
+  //   renderLibrary() rebuilds it from state.routines. Cards are tap-to-run;
+  //   the buttons on each card go to edit/export/duplicate/delete. activeTag is
+  //   the currently selected filter chip (null = show all).
   // ===========================================================================
   var activeTag = null;
-  function allTags() {
+  function allTags() {                  // unique, sorted list of every tag used across routines
     var set = {};
     state.routines.forEach(function (r) { (r.tags || []).forEach(function (t) { if (t) set[t] = true; }); });
     return Object.keys(set).sort();
@@ -792,6 +933,9 @@
     list.appendChild(grid);
   }
 
+  // Create a blank routine (one block, one default exercise), save, and open it
+  // in the builder. NOTE: it's saved immediately, so if the user backs out without
+  // typing anything, routineIsEmpty()/leaveCurrentEditor() prune it (see Events).
   function createRoutine() {
     var r = {
       id: uid(), name: "", description: "", tags: [],
@@ -800,12 +944,14 @@
     };
     state.routines.push(r); save(); showBuilder(r.id);
   }
-  function newBlock(name) { return { id: uid(), name: name || "", exercises: [ newExercise() ] }; }
-  function newExercise() { return { id: uid(), name: "", spring: "", side: "", duration: 45, rest: 0, reps: "" }; }
-  function findRoutine(id) {
+  function newBlock(name) { return { id: uid(), name: name || "", exercises: [ newExercise() ] }; } // a block starts with 1 exercise
+  function newExercise() { return { id: uid(), name: "", spring: "", side: "", duration: 45, rest: 0, reps: "" }; } // default 45s work
+  function findRoutine(id) {            // look up a routine object by its id
     for (var i = 0; i < state.routines.length; i++) if (state.routines[i].id === id) return state.routines[i];
     return null;
   }
+  // True if a routine is still in its just-created, untouched state (used to auto-discard
+  // abandoned blank routines so the library doesn't fill with "Untitled" junk).
   function routineIsEmpty(r) {
     if ((r.name || "").trim() || (r.description || "").trim() || (r.tags || []).length) return false;
     if (r.blocks.length === 0) return true;
@@ -839,7 +985,11 @@
   }
 
   // ===========================================================================
-  // Builder
+  // Builder  — the screen for editing one routine. Structure mirrors the data:
+  //   renderBuilder() (whole screen) -> renderBlocks() (each block card) ->
+  //   buildBlock() -> buildExRow() (each exercise row). Every input writes
+  //   straight onto the state object and calls markDirty() (debounced autosave).
+  //   updateBuilderTotals() keeps the totals + per-block durations in sync.
   // ===========================================================================
   function renderBuilder() {
     var r = findRoutine(currentEditId);
@@ -908,6 +1058,9 @@
     return wrap;
   }
 
+  // Build one editable exercise row: name (with catalog autocomplete), the load
+  // field (labeled by settings.loadLabel), side, work time (min:sec), rest, reps,
+  // and the move/duplicate/delete buttons. Each control edits `ex` live + autosaves.
   function buildExRow(ex, ei, block) {
     var row = el("div", "ex-row");
     row.dataset.id = ex.id;
@@ -992,6 +1145,10 @@
     return row;
   }
 
+  // --- Block & exercise CRUD (add / move up-down / duplicate / delete) ---
+  // All follow the same shape: mutate state.routines[..].blocks[..], then
+  // markDirty() (autosave) + renderBlocks() (redraw). Delete asks for confirmation
+  // only when there's real data to lose.
   function findBlock(r, blockId) {
     for (var i = 0; i < r.blocks.length; i++) if (r.blocks[i].id === blockId) return r.blocks[i];
     return null;
@@ -1053,6 +1210,8 @@
     markDirty(); renderBlocks();
   }
 
+  // Recompute the footer totals, enable/disable Start+Export (need >=1 exercise),
+  // and refresh each block's duration label — called after any builder edit.
   function updateBuilderTotals() {
     var r = findRoutine(currentEditId);
     $("builder-total").textContent = fmtTime(routineDuration(r));
@@ -1065,6 +1224,9 @@
     r.blocks.forEach(function (b, i) { if (labels[i]) labels[i].textContent = fmtTime(blockDuration(b)); });
   }
 
+  // markDirty(): the debounced autosave. Builder edits call this instead of save()
+  // so rapid typing only writes to storage once things settle (500ms). It also
+  // stamps updatedAt (used for "most recently edited" sorting in the library).
   var autosaveTimer = null;
   function markDirty() {
     var r = findRoutine(currentEditId);
@@ -1072,9 +1234,11 @@
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(save, 500);
   }
-  function parseTags(str) {
+  function parseTags(str) {            // "a, b ,c" -> ["a","b","c"] (trim + drop blanks)
     return str.split(",").map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
   }
+  // Flush the routine's name/description/tags from the inputs into state and save
+  // now (no debounce). Called by the Save button and when leaving the builder.
   function saveBuilder(showMsg) {
     var r = findRoutine(currentEditId); if (!r) return;
     r.name = $("routine-name").value.trim();
@@ -1087,10 +1251,15 @@
   }
 
   // ===========================================================================
-  // Exercise catalog (reusable moves)
+  // Exercise catalog (reusable "moves")  — state.catalog is a list of saved
+  //   exercise templates. Two jobs: (1) the ☰ Moves screen to manage them, and
+  //   (2) feed the builder's name autocomplete (<datalist id="move-list">) so
+  //   typing a saved name auto-fills the rest. A catalog "move" has the same
+  //   shape as an exercise.
   // ===========================================================================
-  function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(save, 500); }
+  function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(save, 500); } // debounced save for catalog/plan edits
 
+  // Rebuild the <datalist> the builder's exercise-name input reads for suggestions.
   function updateMoveDatalist() {
     var dl = $("move-list"); dl.innerHTML = "";
     var seen = {};
@@ -1101,7 +1270,7 @@
       var opt = document.createElement("option"); opt.value = n; dl.appendChild(opt);
     });
   }
-  function findMoveByName(name) {
+  function findMoveByName(name) {       // case-insensitive lookup of a catalog move by name
     name = (name || "").trim().toLowerCase(); if (!name) return null;
     for (var i = 0; i < state.catalog.length; i++) {
       if ((state.catalog[i].name || "").trim().toLowerCase() === name) return state.catalog[i];
@@ -1208,6 +1377,8 @@
     state.catalog = state.catalog.filter(function (x) { return x.id !== id; });
     save(); renderCatalog();
   }
+  // One-click populate the catalog from every exercise already used in any routine
+  // (skips names already in the catalog). Handy first-time setup.
   function importMovesFromRoutines() {
     var existing = {};
     state.catalog.forEach(function (m) { var n = (m.name || "").trim().toLowerCase(); if (n) existing[n] = true; });
@@ -1228,14 +1399,20 @@
   }
 
   // ===========================================================================
-  // Class plans (sequences of routines, run back-to-back)
+  // Class plans (a.k.a. "sequences")  — a plan is just an ordered list of routine
+  //   ids (seq.routineIds). Running a plan plays all its routines back-to-back as
+  //   one timer session. The ☰ Plans screen lists them; the plan editor reorders
+  //   the routine list. Plans store ONLY ids, so they always reflect the latest
+  //   version of each routine (and skip any routine that was since deleted).
   // ===========================================================================
   function findSequence(id) {
     for (var i = 0; i < state.sequences.length; i++) if (state.sequences[i].id === id) return state.sequences[i];
     return null;
   }
-  function sequenceRoutines(seq) { return (seq.routineIds || []).map(findRoutine).filter(Boolean); }
+  function sequenceRoutines(seq) { return (seq.routineIds || []).map(findRoutine).filter(Boolean); } // ids -> routine objects (drops deleted/blank)
   function sequenceDuration(seq) { return sequenceRoutines(seq).reduce(function (s, r) { return s + routineDuration(r); }, 0); }
+  // Flatten several routines into one list of timer steps, tagging each step with
+  // its routine name (so the timer can show "Routine · Block"). See buildSteps().
   function buildStepsForRoutines(routines) {
     var steps = [];
     routines.forEach(function (r) {
@@ -1383,10 +1560,35 @@
   }
 
   // ===========================================================================
-  // Run mode — flatten blocks/exercises into a sequence of timed steps
+  // Run mode (the live timer)
+  // ---------------------------------------------------------------------------
+  // HOW IT WORKS:
+  //  • buildSteps() flattens a routine's blocks/exercises into a flat list of
+  //    "steps". Each exercise becomes a "work" step; if it has rest, a "rest"
+  //    step is added after it. (A plan flattens several routines via
+  //    buildStepsForRoutines.)
+  //  • beginRun(title, steps) loads that list into the `run` object and shows the
+  //    overlay. openRun()=one routine, openRunSequence()=a plan; both call beginRun.
+  //  • A setInterval `ticker` fires tick() every 200ms while running. tick()
+  //    subtracts real elapsed time (not a fixed amount, so it stays accurate even
+  //    if the timer lags), plays the 3-2-1 beeps, and calls advanceStep() at 0.
+  //  • render/updateRunTime paint the screen from `run`. Prev/Skip/Restart/Pause
+  //    are the controls. renderRunDone() shows the "complete" screen.
+  //
+  // The `run` object is the live timer state:
+  //   steps[]       the flattened steps for this session
+  //   title         what shows at the top (routine or plan name)
+  //   index         which step we're on
+  //   remaining     seconds left in the CURRENT step (a float, counts down)
+  //   running       is the ticker active (playing vs paused)
+  //   ticker        the setInterval handle (null when stopped)
+  //   lastTick      Date.now() of the previous tick (to measure real elapsed)
+  //   elapsedBefore total seconds of all FULLY-completed steps (for overall elapsed)
+  //   total         total seconds of the whole session
   // ===========================================================================
   var run = { steps: [], title: "", index: 0, remaining: 0, running: false, ticker: null, lastTick: 0, elapsedBefore: 0, total: 0 };
 
+  // Flatten ONE routine into work/rest steps (see section header for the model).
   function buildSteps(r) {
     var steps = [];
     r.blocks.forEach(function (b) {
@@ -1508,27 +1710,38 @@
     if (run.remaining <= 0) advanceStep(true); else updateRunTime();
   }
 
+  // Move to the next step. fromTimer=true means the clock hit 0 (vs. the user
+  // pressing Skip, fromTimer=false).
   function advanceStep(fromTimer) {
+    // "carry" rolls a tiny timer overshoot into the next step so long sessions don't
+    // drift — but only in auto-start mode (continuous), and capped at 2s.
     var carry = (fromTimer && state.settings.autostart) ? Math.max(-2, run.remaining) : 0;
     run.elapsedBefore += (curStep().duration || 0);
     run.index++;
+    // Skip past any zero-length steps (e.g. reps-only moves) so we land on a real one.
     while (run.index < run.steps.length) {
       var nxt = run.steps[run.index];
       run.remaining = (nxt.duration || 0) + carry; carry = 0;
       if (run.remaining > 0) break;
       run.elapsedBefore += (nxt.duration || 0); run.index++;
     }
-    if (run.index >= run.steps.length) {
+    if (run.index >= run.steps.length) {     // ran off the end -> done
       beep(660, 0.5); run.running = false; stopTicker();
       announce("Routine complete"); renderRunDone(); return;
     }
-    beep(1046, 0.25);
+    beep(1046, 0.25);                         // higher beep = new step started
     renderRun();
     announce(announceText(curStep()));
+    // Keep running into the next step only on a manual Skip, OR if auto-start is on.
+    // (When the timer expires and auto-start is OFF, we pause between steps.)
     var keepRunning = run.running && (!fromTimer || state.settings.autostart);
     if (keepRunning) { run.running = true; run.lastTick = Date.now(); setPlayLabel(); }
     else { run.running = false; stopTicker(); setPlayLabel(); }
   }
+
+  // Go back one step. Three cases: coming back from the done screen, already at the
+  // first step (just restart its clock), or the normal case (step back, skipping
+  // zero-length steps). lastTick is reset so the next tick doesn't lose elapsed time.
 
   function prevStep() {
     if (run.index >= run.steps.length) {
@@ -1570,7 +1783,10 @@
   }
 
   // ===========================================================================
-  // Audio
+  // Audio  — countdown/transition beeps made with the Web Audio API (no sound
+  //   files needed). ensureAudio() lazily creates the audio context on the first
+  //   user gesture (browsers block audio before that). beep(freq, seconds) plays
+  //   one short sine tone. Respects the "beeps" setting.
   // ===========================================================================
   var audioCtx = null;
   function ensureAudio() {
@@ -1594,7 +1810,15 @@
   }
 
   // ===========================================================================
-  // Exports (grouped by block, with cumulative start times)
+  // Exports  — three formats, all from the same data:
+  //   exportPDF()  builds print-only HTML in #print-area, then window.print()
+  //                (the user picks "Save as PDF"). Grouped by block, with the logo.
+  //   exportCSV()  builds comma-separated text and downloads a .csv.
+  //   buildText()  plain-text version (copied to clipboard or downloaded as .txt).
+  //   exportRows() is the shared helper: one flat row per exercise WITH its
+  //                cumulative start time (when it begins within the whole routine).
+  //   csv() escapes values AND defuses spreadsheet formula injection.
+  //   exportId remembers which routine the open Export dialog is for.
   // ===========================================================================
   var exportId = null;
   function openExport(id) {
@@ -1663,6 +1887,10 @@
     setTimeout(function () { window.print(); }, 50);
   }
 
+  // Make one value safe for a CSV cell:
+  //  1. If it starts with = + - @ tab or CR, prefix ' so spreadsheets don't run it
+  //     as a formula (CSV "formula injection" defense).
+  //  2. If it contains a comma/quote/newline, wrap in quotes and double inner quotes.
   function csv(v) {
     v = String(v == null ? "" : v);
     if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
@@ -1732,6 +1960,7 @@
     downloadFile(exportFilename(r, "txt"), buildText(r), "text/plain");
     closeExport(); toast("Text file downloaded");
   }
+  // Trigger a browser download of `content` as a file (used by CSV/.txt/backup).
   function downloadFile(filename, content, mime) {
     var blob = new Blob([content], { type: mime + ";charset=utf-8" });
     var url = URL.createObjectURL(blob);
@@ -1741,7 +1970,16 @@
   }
 
   // ===========================================================================
-  // Settings + backup + mode
+  // Settings, branding, theme, backup/restore
+  // ---------------------------------------------------------------------------
+  //   setMode/updateModeUI ... Class vs Personal toggle (relabels the UI).
+  //   logo upload ............ staged in pendingLogo* then committed on Save;
+  //                            uploads are downscaled to keep storage small.
+  //   openSettings/saveSettings  read the modal fields into state.settings.
+  //   updateBrand ............ applies studio name (wordmark), logo, and the
+  //                            chosen accent color across the app at runtime.
+  //   applyTheme/toggleTheme . switch the data-theme attribute (dark/light).
+  //   backup/restore/undoRestore  export/import the whole state as a .json file.
   // ===========================================================================
   function setMode(mode) {
     state.settings.mode = (mode === "personal") ? "personal" : "class";
@@ -1867,10 +2105,13 @@
     save(); applyTheme(); updateBrand();
     toast(state.settings.theme === "light" ? "Light theme" : "Dark theme");
   }
-  function backup() {
+  function backup() {                   // download the entire state as tempo-backup.json
     downloadFile("tempo-backup.json", JSON.stringify(state, null, 2), "application/json");
     toast("Backup downloaded");
   }
+  // Load a backup file: validate + normalize it, confirm with the user, stash the
+  // CURRENT data under a ".prerestore" key (so undoRestore can bring it back), then
+  // swap it in. Reports honestly if saving the restored data fails (storage full).
   function restore(file) {
     var reader = new FileReader();
     reader.onload = function () {
@@ -1906,7 +2147,11 @@
   }
 
   // ===========================================================================
-  // Events
+  // Events  — wire every button/input to its handler. This runs ONCE at startup.
+  //   The handlers are thin: they read/mutate `state` and call the render/save
+  //   functions defined above. If you add a control in the markup, give it an id
+  //   and wire it here. (Dynamically-created rows wire their own handlers inside
+  //   the build* functions, not here.)
   // ===========================================================================
   $("btn-new").onclick = createRoutine;
   $("btn-back").onclick = function () {
@@ -2012,7 +2257,10 @@
   });
 
   // ===========================================================================
-  // Init
+  // Init  — the actual startup sequence (runs once after everything is defined).
+  //   Apply the saved theme, paint the brand (name/logo/accent), set the
+  //   Class/Personal toggle, prime the exercise-name autocomplete, then show the
+  //   library. (`state` was already loaded near the top via loadState().)
   // ===========================================================================
   applyTheme();
   updateBrand();
