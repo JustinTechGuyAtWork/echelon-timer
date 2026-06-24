@@ -1,0 +1,2025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Echelon — Routine Builder & Timer</title>
+<!-- Add-to-Home-Screen / installable app (icons + manifest live alongside this file when hosted) -->
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="theme-color" content="#06202b" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Echelon" />
+<style>
+  /* ---------- Theme (Echelon: deep teal-navy + teal accent) ---------- */
+  :root {
+    --bg: #06202b;
+    --panel: #0c2a37;
+    --panel-2: #123542;
+    --line: #20424f;
+    --text: #eaf3f6;
+    --muted: #84a0ac;
+    --gold: #0085b8;            /* accent = Echelon teal (same in both themes) */
+    --gold-dim: #006a93;
+    --gold-soft: rgba(0,133,184,0.15);
+    --accent-text: #38b6e6;     /* legible teal for small accent text on dark */
+    --gold-ink: #ffffff;        /* label color on accent-filled buttons */
+    --rest: #e0a23c;            /* warm amber so rest reads distinct from teal */
+    --rest-soft: rgba(224,162,60,0.15);
+    --danger: #e5675f;
+    --radius: 14px;
+    --shadow: 0 10px 34px rgba(0,0,0,0.5);
+    font-size: 16px;
+  }
+  /* Light theme (matches echelonfit.com: white + navy + teal) */
+  html[data-theme="light"] {
+    --bg: #f4f7f9;
+    --panel: #ffffff;
+    --panel-2: #eef3f6;
+    --line: #d6e0e5;
+    --text: #07232e;
+    --muted: #4d6a75;
+    --gold: #0085b8;
+    --gold-dim: #006a93;
+    --gold-soft: rgba(0,133,184,0.12);
+    --accent-text: #006a8f;
+    --gold-ink: #ffffff;
+    --rest: #bf7a1f;
+    --rest-soft: rgba(191,122,31,0.14);
+    --danger: #d4453d;
+    --shadow: 0 8px 26px rgba(13,46,64,0.12);
+  }
+  html[data-theme="light"] body { background: radial-gradient(1100px 720px at 75% -12%, #e3eef3 0%, var(--bg) 55%); }
+  html[data-theme="light"] header.topbar { background: linear-gradient(var(--bg), rgba(244,247,249,0.88)); }
+  html[data-theme="light"] input, html[data-theme="light"] select, html[data-theme="light"] textarea { background: #ffffff; }
+  html[data-theme="light"] ::placeholder { color: #9bafb8; }
+  html[data-theme="light"] .run-overlay { background: radial-gradient(900px 640px at 50% -2%, #e6f3f9 0%, #ffffff 72%); }
+  html[data-theme="light"] .run-overlay.is-rest { background: radial-gradient(900px 640px at 50% -2%, #fdf1de 0%, #ffffff 72%); }
+  html[data-theme="light"] .run-overlay.done { background: radial-gradient(900px 640px at 50% -2%, #e3f4ee 0%, #ffffff 72%); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; overflow-x: hidden; }
+  body {
+    min-height: 100vh;
+    background: radial-gradient(1200px 760px at 72% -12%, #0c3340 0%, var(--bg) 58%);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 14px; background: var(--panel-2); color: var(--text);
+    transition: filter .12s ease, background .12s ease, border-color .12s ease;
+  }
+  button:hover { filter: brightness(1.14); }
+  button:active { filter: brightness(0.95); }
+  button.gold { background: linear-gradient(180deg, var(--gold), var(--gold-dim)); border-color: transparent; color: var(--gold-ink); font-weight: 700; }
+  button.ghost { background: transparent; }
+  button.danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+  button.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+  button.small { padding: 5px 10px; font-size: 0.85rem; }
+  button:disabled { opacity: .4; cursor: not-allowed; filter: none; }
+  input, select, textarea {
+    font: inherit; background: #0b0d11; color: var(--text);
+    border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
+  label { font-size: 0.78rem; color: var(--muted); display: block; margin-bottom: 4px; }
+  a { color: var(--accent-text); }
+  ::placeholder { color: #5c5749; }
+
+  .app { max-width: 1040px; margin: 0 auto; padding: 0 16px 70px; }
+
+  /* ---------- Top bar ---------- */
+  header.topbar {
+    display: flex; align-items: center; gap: 14px; padding: 16px;
+    position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(var(--bg), rgba(12,14,18,.86)); backdrop-filter: blur(7px);
+  }
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand .logo { display: inline-flex; align-items: center; gap: 8px; font-size: 1.4rem; font-weight: 800; letter-spacing: -.5px; }
+  .brand .logo .accent { color: var(--accent-text); }
+  .brand .studio { color: var(--muted); font-size: 0.9rem; }
+  .topbar .spacer { flex: 1; }
+
+  /* segmented mode toggle */
+  .seg-toggle { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .seg-toggle button { border: none; background: transparent; border-radius: 999px; padding: 6px 14px; font-size: 0.85rem; color: var(--muted); }
+  .seg-toggle button.active { background: var(--gold-soft); color: var(--accent-text); font-weight: 700; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  /* ---------- Library ---------- */
+  .lib-head { display: flex; align-items: center; gap: 12px; margin: 10px 0 8px; }
+  .lib-head h1 { font-size: 1.5rem; margin: 0; flex: 1; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 18px; align-items: center; }
+  .tag-chip {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+    border-radius: 999px; padding: 4px 12px; font-size: 0.82rem; cursor: pointer;
+  }
+  .tag-chip.active { background: var(--gold-soft); color: var(--accent-text); border-color: var(--gold-dim); }
+  .routine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .routine-card { padding: 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; position: relative; }
+  .routine-card:hover { border-color: var(--gold-dim); }
+  .routine-card h3 { margin: 0; font-size: 1.15rem; }
+  .routine-card .desc { color: var(--muted); font-size: 0.9rem; min-height: 1.1em; }
+  .routine-card .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .routine-card .tags span { font-size: 0.72rem; color: var(--accent-text); background: var(--gold-soft); border-radius: 999px; padding: 2px 9px; }
+  .routine-card .meta { display: flex; gap: 14px; color: var(--muted); font-size: 0.84rem; flex-wrap: wrap; }
+  .routine-card .meta b { color: var(--text); font-variant-numeric: tabular-nums; }
+  .routine-card .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+  .empty { text-align: center; padding: 64px 20px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
+  .empty h2 { color: var(--text); }
+
+  /* ---------- Builder ---------- */
+  .builder-top { display: flex; align-items: center; gap: 12px; margin: 6px 0 16px; flex-wrap: wrap; }
+  .builder-top h1 { font-size: 1.3rem; margin: 0; flex: 1; min-width: 160px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field-row.three { grid-template-columns: 1.3fr 1.3fr 1fr; }
+
+  .block { margin-top: 16px; }
+  .block-head { display: flex; align-items: center; gap: 10px; padding: 6px 4px; }
+  .block-head .block-badge {
+    width: 26px; height: 26px; border-radius: 7px; background: var(--gold-soft); color: var(--accent-text);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
+  }
+  .block-head input.block-name { font-weight: 600; background: transparent; border-color: transparent; }
+  .block-head input.block-name:hover { border-color: var(--line); }
+  .block-head .block-dur { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .block-head .block-actions { display: flex; gap: 4px; }
+  .block-head .block-actions button { padding: 4px 8px; font-size: 0.82rem; }
+
+  .ex-head, .ex-row {
+    display: grid;
+    grid-template-columns: 28px minmax(110px, 1.4fr) 72px 78px 94px 58px 56px 80px;
+    gap: 8px; align-items: center;
+  }
+  .ex-head { padding: 4px 12px; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; }
+  .ex-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ex-row { padding: 7px 12px; border-top: 1px solid var(--line); }
+  .ex-row .idx { width: 24px; height: 24px; border-radius: 50%; background: var(--panel-2); color: var(--muted);
+    display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+  .ex-row > .cell { min-width: 0; display: flex; align-items: center; }
+  .ex-row > .cell > input, .ex-row > .cell > select { width: 100%; }
+  .ex-row > .cell::before { content: attr(data-k); display: none; }
+  .dur-input { display: flex; align-items: center; gap: 2px; }
+  .dur-input input { width: 38px; text-align: center; padding: 8px 2px; margin: 0;
+    -webkit-appearance: none; -moz-appearance: textfield; }
+  .dur-input input::-webkit-outer-spin-button,
+  .dur-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .dur-input span { color: var(--muted); font-size: 0.8rem; }
+  .ex-row input.spring { text-align: center; }
+  .ex-actions { display: flex; gap: 3px; justify-content: flex-end; }
+  .ex-actions button { padding: 4px 7px; font-size: 0.8rem; }
+  .block-add { padding: 10px 12px; }
+
+  .builder-foot { display: flex; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+  .builder-foot .total { color: var(--muted); }
+  .builder-foot .total b { color: var(--text); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+  .builder-foot .spacer { flex: 1; }
+  .hint { color: var(--muted); font-size: 0.8rem; margin: 12px 2px 0; }
+
+  /* ---------- Run (immersive tap-to-run) ---------- */
+  .run-overlay { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; padding: 20px;
+    background: radial-gradient(900px 620px at 50% -2%, #0a3a4a 0%, #04161e 72%); }
+  .run-overlay.is-rest { background: radial-gradient(900px 620px at 50% -2%, #34280c 0%, #04161e 72%); }
+  .run-overlay.done { background: radial-gradient(900px 620px at 50% -2%, #0a3a44 0%, #04161e 72%); }
+  .run-top { display: flex; align-items: center; gap: 12px; }
+  .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; }
+  .run-top .run-mode { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-text); background: var(--gold-soft); padding: 4px 10px; border-radius: 999px; }
+  .run-block-label { text-align: center; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; margin-top: 6px; }
+  .run-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
+  #run-live { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+  .run-type-pill { text-transform: uppercase; letter-spacing: .12em; font-size: .85rem; font-weight: 700; padding: 5px 14px; border-radius: 999px; background: var(--gold-soft); color: var(--accent-text); }
+  .is-rest .run-type-pill { background: var(--rest-soft); color: var(--rest); }
+  .run-ex-name { font-size: clamp(2rem, 7vw, 4.6rem); font-weight: 800; line-height: 1.04; margin: 2px 0; }
+  .run-spring { display: flex; gap: 18px; align-items: center; justify-content: center; color: var(--muted); font-size: 1.05rem; min-height: 1.4em; }
+  .run-spring b { color: var(--accent-text); font-size: 1.3rem; }
+  .is-rest .run-spring b { color: var(--rest); }
+  .run-time { font-size: clamp(5rem, 25vw, 15rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -2px; }
+  .run-time.warn { color: var(--gold); }
+  .is-rest .run-time.warn { color: var(--rest); }
+  .run-progress { width: min(680px, 92%); height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+  .run-progress > div { height: 100%; background: var(--gold); width: 0%; transition: width .2s linear; }
+  .is-rest .run-progress > div { background: var(--rest); }
+  .run-next { color: var(--muted); margin-top: 14px; font-size: 1.02rem; min-height: 1.3em; }
+  .run-next b { color: var(--text); }
+  .run-overall { display: flex; gap: 26px; justify-content: center; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .run-overall b { color: var(--text); }
+  .run-controls { display: flex; gap: 12px; justify-content: center; align-items: center; padding: 14px 0 4px; flex-wrap: wrap; }
+  .run-controls .big { font-size: 1.1rem; padding: 14px 30px; }
+  .run-done-msg { text-align: center; }
+  .run-done-msg h2 { font-size: 2.4rem; margin: 0 0 6px; }
+
+  /* ---------- Modal ---------- */
+  .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; }
+  .modal h2 { margin: 0 0 14px; font-size: 1.2rem; }
+  .modal .field { margin-bottom: 14px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .toggle-row label { margin: 0; color: var(--text); }
+  .toggle-row input { width: auto; }
+
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 12px 20px;
+    border-radius: 10px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 300; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  /* ---------- Print ---------- */
+  #print-area { display: none; }
+  @media print {
+    body { background: #fff; color: #000; }
+    .app, .run-overlay, .modal-back, #toast, header.topbar { display: none !important; }
+    #print-area { display: block !important; color: #000; }
+    #print-area h1 { font-size: 20pt; margin: 0 0 2px; }
+    #print-area .ps-sub { color: #444; margin: 0 0 14px; font-size: 11pt; }
+    #print-area h2 { font-size: 13pt; margin: 16px 0 4px; border-bottom: 2px solid #333; padding-bottom: 2px; }
+    #print-area table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 6px; }
+    #print-area th, #print-area td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; vertical-align: top; }
+    #print-area th { background: #f0f0f0; }
+    #print-area td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #print-area tr.r-rest td { background: #f3faf8; }
+    #print-area .ps-foot { margin-top: 14px; color: #666; font-size: 9pt; }
+  }
+
+  @media (max-width: 700px) {
+    /* Top bar wraps to a second row so nothing is pushed off a phone screen. */
+    header.topbar { flex-wrap: wrap; gap: 8px 8px; padding: 12px 14px; }
+    header.topbar .spacer { display: none; }
+    header.topbar .brand { width: 100%; }
+    .ex-head { display: none; }
+    .ex-row { grid-template-columns: 1fr 1fr; gap: 12px 10px; padding: 12px; }
+    .ex-row > .cell { flex-direction: column; align-items: stretch; gap: 3px; }
+    .ex-row > .cell::before {
+      display: block; content: attr(data-k);
+      font-size: .66rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+    }
+    .ex-row > .cell.name-cell { grid-column: 1 / -1; }
+    .ex-row > .cell.idx-cell { display: none; }
+    .ex-row > .cell.actions-cell { grid-column: 1 / -1; }
+    .ex-row > .cell.actions-cell::before { display: none; }
+    .ex-row > .cell.actions-cell .ex-actions { justify-content: flex-start; }
+    .dur-input input { width: 100%; }
+    .field-row, .field-row.three { grid-template-columns: 1fr; }
+    .run-time { font-size: clamp(4rem, 22vw, 13rem); letter-spacing: -1px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" id="brand-logo">Temp<span class="accent">o</span></span>
+    <span class="studio" id="studio-label"></span>
+  </div>
+  <div class="spacer"></div>
+  <div class="seg-toggle" id="mode-toggle" role="group" aria-label="Mode">
+    <button data-mode="class" id="mode-class">Class</button>
+    <button data-mode="personal" id="mode-personal">Personal</button>
+  </div>
+  <button class="ghost small" id="btn-plans" title="Class plans">◫ Plans</button>
+  <button class="ghost small" id="btn-moves" title="Exercise catalog">☰ Moves</button>
+  <button class="ghost small" id="btn-theme" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
+  <button class="ghost small" id="btn-settings" title="Settings" aria-label="Settings">⚙</button>
+</header>
+
+<div class="app">
+  <!-- ===== Library ===== -->
+  <section id="view-library">
+    <div class="lib-head">
+      <h1 id="lib-title">Class Library</h1>
+      <button class="gold" id="btn-new">+ New Routine</button>
+    </div>
+    <div class="filters" id="tag-filters"></div>
+    <div id="routine-list"></div>
+  </section>
+
+  <!-- ===== Builder ===== -->
+  <section id="view-builder" class="hidden">
+    <div class="builder-top">
+      <button class="ghost" id="btn-back">← Back</button>
+      <h1 id="builder-title">Edit Routine</h1>
+      <button id="btn-export-builder" class="ghost">⬇ Export</button>
+      <button class="gold" id="btn-run-from-builder">▶ Start</button>
+    </div>
+
+    <div class="card" style="padding:16px;">
+      <div class="field-row three">
+        <div>
+          <label for="routine-name">Routine name</label>
+          <input id="routine-name" placeholder="e.g. 45-min Full Body" />
+        </div>
+        <div>
+          <label for="routine-desc">Description (optional)</label>
+          <input id="routine-desc" placeholder="e.g. Intermediate, 45 min" />
+        </div>
+        <div>
+          <label for="routine-tags">Tags (comma separated)</label>
+          <input id="routine-tags" placeholder="full body, intermediate" />
+        </div>
+      </div>
+    </div>
+
+    <div id="blocks"></div>
+
+    <div style="margin-top:14px;">
+      <button id="btn-add-block">+ Add block</button>
+    </div>
+    <p class="hint">A <b>block</b> is a section of your class (e.g. “Lower Body”). Each exercise has a work <b>time</b>, an optional <b>rest</b> after it, and a resistance/load setting. Use <b>Side</b> for left/right moves.</p>
+
+    <div class="builder-foot">
+      <span class="total">Total: <b id="builder-total">0:00</b></span>
+      <span class="muted" id="builder-count"></span>
+      <span class="spacer"></span>
+      <button class="gold" id="btn-save">Save routine</button>
+    </div>
+  </section>
+
+  <!-- ===== Exercise Catalog ===== -->
+  <section id="view-catalog" class="hidden">
+    <div class="builder-top">
+      <button class="ghost" id="btn-catalog-back">← Back</button>
+      <h1>Exercise Catalog</h1>
+      <button id="btn-import-moves" class="ghost">⤓ Import from routines</button>
+      <button class="gold" id="btn-add-move">+ Add move</button>
+    </div>
+    <p class="hint" style="margin-top:0;">Save your go-to moves here once. When building a routine, start typing an exercise name and pick a saved move to auto-fill its resistance, side, time, rest, and reps.</p>
+    <div class="card" style="padding:8px 6px 4px;">
+      <div class="ex-head" id="catalog-head"></div>
+      <div id="move-rows"></div>
+      <div class="block-add"><button id="btn-add-move-2">+ Add move</button></div>
+    </div>
+  </section>
+
+  <!-- ===== Class Plans (sequences) ===== -->
+  <section id="view-plans" class="hidden">
+    <div class="lib-head">
+      <h1>Class Plans</h1>
+      <button class="gold" id="btn-new-plan">+ New Plan</button>
+    </div>
+    <p class="hint" style="margin-top:0;">A plan chains several routines into one back-to-back class that runs end to end.</p>
+    <div id="plan-list"></div>
+  </section>
+
+  <!-- ===== Plan editor ===== -->
+  <section id="view-plan-editor" class="hidden">
+    <div class="builder-top">
+      <button class="ghost" id="btn-plan-back">← Back</button>
+      <h1 id="plan-title">Edit Plan</h1>
+      <button class="gold" id="btn-run-plan">▶ Start</button>
+    </div>
+    <div class="card" style="padding:16px;">
+      <label for="plan-name">Plan name</label>
+      <input id="plan-name" placeholder="e.g. Saturday Bootcamp" />
+    </div>
+    <div class="card" style="padding:8px 6px 4px; margin-top:14px;">
+      <div class="ex-head" id="plan-head"></div>
+      <div id="plan-rows"></div>
+      <div class="block-add"><button id="btn-add-plan-routine">+ Add routine</button></div>
+    </div>
+    <div class="builder-foot">
+      <span class="total">Total: <b id="plan-total">0:00</b></span>
+      <span class="muted" id="plan-count"></span>
+      <span class="spacer"></span>
+      <button class="gold" id="btn-save-plan">Save plan</button>
+    </div>
+  </section>
+</div>
+
+<!-- ===== Run Overlay ===== -->
+<div id="run-overlay" class="run-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="run-routine">
+  <div class="run-top">
+    <span class="run-routine" id="run-routine"></span>
+    <span class="run-mode" id="run-mode-label">Class</span>
+    <span class="muted" id="run-position"></span>
+    <button class="ghost small" id="btn-run-exit" aria-label="Exit run">✕ Exit</button>
+  </div>
+  <div class="run-block-label" id="run-block-label"></div>
+
+  <div class="run-stage" id="run-stage">
+    <div id="run-live">
+      <span class="run-type-pill" id="run-type">Exercise</span>
+      <div class="run-ex-name" id="run-ex-name">—</div>
+      <div class="run-spring" id="run-spring"></div>
+      <div class="run-time" id="run-time">0:00</div>
+      <div class="run-progress"><div id="run-progress-bar"></div></div>
+      <div class="run-next" id="run-next"></div>
+      <div class="run-overall">
+        <span>Elapsed <b id="run-elapsed">0:00</b></span>
+        <span>Remaining <b id="run-remaining">0:00</b></span>
+      </div>
+    </div>
+    <div id="run-done" class="run-done-msg hidden"></div>
+  </div>
+
+  <div class="run-controls">
+    <button id="btn-run-prev">⏮ Prev</button>
+    <button class="gold big" id="btn-run-play">▶ Start</button>
+    <button id="btn-run-next">Skip ⏭</button>
+    <button class="ghost" id="btn-run-restart">↺ Restart</button>
+  </div>
+</div>
+
+<!-- ===== Settings Modal ===== -->
+<div id="settings-modal" class="modal-back hidden" role="dialog" aria-modal="true" aria-labelledby="settings-heading">
+  <div class="modal card">
+    <h2 id="settings-heading">Settings</h2>
+    <div class="field">
+      <label for="set-studio">Studio / company name (shown as the logo &amp; on exports)</label>
+      <input id="set-studio" placeholder="Your Studio" />
+    </div>
+    <div class="field-row">
+      <div>
+        <label for="set-loadlabel">Resistance label (what you call the load setting)</label>
+        <input id="set-loadlabel" placeholder="Load / Weight / Level / Spring" />
+      </div>
+      <div>
+        <label for="set-accent">Brand color</label>
+        <input type="color" id="set-accent" value="#0085b8" style="height:40px; padding:4px;" />
+      </div>
+    </div>
+    <div class="field">
+      <label>Logo (optional — replaces the text name, also shown on PDF exports)</label>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <img id="logo-preview" alt="Logo preview" style="height:40px; max-width:170px; object-fit:contain; background:#ffffff; border:1px solid var(--line); border-radius:8px; padding:3px; display:none;" />
+        <button id="btn-upload-logo">Upload logo</button>
+        <button id="btn-remove-logo" class="ghost hidden">Remove logo</button>
+        <input type="file" id="logo-file" accept="image/*" class="hidden" />
+      </div>
+    </div>
+    <div class="toggle-row">
+      <input type="checkbox" id="set-beeps" />
+      <label for="set-beeps">Play beeps during the timer (countdown + change)</label>
+    </div>
+    <div class="toggle-row">
+      <input type="checkbox" id="set-autostart" />
+      <label for="set-autostart">Auto-start next exercise (continuous, no pause)</label>
+    </div>
+    <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
+    <label>Backup &amp; restore all routines</label>
+    <div style="display:flex; gap:10px; margin-top:6px; flex-wrap:wrap;">
+      <button id="btn-backup">⬇ Download backup</button>
+      <button id="btn-restore">⬆ Restore from file</button>
+      <button id="btn-undo-restore" class="ghost hidden">↶ Undo last restore</button>
+      <input type="file" id="restore-file" accept="application/json" class="hidden" />
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" id="btn-settings-close">Close</button>
+      <button class="gold" id="btn-settings-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Export Modal ===== -->
+<div id="export-modal" class="modal-back hidden" role="dialog" aria-modal="true" aria-labelledby="export-title">
+  <div class="modal card">
+    <h2 id="export-title">Export routine</h2>
+    <p class="muted" style="margin-top:-6px;">Each format lists every block and exercise with its load, duration, and start time.</p>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
+      <button id="btn-exp-pdf">📄 PDF run sheet (print → Save as PDF)</button>
+      <button id="btn-exp-csv">📊 Spreadsheet (.csv for Excel / Sheets)</button>
+      <button id="btn-exp-txt">📋 Copy as plain text</button>
+      <button id="btn-exp-txt-file">💾 Download as .txt</button>
+    </div>
+    <div class="modal-actions">
+      <button class="ghost" id="btn-export-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="print-area"></div>
+<div id="toast"></div>
+<div id="sr-live" class="visually-hidden" aria-live="polite" role="status"></div>
+<datalist id="move-list"></datalist>
+
+<script>
+"use strict";
+(function () {
+  // ===========================================================================
+  // Storage
+  // ===========================================================================
+  var STORE_KEY = "tempo.v1";
+  var idCounter = 0;
+  function uid() { return "id-" + Math.random().toString(36).slice(2, 9) + "-" + (idCounter++); }
+
+  // Echelon logo (embedded so the app stays a single offline file).
+  var ECHELON_LOGO = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABC2lDQ1BpY2MAABiVY2BgXJGTnFvMJMDAkJtXUhTk7qQQERmlwH6HgZFBkoGZQZPBMjG5uMAxIMCHASf4do2BEURf1gWZxUAa4ExJLU5mYGD4wMDAEJ9cUFTCwMAIsounvKQAxI5gYGAQKYqIjGJgYMwBsdMh7AYQOwnCngJWExLkzMDAyMPAwOCQjsROQmJD7QIB1mSj5ExkhySXFpVBmVIMDAynGU8yJ7NO4sjm/iZgLxoobaL4UXOCkYT1JDfWwPLYt9kFVaydG2fVrMncX3v58EuD//9LUitKQJqdnQ0YQGGIHjYIsfxFDAwWXxkYmCcgxJJmMjBsb2VgkLiFEFNZwMDA38LAsO08APD9TdvF8UZ0AAAAtGVYSWZJSSoACAAAAAYAEgEDAAEAAAABAAAAGgEFAAEAAABWAAAAGwEFAAEAAABeAAAAKAEDAAEAAAACAAAAEwIDAAEAAAABAAAAaYcEAAEAAABmAAAAAAAAAEkZAQDoAwAASRkBAOgDAAAGAACQBwAEAAAAMDIxMAGRBwAEAAAAAQIDAACgBwAEAAAAMDEwMAGgAwABAAAA//8AAAKgBAABAAAAIAAAAAOgBAABAAAAIAAAAAAAAADglzq/AAAACXBIWXMAAAsTAAALEwEAmpwYAAAIM0lEQVRYw3WXXYxdZRWGn/f79jlnZlqZ0s4USjvTDi20Q/8sENPyqxSUC41eGiDEGI2XXhgu0HjrtZfEeGMUkcQbE4ORUgmgFQO0TWnpD7X/pe30b1o60zln7/29Xnx7OlOIk5xkn31mf+vda73rXe8SX/jrrNuWLwSGCNTYIPUDj2I/DmwWrAIWAVi6KjiJvdfiXcwuYEYAUvTsGYjeoX/fFk+3BR/fmi9MUIgpuQZYAfqJ4DnDvSIf5PmH2Pm7BBiZo4ZXBa8gnX9gquLAQBEECUz30PtfBjAveDTUlhHhZ8DPsRcjIduWqua58IXkJcCyC0tqgFw0/CqYX6cMLgpq4BYI5bRvnYUTgdpwt9AfgO0ZlCtLASQESkmk2tjNKwtClENoUmHLTpaK/A+8iXkBfFGzZW1A6FbwuR/WGN5EGgNK2dEKAWyVPXDCfQOibwEu2hl32YOZKdSdNiE09yU5JUu1oGX7CPBN4CRwKxNFEzw431gmeEvSStuloOUQUFUaIC1frXrVRjw8ghcuglYnP13OoBuTaOK04vF9hAsnDLKLVlBKwVAK7je8hfQoeMIoyCR1xrfN44PfNnoSu0RqIVm9GdLiZaofeoY0sg6KDqQKUk1mdkO+ECEUUHYJpz6h2L0DXb1gt/vAFnYpqWW8U4pPk+qc9jg8EgELfgH6IVBqXvD63k2qnnoBLx2FqsyfVIFTBmDn61RDXWXKDK+gXrUBXb+scOUcFC1yKVXKrDFMAbuAqPb4NjBjEvsMC2UnhxDUm3G9erOqr38fDNQlKGRKxRbEYl4TOQevypwNJyjakGqKt18jnthvt/uklBJSMExib0I6HYuhERC/xDwpXFqhUNVzGrpH1fbnc1pTlYMr5LpfvUA4tpd4dDfh9CG4fgm3OrBw0bymrCFG0vL7CGcOK0x/bociyC6BBUil7LfUWbd1kWG/pOXOvSylmt4zL8qjD0D35lyNqx5x9w7ip7tRd/o2Drh/IfX9D1NvfAJafU2JEnQG0PF9tHe+aseCRiuCpZPAxlgMrXhW8GNDIgSp7FKPrFP66lNQ9XJwBahLWv94lXj4AxQiLlrQakPRRhLqThNOHcpUXrGWRr5zaRYtJVw4oTA5AUVL2BbcCfyzQHoiq4dSowVKYxtyjasyl7koiB/8jXDyIB64A2yU6vy7E14wSFq1njS2kTS0glmGIzWl6FCPbSScPdoouWrsgPR4AWxp5F2qa7l/IWl45BajKdpw5Rzx0w9x3wAqu1BXuNOPl6+hXrWetGIt3LEkk7JuWhRDci5dq40XDUOMNHWTEYIthWFVI5fCyfQtFAsG594iRMK5Y2hmCoo26c67SKPrSKMP4CX3ZIB1Bb1uPgXmyBoi3Pwc/XcvxcfvzXEmswajlQWweO6e5U5/fnDevApXJyBEyke+R1q9Gdr9GWBVQnd6Lt2xnUtXdtH548SjewhnjqDJCVDAnX7UzI+cdBYVc7BnG9q6fWALqi71yDhpw2MwMzUXFOWATc8zeZFw5jDx5AHCxdOkpaNUW7bj/oUUe3YSLp3FscjqkbPhQnDFMJiZJal7M6c0FrcweXA4vwVAnfubop3BTV0jHP+YcOIA4fwxdHMKqh7VQ89Qb/tuFrCiTdUZoP3Gb1CjnVmwuFZgHweNZRsSAjdvwI1JuPNuSD2oK9LoOK3DH6Azh/Gye6F7E509kt/0zBF07XJOXtHGrTb0DVCv/RqU3fypa9xq4xBRSjTeAkvHC0t7BE8Z7BCtmSnCxdNKQ8uhAqoeXrKcenSc9l9fIY2Ow80bhMufZQ7EVlZBKR88fZ1qy3YYHMrEVICiRTh/HPVmcKtPc2z0ngC8k/vCofFVxOP75nQdQdWjfvhbpJF1hCMfEiZO41jgvgVZkARKFZr+nHr1Zuot2+eel6AqiScO5HpmJQjZyvFejEMrzguet7QoG7KocP0yXrJMHlqe1bAhW1q1HloddP0SmplGZRdVJUoJdwaoNz5OvfU7eVjdkuJ+won9FB+/68bAGAiCY8DLBdJ1268DL8murdACHD/aQbprDNp9c+KiQP3ws9T3PZi14frlnMg7hkjLxmBwaQY86xWKNkxdI36041ZLyalqMvAnS1PqrNuK0ajEPmCQ+eN41XpV33ju1iBCoTm4GcdqOtb/bxxXFDv/SDz1ye3j2FwCbwKdi3F4RUSabKbH05Iq2dFFi3D5HJq8oLR8DfR/pZFnQ0q5vWYNSl3meziD7AzA9DWKd14nnjpot/tymaQaiIiXJXZKxBiHR1wqsqDq/asK8RHZ9wM9oKABEU4fFv0L8eDSrIJBc1NSIWeoKPIYrkvCsb203v0zYeJUtmQpSdkXthFvyPx0YOo6vXafZx1RQE6YIWAX0n2ye2RTKlWlsUnLxlSv3IDvGsULBjPZyK2qG5OECycIJ/YTJk4ZBVy0pJTsbPPaNgfBjyGuZB4oZQC32/KV2H+XtBaosENjy1HZM7bc7oO+gTlX3JuB7jTqzZgQcdFuFhMnSykvK+wHPQuczV3g1ExE6Ixvmx0Is7vgYuB3wLclYbtCTc5nFxOn2cUEpOyy5xaT1ARvZWrxF+AHoEnZETWLycH3iQD1pTPE4ZHZHo2IaUmvIU1gPygYVG4BgKoJCCGYEIyCkTIL7aBsPKOkz5BekvVSs6wGICHRPfj+l5fTXA4DhGCllK+HQD9CflFmPLeZMbqtC29fVzlg8XvQb7EvC2Gcx8+8vfBLADKIrfOHcwRqAUnEYLYZbQM2Ca80DDQr+JThJHifzC6L/4DqphwRUavBNz84wP8A8mRYWOnZr7EAAAAASUVORK5CYII=";
+
+  function defaultSettings() {
+    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: false, loadLabel: "Load", accent: "", logo: ECHELON_LOGO, logoCustom: false };
+  }
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (raw) return normalizeState(JSON.parse(raw));
+    } catch (e) { /* fall through */ }
+    return { settings: defaultSettings(), routines: [], catalog: [], sequences: [] };
+  }
+  // Self-heal anything malformed so one bad record can't crash the app.
+  function normalizeState(parsed) {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { settings: defaultSettings(), routines: [], catalog: [], sequences: [] };
+    }
+    if (!parsed.settings || typeof parsed.settings !== "object") parsed.settings = defaultSettings();
+    if (typeof parsed.settings.studioName !== "string") parsed.settings.studioName = "Echelon";
+    if (parsed.settings.mode !== "personal") parsed.settings.mode = "class";
+    if (parsed.settings.theme !== "light") parsed.settings.theme = "dark";
+    parsed.settings.beeps = parsed.settings.beeps !== false;
+    parsed.settings.autostart = parsed.settings.autostart === true;
+    if (typeof parsed.settings.loadLabel !== "string" || !parsed.settings.loadLabel.trim()) parsed.settings.loadLabel = "Load";
+    if (typeof parsed.settings.accent !== "string") parsed.settings.accent = "";
+    // Logo: keep an uploaded custom logo; otherwise always use the current built-in
+    // icon (this migrates any older built-in logo, e.g. the full wordmark, to the icon).
+    parsed.settings.logoCustom = parsed.settings.logoCustom === true;
+    if (!parsed.settings.logoCustom || typeof parsed.settings.logo !== "string" || !parsed.settings.logo) {
+      parsed.settings.logo = ECHELON_LOGO;
+      parsed.settings.logoCustom = false;
+    }
+    if (!Array.isArray(parsed.catalog)) parsed.catalog = [];
+    parsed.catalog = parsed.catalog
+      .filter(function (m) { return m && typeof m === "object"; })
+      .map(normalizeExercise);
+    if (!Array.isArray(parsed.routines)) parsed.routines = [];
+    parsed.routines = parsed.routines
+      .filter(function (r) { return r && typeof r === "object"; })
+      .map(function (r) {
+        r.id = r.id || uid();
+        if (typeof r.createdAt !== "number") r.createdAt = Date.now();
+        if (typeof r.updatedAt !== "number") r.updatedAt = Date.now();
+        r.name = typeof r.name === "string" ? r.name : "";
+        r.description = typeof r.description === "string" ? r.description : "";
+        if (!Array.isArray(r.tags)) r.tags = [];
+        if (!Array.isArray(r.blocks)) r.blocks = [];
+        r.blocks = r.blocks
+          .filter(function (b) { return b && typeof b === "object"; })
+          .map(function (b) {
+            b.id = b.id || uid();
+            b.name = typeof b.name === "string" ? b.name : "";
+            if (!Array.isArray(b.exercises)) b.exercises = [];
+            b.exercises = b.exercises
+              .filter(function (e) { return e && typeof e === "object"; })
+              .map(normalizeExercise);
+            return b;
+          });
+        return r;
+      });
+    if (!Array.isArray(parsed.sequences)) parsed.sequences = [];
+    parsed.sequences = parsed.sequences
+      .filter(function (s) { return s && typeof s === "object"; })
+      .map(function (s) {
+        s.id = s.id || uid();
+        s.name = typeof s.name === "string" ? s.name : "";
+        s.routineIds = Array.isArray(s.routineIds) ? s.routineIds.filter(function (x) { return typeof x === "string"; }) : [];
+        return s;
+      });
+    return parsed;
+  }
+  function normalizeExercise(e) {
+    e.id = e.id || uid();
+    e.name = typeof e.name === "string" ? e.name : "";
+    e.spring = typeof e.spring === "string" ? e.spring : (e.spring != null ? String(e.spring) : "");
+    e.side = (e.side === "L" || e.side === "R" || e.side === "both") ? e.side : "";
+    e.duration = num(e.duration);
+    e.rest = num(e.rest);
+    e.reps = typeof e.reps === "string" ? e.reps : (e.reps != null ? String(e.reps) : "");
+    return e;
+  }
+  function num(v) { return (typeof v === "number" && isFinite(v) && v >= 0) ? v : 0; }
+
+  var state = loadState();
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; }
+    catch (e) { toast("Could not save — browser storage may be full."); return false; }
+  }
+
+  // ===========================================================================
+  // Helpers
+  // ===========================================================================
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, txt) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt != null) e.textContent = txt;
+    return e;
+  }
+  function fmtTime(total) {
+    total = Math.max(0, Math.round(total));
+    var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    var mm = (h > 0 && m < 10) ? "0" + m : "" + m;
+    var ss = s < 10 ? "0" + s : "" + s;
+    return h > 0 ? h + ":" + mm + ":" + ss : m + ":" + ss;
+  }
+  function escapeHtml(str) {
+    return String(str == null ? "" : str)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function sideLabel(side) { return side === "L" ? "Left" : side === "R" ? "Right" : side === "both" ? "Both sides" : ""; }
+
+  // Total duration = sum of all exercise work + rest across all blocks.
+  function routineDuration(r) {
+    var t = 0;
+    r.blocks.forEach(function (b) {
+      b.exercises.forEach(function (e) { t += (e.duration || 0) + (e.rest || 0); });
+    });
+    return t;
+  }
+  function exerciseCount(r) {
+    var n = 0;
+    r.blocks.forEach(function (b) { n += b.exercises.length; });
+    return n;
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2400);
+  }
+  function announce(msg) { var r = $("sr-live"); if (r) r.textContent = msg; }
+
+  // Overlay focus management
+  var lastFocus = null;
+  function bgEls() { return [document.querySelector("header.topbar"), document.querySelector(".app")]; }
+  function openOverlay(id, focusId) {
+    lastFocus = document.activeElement;
+    bgEls().forEach(function (e) { if (e) e.setAttribute("inert", ""); });
+    $(id).classList.remove("hidden");
+    var f = focusId && $(focusId);
+    if (f) { try { f.focus(); } catch (e) {} }
+  }
+  function closeOverlay(id) {
+    $(id).classList.add("hidden");
+    bgEls().forEach(function (e) { if (e) e.removeAttribute("inert"); });
+    if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
+    lastFocus = null;
+  }
+
+  // ===========================================================================
+  // Routing
+  // ===========================================================================
+  var currentEditId = null;
+  var catalogReturnView = "library"; // where ☰ Moves was opened from, so Back returns there
+  function hideAllViews() {
+    $("view-builder").classList.add("hidden");
+    $("view-library").classList.add("hidden");
+    $("view-catalog").classList.add("hidden");
+    $("view-plans").classList.add("hidden");
+    $("view-plan-editor").classList.add("hidden");
+  }
+  function showLibrary() {
+    hideAllViews();
+    $("view-library").classList.remove("hidden");
+    renderLibrary();
+  }
+  function showBuilder(id) {
+    currentEditId = id;
+    hideAllViews();
+    $("view-builder").classList.remove("hidden");
+    renderBuilder();
+  }
+  function showCatalog() {
+    catalogReturnView = !$("view-builder").classList.contains("hidden") ? "builder" : "library";
+    hideAllViews();
+    $("view-catalog").classList.remove("hidden");
+    renderCatalog();
+  }
+  function showPlans() {
+    hideAllViews();
+    $("view-plans").classList.remove("hidden");
+    renderPlans();
+  }
+  var currentPlanId = null;
+  function showPlanEditor(id) {
+    currentPlanId = id;
+    hideAllViews();
+    $("view-plan-editor").classList.remove("hidden");
+    renderPlanEditor();
+  }
+
+  // ===========================================================================
+  // Library
+  // ===========================================================================
+  var activeTag = null;
+  function allTags() {
+    var set = {};
+    state.routines.forEach(function (r) { (r.tags || []).forEach(function (t) { if (t) set[t] = true; }); });
+    return Object.keys(set).sort();
+  }
+  // Keyboard-accessible filter chip (button semantics on a styled span).
+  function makeChip(label, isActive, onActivate) {
+    var chip = el("span", "tag-chip" + (isActive ? " active" : ""), label);
+    chip.setAttribute("role", "button");
+    chip.setAttribute("tabindex", "0");
+    chip.setAttribute("aria-pressed", isActive ? "true" : "false");
+    chip.onclick = onActivate;
+    chip.onkeydown = function (e) { if (e.key === "Enter" || e.code === "Space") { e.preventDefault(); onActivate(); } };
+    return chip;
+  }
+  function renderTagFilters() {
+    var wrap = $("tag-filters");
+    wrap.innerHTML = "";
+    var tags = allTags();
+    if (tags.length === 0) return;
+    wrap.appendChild(makeChip("All", activeTag === null, function () { activeTag = null; renderLibrary(); }));
+    tags.forEach(function (t) {
+      var chip = makeChip(t, activeTag === t, function () { activeTag = (activeTag === t ? null : t); renderLibrary(); });
+      wrap.appendChild(chip);
+    });
+  }
+  function renderLibrary() {
+    $("lib-title").textContent = state.settings.mode === "personal" ? "My Workouts" : "Class Library";
+    // If the active tag no longer exists (its routine was edited/deleted), drop it
+    // so the library doesn't silently show an empty, unexplained list.
+    if (activeTag && allTags().indexOf(activeTag) < 0) activeTag = null;
+    renderTagFilters();
+    var list = $("routine-list");
+    list.innerHTML = "";
+    var routines = state.routines.slice();
+    if (activeTag) routines = routines.filter(function (r) { return (r.tags || []).indexOf(activeTag) >= 0; });
+
+    if (state.routines.length === 0) {
+      var empty = el("div", "empty");
+      empty.innerHTML = "<h2>No routines yet</h2><p>Build your first routine — blocks of timed exercises with loads, sides, and rest.</p>";
+      var b = el("button", "gold", "+ New Routine"); b.onclick = createRoutine;
+      empty.appendChild(b); list.appendChild(empty); return;
+    }
+    routines.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+    var grid = el("div", "routine-grid");
+    routines.forEach(function (r) {
+      var card = el("div", "card routine-card");
+      // tapping the card body starts the routine (tap-to-run)
+      card.onclick = function (ev) { if (ev.target.closest("button")) return; if (exerciseCount(r) > 0) openRun(r.id); };
+
+      card.appendChild(el("h3", null, r.name || "Untitled routine"));
+      card.appendChild(el("div", "desc", r.description || ""));
+      if ((r.tags || []).length) {
+        var tagWrap = el("div", "tags");
+        r.tags.forEach(function (t) { tagWrap.appendChild(el("span", null, t)); });
+        card.appendChild(tagWrap);
+      }
+      var meta = el("div", "meta");
+      meta.innerHTML =
+        "<span><b>" + fmtTime(routineDuration(r)) + "</b> total</span>" +
+        "<span><b>" + r.blocks.length + "</b> block" + (r.blocks.length === 1 ? "" : "s") + "</span>" +
+        "<span><b>" + exerciseCount(r) + "</b> exercises</span>";
+      card.appendChild(meta);
+
+      var row = el("div", "row");
+      var startBtn = el("button", "gold small", "▶ Start");
+      startBtn.disabled = exerciseCount(r) === 0;
+      startBtn.onclick = function () { openRun(r.id); };
+      var editBtn = el("button", "small", "Edit"); editBtn.onclick = function () { showBuilder(r.id); };
+      var expBtn = el("button", "small", "Export"); expBtn.disabled = exerciseCount(r) === 0;
+      expBtn.onclick = function () { openExport(r.id); };
+      var dupBtn = el("button", "small ghost", "Duplicate"); dupBtn.onclick = function () { duplicateRoutine(r.id); };
+      var delBtn = el("button", "small danger", "Delete"); delBtn.onclick = function () { deleteRoutine(r.id); };
+      [startBtn, editBtn, expBtn, dupBtn, delBtn].forEach(function (b) { row.appendChild(b); });
+      card.appendChild(row);
+      grid.appendChild(card);
+    });
+    list.appendChild(grid);
+  }
+
+  function createRoutine() {
+    var r = {
+      id: uid(), name: "", description: "", tags: [],
+      createdAt: Date.now(), updatedAt: Date.now(),
+      blocks: [ newBlock("Block 1") ]
+    };
+    state.routines.push(r); save(); showBuilder(r.id);
+  }
+  function newBlock(name) { return { id: uid(), name: name || "", exercises: [ newExercise() ] }; }
+  function newExercise() { return { id: uid(), name: "", spring: "", side: "", duration: 45, rest: 0, reps: "" }; }
+  function findRoutine(id) {
+    for (var i = 0; i < state.routines.length; i++) if (state.routines[i].id === id) return state.routines[i];
+    return null;
+  }
+  function routineIsEmpty(r) {
+    if ((r.name || "").trim() || (r.description || "").trim() || (r.tags || []).length) return false;
+    if (r.blocks.length === 0) return true;
+    if (r.blocks.length === 1) {
+      var b = r.blocks[0];
+      if ((b.name || "").trim() && b.name !== "Block 1") return false;
+      if (b.exercises.length === 0) return true;
+      if (b.exercises.length === 1) {
+        var e = b.exercises[0];
+        // "Untouched" = matches the freshly-created defaults. Any change to time,
+        // side, rest, name, spring or reps counts as real work and is kept.
+        return !(e.name || "").trim() && !(e.spring || "").trim() && !(e.reps || "").trim()
+          && !e.side && (e.duration || 0) === 45 && !(e.rest || 0);
+      }
+    }
+    return false;
+  }
+  function duplicateRoutine(id) {
+    var src = findRoutine(id); if (!src) return;
+    var copy = JSON.parse(JSON.stringify(src));
+    copy.id = uid(); copy.name = (src.name || "Untitled routine") + " (copy)";
+    copy.createdAt = Date.now(); copy.updatedAt = Date.now();
+    copy.blocks.forEach(function (b) { b.id = uid(); b.exercises.forEach(function (e) { e.id = uid(); }); });
+    state.routines.push(copy); save(); renderLibrary(); toast("Routine duplicated");
+  }
+  function deleteRoutine(id) {
+    var r = findRoutine(id); if (!r) return;
+    if (!confirm('Delete "' + (r.name || "Untitled routine") + '"? This cannot be undone.')) return;
+    state.routines = state.routines.filter(function (x) { return x.id !== id; });
+    save(); renderLibrary(); toast("Routine deleted");
+  }
+
+  // ===========================================================================
+  // Builder
+  // ===========================================================================
+  function renderBuilder() {
+    var r = findRoutine(currentEditId);
+    if (!r) { showLibrary(); return; }
+    $("builder-title").textContent = r.name || "New Routine";
+    $("routine-name").value = r.name;
+    $("routine-desc").value = r.description;
+    $("routine-tags").value = (r.tags || []).join(", ");
+    updateMoveDatalist(); // so the exercise-name autocomplete is ready
+    renderBlocks();
+  }
+
+  function renderBlocks() {
+    var r = findRoutine(currentEditId);
+    var wrap = $("blocks");
+    wrap.innerHTML = "";
+    r.blocks.forEach(function (block, bi) { wrap.appendChild(buildBlock(block, bi, r)); });
+    updateBuilderTotals();
+  }
+
+  function blockDuration(b) {
+    var t = 0; b.exercises.forEach(function (e) { t += (e.duration || 0) + (e.rest || 0); }); return t;
+  }
+
+  function buildBlock(block, bi, r) {
+    var wrap = el("div", "block card");
+    wrap.style.padding = "8px 6px 4px";
+
+    // header
+    var head = el("div", "block-head");
+    head.appendChild(el("div", "block-badge", String(bi + 1)));
+    var bname = document.createElement("input");
+    bname.className = "block-name"; bname.value = block.name; bname.placeholder = "Block name (e.g. Lower Body)";
+    bname.setAttribute("aria-label", "Block name");
+    bname.oninput = function () { block.name = bname.value; markDirty(); };
+    head.appendChild(bname);
+    var dur = el("div", "block-dur", fmtTime(blockDuration(block)));
+    head.appendChild(dur);
+    var ba = el("div", "block-actions");
+    var bUp = el("button", "ghost", "↑"); bUp.title = "Move block up"; bUp.setAttribute("aria-label", "Move block up");
+    bUp.disabled = bi === 0; bUp.onclick = function () { moveBlock(block.id, -1); };
+    var bDown = el("button", "ghost", "↓"); bDown.title = "Move block down"; bDown.setAttribute("aria-label", "Move block down");
+    bDown.disabled = bi === r.blocks.length - 1; bDown.onclick = function () { moveBlock(block.id, 1); };
+    var bDel = el("button", "danger", "✕"); bDel.title = "Delete block"; bDel.setAttribute("aria-label", "Delete block");
+    bDel.onclick = function () { deleteBlock(block.id); };
+    [bUp, bDown, bDel].forEach(function (b) { ba.appendChild(b); });
+    head.appendChild(ba);
+    wrap.appendChild(head);
+
+    // column headers
+    var colhead = el("div", "ex-head");
+    ["", "Exercise", state.settings.loadLabel, "Side", "Time", "Rest", "Reps", ""].forEach(function (c) {
+      colhead.appendChild(el("span", null, c));
+    });
+    wrap.appendChild(colhead);
+
+    var rows = el("div");
+    block.exercises.forEach(function (ex, ei) { rows.appendChild(buildExRow(ex, ei, block)); });
+    wrap.appendChild(rows);
+
+    var add = el("div", "block-add");
+    var addBtn = el("button", null, "+ Add exercise");
+    addBtn.onclick = function () { addExercise(block.id); };
+    add.appendChild(addBtn);
+    wrap.appendChild(add);
+    return wrap;
+  }
+
+  function buildExRow(ex, ei, block) {
+    var row = el("div", "ex-row");
+    row.dataset.id = ex.id;
+    // Each field sits in a .cell so it can carry a small label that only shows on
+    // narrow (phone) screens; on desktop the cells line up as table columns.
+    function cell(node, label, cls) {
+      var c = el("div", "cell" + (cls ? " " + cls : ""));
+      if (label) c.setAttribute("data-k", label);
+      c.appendChild(node);
+      return c;
+    }
+
+    row.appendChild(cell(el("div", "idx", String(ei + 1)), "", "idx-cell"));
+
+    var name = document.createElement("input");
+    name.value = ex.name; name.placeholder = "Exercise name"; name.setAttribute("aria-label", "Exercise name");
+    name.setAttribute("list", "move-list"); // suggest saved catalog moves
+    name.oninput = function () { ex.name = name.value; markDirty(); };
+    name.onchange = function () {
+      // If the typed/picked name matches a saved move and this exercise is still
+      // at its defaults, auto-fill resistance/side/time/rest/reps from the move.
+      var mv = findMoveByName(ex.name);
+      if (mv && exerciseIsDefault(ex)) { applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from catalog: " + mv.name); }
+    };
+    row.appendChild(cell(name, "Exercise", "name-cell"));
+
+    var spring = document.createElement("input");
+    spring.className = "spring"; spring.value = ex.spring; spring.placeholder = "—"; spring.setAttribute("aria-label", state.settings.loadLabel);
+    spring.oninput = function () { ex.spring = spring.value; markDirty(); };
+    row.appendChild(cell(spring, state.settings.loadLabel));
+
+    var side = document.createElement("select");
+    side.setAttribute("aria-label", "Side");
+    [["", "—"], ["L", "Left"], ["R", "Right"], ["both", "Both"]].forEach(function (o) {
+      var opt = document.createElement("option"); opt.value = o[0]; opt.textContent = o[1];
+      if (ex.side === o[0]) opt.selected = true; side.appendChild(opt);
+    });
+    side.onchange = function () { ex.side = side.value; markDirty(); };
+    row.appendChild(cell(side, "Side"));
+
+    // time min:sec
+    var durWrap = el("div", "dur-input");
+    var min = document.createElement("input"); min.type = "number"; min.min = "0";
+    min.value = Math.floor((ex.duration || 0) / 60); min.setAttribute("aria-label", "Work minutes");
+    var sec = document.createElement("input"); sec.type = "number"; sec.min = "0"; sec.max = "59";
+    sec.value = (ex.duration || 0) % 60; sec.setAttribute("aria-label", "Work seconds");
+    function readDur() {
+      var m = parseInt(min.value, 10); if (isNaN(m) || m < 0) m = 0;
+      var s = parseInt(sec.value, 10); if (isNaN(s) || s < 0) s = 0;
+      ex.duration = m * 60 + s; updateBuilderTotals(); markDirty();
+    }
+    function normDur() { var t = ex.duration || 0; min.value = Math.floor(t / 60); sec.value = t % 60; }
+    min.oninput = readDur; sec.oninput = readDur; min.onchange = normDur; sec.onchange = normDur;
+    durWrap.appendChild(min); durWrap.appendChild(el("span", null, ":")); durWrap.appendChild(sec);
+    row.appendChild(cell(durWrap, "Time"));
+
+    // rest (seconds)
+    var rest = document.createElement("input"); rest.type = "number"; rest.min = "0";
+    rest.value = ex.rest || 0; rest.placeholder = "0"; rest.setAttribute("aria-label", "Rest seconds");
+    rest.oninput = function () {
+      var v = parseInt(rest.value, 10); if (isNaN(v) || v < 0) v = 0;
+      ex.rest = v; updateBuilderTotals(); markDirty();
+    };
+    row.appendChild(cell(rest, "Rest"));
+
+    var reps = document.createElement("input");
+    reps.value = ex.reps || ""; reps.placeholder = "—"; reps.setAttribute("aria-label", "Reps");
+    reps.oninput = function () { ex.reps = reps.value; markDirty(); };
+    row.appendChild(cell(reps, "Reps"));
+
+    var actions = el("div", "ex-actions");
+    var up = el("button", "ghost", "↑"); up.title = "Move up"; up.setAttribute("aria-label", "Move exercise up");
+    up.disabled = ei === 0; up.onclick = function () { moveExercise(block.id, ex.id, -1); };
+    var down = el("button", "ghost", "↓"); down.title = "Move down"; down.setAttribute("aria-label", "Move exercise down");
+    down.disabled = ei === block.exercises.length - 1; down.onclick = function () { moveExercise(block.id, ex.id, 1); };
+    var dup = el("button", "ghost", "⧉"); dup.title = "Duplicate"; dup.setAttribute("aria-label", "Duplicate exercise");
+    dup.onclick = function () { duplicateExercise(block.id, ex.id); };
+    var del = el("button", "danger", "✕"); del.title = "Delete"; del.setAttribute("aria-label", "Delete exercise");
+    del.onclick = function () { deleteExercise(block.id, ex.id); };
+    [up, down, dup, del].forEach(function (b) { actions.appendChild(b); });
+    row.appendChild(cell(actions, "", "actions-cell"));
+    return row;
+  }
+
+  function findBlock(r, blockId) {
+    for (var i = 0; i < r.blocks.length; i++) if (r.blocks[i].id === blockId) return r.blocks[i];
+    return null;
+  }
+  function addBlock() {
+    var r = findRoutine(currentEditId);
+    r.blocks.push(newBlock("Block " + (r.blocks.length + 1)));
+    markDirty(); renderBlocks();
+  }
+  function moveBlock(blockId, dir) {
+    var r = findRoutine(currentEditId);
+    var i = r.blocks.findIndex(function (b) { return b.id === blockId; });
+    var j = i + dir; if (j < 0 || j >= r.blocks.length) return;
+    var tmp = r.blocks[i]; r.blocks[i] = r.blocks[j]; r.blocks[j] = tmp;
+    markDirty(); renderBlocks();
+  }
+  function deleteBlock(blockId) {
+    var r = findRoutine(currentEditId);
+    var b = findBlock(r, blockId);
+    var hasData = b && b.exercises.some(function (e) { return (e.name || "").trim() || (e.spring || "").trim(); });
+    if (hasData && !confirm('Delete block "' + (b.name || "Untitled") + '" and its exercises?')) return;
+    r.blocks = r.blocks.filter(function (x) { return x.id !== blockId; });
+    markDirty(); renderBlocks();
+  }
+  function addExercise(blockId) {
+    var r = findRoutine(currentEditId);
+    var b = findBlock(r, blockId); if (!b) return;
+    b.exercises.push(newExercise());
+    markDirty(); renderBlocks();
+    // focus newly added exercise name
+    var blocksWrap = $("blocks");
+    var blockEls = blocksWrap.querySelectorAll(".block");
+    var bi = r.blocks.findIndex(function (x) { return x.id === blockId; });
+    if (blockEls[bi]) {
+      var rows = blockEls[bi].querySelectorAll(".ex-row");
+      var last = rows[rows.length - 1];
+      if (last) { var inp = last.querySelectorAll("input")[0]; if (inp) inp.focus(); }
+    }
+  }
+  function moveExercise(blockId, exId, dir) {
+    var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
+    var i = b.exercises.findIndex(function (e) { return e.id === exId; });
+    var j = i + dir; if (j < 0 || j >= b.exercises.length) return;
+    var tmp = b.exercises[i]; b.exercises[i] = b.exercises[j]; b.exercises[j] = tmp;
+    markDirty(); renderBlocks();
+  }
+  function duplicateExercise(blockId, exId) {
+    var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
+    var i = b.exercises.findIndex(function (e) { return e.id === exId; }); if (i < 0) return;
+    var copy = JSON.parse(JSON.stringify(b.exercises[i])); copy.id = uid();
+    b.exercises.splice(i + 1, 0, copy); markDirty(); renderBlocks();
+  }
+  function deleteExercise(blockId, exId) {
+    var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
+    var ex = b.exercises.filter(function (e) { return e.id === exId; })[0];
+    var hasData = ex && ((ex.name || "").trim() || (ex.spring || "").trim() || (ex.reps || "").trim());
+    if (hasData && !confirm('Delete exercise "' + (ex.name || "(unnamed)") + '"?')) return;
+    b.exercises = b.exercises.filter(function (e) { return e.id !== exId; });
+    markDirty(); renderBlocks();
+  }
+
+  function updateBuilderTotals() {
+    var r = findRoutine(currentEditId);
+    $("builder-total").textContent = fmtTime(routineDuration(r));
+    var nb = r.blocks.length, ne = exerciseCount(r);
+    $("builder-count").textContent = nb + " block" + (nb === 1 ? "" : "s") + " · " + ne + " exercise" + (ne === 1 ? "" : "s");
+    $("btn-run-from-builder").disabled = ne === 0;
+    $("btn-export-builder").disabled = ne === 0;
+    // refresh per-block duration labels live
+    var labels = $("blocks").querySelectorAll(".block-dur");
+    r.blocks.forEach(function (b, i) { if (labels[i]) labels[i].textContent = fmtTime(blockDuration(b)); });
+  }
+
+  var autosaveTimer = null;
+  function markDirty() {
+    var r = findRoutine(currentEditId);
+    if (r) r.updatedAt = Date.now();
+    clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(save, 500);
+  }
+  function parseTags(str) {
+    return str.split(",").map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
+  }
+  function saveBuilder(showMsg) {
+    var r = findRoutine(currentEditId); if (!r) return;
+    r.name = $("routine-name").value.trim();
+    r.description = $("routine-desc").value.trim();
+    r.tags = parseTags($("routine-tags").value);
+    r.updatedAt = Date.now();
+    clearTimeout(autosaveTimer); save();
+    if (showMsg) toast("Routine saved");
+    $("builder-title").textContent = r.name || "New Routine";
+  }
+
+  // ===========================================================================
+  // Exercise catalog (reusable moves)
+  // ===========================================================================
+  function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(save, 500); }
+
+  function updateMoveDatalist() {
+    var dl = $("move-list"); dl.innerHTML = "";
+    var seen = {};
+    state.catalog.forEach(function (m) {
+      var n = (m.name || "").trim();
+      if (!n || seen[n.toLowerCase()]) return;
+      seen[n.toLowerCase()] = true;
+      var opt = document.createElement("option"); opt.value = n; dl.appendChild(opt);
+    });
+  }
+  function findMoveByName(name) {
+    name = (name || "").trim().toLowerCase(); if (!name) return null;
+    for (var i = 0; i < state.catalog.length; i++) {
+      if ((state.catalog[i].name || "").trim().toLowerCase() === name) return state.catalog[i];
+    }
+    return null;
+  }
+  // A fresh exercise (only a name) can be auto-filled from a catalog move without
+  // clobbering anything the user already set.
+  function exerciseIsDefault(ex) {
+    return !(ex.spring || "").trim() && !(ex.reps || "").trim() && !ex.side
+      && (ex.duration || 0) === 45 && !(ex.rest || 0);
+  }
+  function applyMoveTemplate(ex, m) {
+    ex.spring = m.spring || ""; ex.side = m.side || ""; ex.duration = m.duration || 0;
+    ex.rest = m.rest || 0; ex.reps = m.reps || ""; markDirty();
+  }
+
+  function renderCatalog() {
+    updateMoveDatalist();
+    var head = $("catalog-head"); head.innerHTML = "";
+    ["", "Move", state.settings.loadLabel, "Side", "Time", "Rest", "Reps", ""].forEach(function (c) {
+      head.appendChild(el("span", null, c));
+    });
+    var wrap = $("move-rows"); wrap.innerHTML = "";
+    if (state.catalog.length === 0) {
+      var empty = el("div", "empty"); empty.style.margin = "8px";
+      empty.innerHTML = "<h2>No saved moves</h2><p>Add moves you reuse often, or import the ones already in your routines.</p>";
+      wrap.appendChild(empty); return;
+    }
+    state.catalog.forEach(function (m) { wrap.appendChild(buildMoveRow(m)); });
+  }
+
+  function buildMoveRow(m) {
+    var row = el("div", "ex-row"); row.dataset.id = m.id;
+    function cell(node, label, cls) {
+      var c = el("div", "cell" + (cls ? " " + cls : ""));
+      if (label) c.setAttribute("data-k", label);
+      c.appendChild(node); return c;
+    }
+    row.appendChild(cell(el("div", "idx", "•"), "", "idx-cell"));
+
+    var name = document.createElement("input");
+    name.value = m.name; name.placeholder = "Move name"; name.setAttribute("aria-label", "Move name");
+    name.oninput = function () { m.name = name.value; updateMoveDatalist(); scheduleSave(); };
+    row.appendChild(cell(name, "Move", "name-cell"));
+
+    var spring = document.createElement("input");
+    spring.className = "spring"; spring.value = m.spring; spring.placeholder = "—"; spring.setAttribute("aria-label", state.settings.loadLabel);
+    spring.oninput = function () { m.spring = spring.value; scheduleSave(); };
+    row.appendChild(cell(spring, state.settings.loadLabel));
+
+    var side = document.createElement("select"); side.setAttribute("aria-label", "Side");
+    [["", "—"], ["L", "Left"], ["R", "Right"], ["both", "Both"]].forEach(function (o) {
+      var opt = document.createElement("option"); opt.value = o[0]; opt.textContent = o[1];
+      if (m.side === o[0]) opt.selected = true; side.appendChild(opt);
+    });
+    side.onchange = function () { m.side = side.value; scheduleSave(); };
+    row.appendChild(cell(side, "Side"));
+
+    var durWrap = el("div", "dur-input");
+    var min = document.createElement("input"); min.type = "number"; min.min = "0";
+    min.value = Math.floor((m.duration || 0) / 60); min.setAttribute("aria-label", "Minutes");
+    var sec = document.createElement("input"); sec.type = "number"; sec.min = "0"; sec.max = "59";
+    sec.value = (m.duration || 0) % 60; sec.setAttribute("aria-label", "Seconds");
+    function readDur() {
+      var mm = parseInt(min.value, 10); if (isNaN(mm) || mm < 0) mm = 0;
+      var ss = parseInt(sec.value, 10); if (isNaN(ss) || ss < 0) ss = 0;
+      m.duration = mm * 60 + ss; scheduleSave();
+    }
+    function normDur() { var t = m.duration || 0; min.value = Math.floor(t / 60); sec.value = t % 60; }
+    min.oninput = readDur; sec.oninput = readDur; min.onchange = normDur; sec.onchange = normDur;
+    durWrap.appendChild(min); durWrap.appendChild(el("span", null, ":")); durWrap.appendChild(sec);
+    row.appendChild(cell(durWrap, "Time"));
+
+    var rest = document.createElement("input"); rest.type = "number"; rest.min = "0";
+    rest.value = m.rest || 0; rest.placeholder = "0"; rest.setAttribute("aria-label", "Rest seconds");
+    rest.oninput = function () { var v = parseInt(rest.value, 10); if (isNaN(v) || v < 0) v = 0; m.rest = v; scheduleSave(); };
+    row.appendChild(cell(rest, "Rest"));
+
+    var reps = document.createElement("input");
+    reps.value = m.reps || ""; reps.placeholder = "—"; reps.setAttribute("aria-label", "Reps");
+    reps.oninput = function () { m.reps = reps.value; scheduleSave(); };
+    row.appendChild(cell(reps, "Reps"));
+
+    var actions = el("div", "ex-actions");
+    var del = el("button", "danger", "✕"); del.title = "Delete move"; del.setAttribute("aria-label", "Delete move");
+    del.onclick = function () { deleteMove(m.id); };
+    actions.appendChild(del);
+    row.appendChild(cell(actions, "", "actions-cell"));
+    return row;
+  }
+
+  function addMove() {
+    state.catalog.push(normalizeExercise({ name: "", spring: "", side: "", duration: 45, rest: 0, reps: "" }));
+    save(); renderCatalog();
+    var rows = $("move-rows").querySelectorAll(".ex-row");
+    var last = rows[rows.length - 1];
+    if (last) { var inp = last.querySelectorAll("input")[0]; if (inp) inp.focus(); }
+  }
+  function deleteMove(id) {
+    var m = state.catalog.filter(function (x) { return x.id === id; })[0];
+    var hasData = m && ((m.name || "").trim() || (m.spring || "").trim());
+    if (hasData && !confirm('Delete move "' + (m.name || "(unnamed)") + '" from the catalog?')) return;
+    state.catalog = state.catalog.filter(function (x) { return x.id !== id; });
+    save(); renderCatalog();
+  }
+  function importMovesFromRoutines() {
+    var existing = {};
+    state.catalog.forEach(function (m) { var n = (m.name || "").trim().toLowerCase(); if (n) existing[n] = true; });
+    var added = 0;
+    state.routines.forEach(function (r) {
+      r.blocks.forEach(function (b) {
+        b.exercises.forEach(function (e) {
+          var n = (e.name || "").trim();
+          if (!n || existing[n.toLowerCase()]) return;
+          existing[n.toLowerCase()] = true;
+          state.catalog.push(normalizeExercise({ name: n, spring: e.spring, side: e.side, duration: e.duration, rest: e.rest, reps: e.reps }));
+          added++;
+        });
+      });
+    });
+    save(); renderCatalog();
+    toast(added ? ("Imported " + added + " move" + (added === 1 ? "" : "s")) : "No new moves to import");
+  }
+
+  // ===========================================================================
+  // Class plans (sequences of routines, run back-to-back)
+  // ===========================================================================
+  function findSequence(id) {
+    for (var i = 0; i < state.sequences.length; i++) if (state.sequences[i].id === id) return state.sequences[i];
+    return null;
+  }
+  function sequenceRoutines(seq) { return (seq.routineIds || []).map(findRoutine).filter(Boolean); }
+  function sequenceDuration(seq) { return sequenceRoutines(seq).reduce(function (s, r) { return s + routineDuration(r); }, 0); }
+  function buildStepsForRoutines(routines) {
+    var steps = [];
+    routines.forEach(function (r) {
+      buildSteps(r).forEach(function (st) { st.routine = r.name || "Untitled routine"; steps.push(st); });
+    });
+    return steps;
+  }
+
+  function renderPlans() {
+    var list = $("plan-list"); list.innerHTML = "";
+    if (state.sequences.length === 0) {
+      var empty = el("div", "empty");
+      empty.innerHTML = "<h2>No plans yet</h2><p>Chain routines into one back-to-back class.</p>";
+      var b = el("button", "gold", "+ New Plan"); b.onclick = createPlan; empty.appendChild(b);
+      list.appendChild(empty); return;
+    }
+    var grid = el("div", "routine-grid");
+    state.sequences.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).forEach(function (seq) {
+      var routines = sequenceRoutines(seq);
+      var card = el("div", "card routine-card");
+      card.onclick = function (ev) { if (ev.target.closest("button")) return; if (routines.length) openRunSequence(seq.id); };
+      card.appendChild(el("h3", null, seq.name || "Untitled plan"));
+      card.appendChild(el("div", "desc", routines.map(function (r) { return r.name || "Untitled"; }).join("  →  ") || "No routines yet"));
+      var meta = el("div", "meta");
+      meta.innerHTML = "<span><b>" + fmtTime(sequenceDuration(seq)) + "</b> total</span><span><b>" +
+        routines.length + "</b> routine" + (routines.length === 1 ? "" : "s") + "</span>";
+      card.appendChild(meta);
+      var row = el("div", "row");
+      var runBtn = el("button", "gold small", "▶ Start"); runBtn.disabled = routines.length === 0; runBtn.onclick = function () { openRunSequence(seq.id); };
+      var editBtn = el("button", "small", "Edit"); editBtn.onclick = function () { showPlanEditor(seq.id); };
+      var dupBtn = el("button", "small ghost", "Duplicate"); dupBtn.onclick = function () { duplicatePlan(seq.id); };
+      var delBtn = el("button", "small danger", "Delete"); delBtn.onclick = function () { deletePlan(seq.id); };
+      [runBtn, editBtn, dupBtn, delBtn].forEach(function (b) { row.appendChild(b); });
+      card.appendChild(row); grid.appendChild(card);
+    });
+    list.appendChild(grid);
+  }
+  function createPlan() {
+    var seq = { id: uid(), name: "", routineIds: [], createdAt: Date.now(), updatedAt: Date.now() };
+    state.sequences.push(seq); save(); showPlanEditor(seq.id);
+  }
+  function duplicatePlan(id) {
+    var src = findSequence(id); if (!src) return;
+    var copy = JSON.parse(JSON.stringify(src)); copy.id = uid(); copy.name = (src.name || "Untitled plan") + " (copy)";
+    copy.createdAt = Date.now(); copy.updatedAt = Date.now();
+    state.sequences.push(copy); save(); renderPlans(); toast("Plan duplicated");
+  }
+  function deletePlan(id) {
+    var seq = findSequence(id); if (!seq) return;
+    if (!confirm('Delete "' + (seq.name || "Untitled plan") + '"? This cannot be undone.')) return;
+    state.sequences = state.sequences.filter(function (x) { return x.id !== id; });
+    save(); renderPlans(); toast("Plan deleted");
+  }
+  function planIsEmpty(seq) { return !(seq.name || "").trim() && (seq.routineIds || []).filter(Boolean).length === 0; }
+
+  function renderPlanEditor() {
+    var seq = findSequence(currentPlanId); if (!seq) { showPlans(); return; }
+    $("plan-title").textContent = seq.name || "New Plan";
+    $("plan-name").value = seq.name;
+    $("plan-head").innerHTML = "";
+    renderPlanRows();
+  }
+  function renderPlanRows() {
+    var seq = findSequence(currentPlanId); if (!seq) return;
+    var wrap = $("plan-rows"); wrap.innerHTML = "";
+    if (state.routines.length === 0) {
+      var note = el("div", "empty"); note.style.margin = "8px";
+      note.innerHTML = "<h2>No routines yet</h2><p>Create routines first, then chain them here.</p>";
+      wrap.appendChild(note);
+    } else if (seq.routineIds.length === 0) {
+      var n2 = el("div"); n2.style.cssText = "padding:14px 12px; color:var(--muted);";
+      n2.textContent = "No routines in this plan yet — add one below.";
+      wrap.appendChild(n2);
+    } else {
+      seq.routineIds.forEach(function (_, i) { wrap.appendChild(buildPlanRow(seq, i)); });
+    }
+    updatePlanTotals();
+  }
+  function buildPlanRow(seq, idx) {
+    var row = el("div");
+    // flex-wrap so the routine picker keeps a legible width on phones (drops to its own line).
+    row.style.cssText = "display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:9px 12px; border-top:1px solid var(--line);";
+    var num = el("div", null, String(idx + 1));
+    num.style.cssText = "width:24px;height:24px;border-radius:50%;background:var(--panel-2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:.78rem;flex-shrink:0;";
+    row.appendChild(num);
+
+    var sel = document.createElement("select"); sel.setAttribute("aria-label", "Routine"); sel.style.flex = "1"; sel.style.minWidth = "160px";
+    var ph = document.createElement("option"); ph.value = ""; ph.textContent = "— choose routine —"; sel.appendChild(ph);
+    state.routines.forEach(function (r) {
+      var o = document.createElement("option"); o.value = r.id;
+      o.textContent = (r.name || "Untitled routine") + " (" + fmtTime(routineDuration(r)) + ")";
+      if (seq.routineIds[idx] === r.id) o.selected = true; sel.appendChild(o);
+    });
+    sel.onchange = function () { seq.routineIds[idx] = sel.value; markPlanDirty(); renderPlanRows(); };
+    row.appendChild(sel);
+
+    var picked = seq.routineIds[idx] && findRoutine(seq.routineIds[idx]);
+    var dur = el("div", null, fmtTime(picked ? routineDuration(picked) : 0));
+    dur.style.cssText = "color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;";
+    row.appendChild(dur);
+
+    var acts = el("div"); acts.style.cssText = "display:flex;gap:4px;";
+    var up = el("button", "ghost small", "↑"); up.disabled = idx === 0; up.setAttribute("aria-label", "Move up"); up.onclick = function () { movePlanRow(idx, -1); };
+    var down = el("button", "ghost small", "↓"); down.disabled = idx === seq.routineIds.length - 1; down.setAttribute("aria-label", "Move down"); down.onclick = function () { movePlanRow(idx, 1); };
+    var del = el("button", "danger small", "✕"); del.setAttribute("aria-label", "Remove routine"); del.onclick = function () { seq.routineIds.splice(idx, 1); markPlanDirty(); renderPlanRows(); };
+    [up, down, del].forEach(function (b) { acts.appendChild(b); });
+    row.appendChild(acts);
+    return row;
+  }
+  function updatePlanTotals() {
+    var seq = findSequence(currentPlanId); if (!seq) return;
+    $("plan-total").textContent = fmtTime(sequenceDuration(seq));
+    var n = sequenceRoutines(seq).length;
+    $("plan-count").textContent = n + " routine" + (n === 1 ? "" : "s");
+    $("btn-run-plan").disabled = n === 0;
+  }
+  function addPlanRoutine() {
+    var seq = findSequence(currentPlanId);
+    if (state.routines.length === 0) { toast("Create a routine first"); return; }
+    seq.routineIds.push(""); // blank slot — user picks the routine (no silent duplicate)
+    markPlanDirty(); renderPlanRows();
+  }
+  function movePlanRow(i, dir) {
+    var seq = findSequence(currentPlanId); var j = i + dir;
+    if (j < 0 || j >= seq.routineIds.length) return;
+    var t = seq.routineIds[i]; seq.routineIds[i] = seq.routineIds[j]; seq.routineIds[j] = t;
+    markPlanDirty(); renderPlanRows();
+  }
+  function markPlanDirty() {
+    var seq = findSequence(currentPlanId); if (seq) seq.updatedAt = Date.now();
+    clearTimeout(autosaveTimer); autosaveTimer = setTimeout(save, 500);
+  }
+  function savePlan(showMsg) {
+    var seq = findSequence(currentPlanId); if (!seq) return;
+    seq.name = $("plan-name").value.trim(); seq.updatedAt = Date.now();
+    clearTimeout(autosaveTimer); save();
+    if (showMsg) toast("Plan saved");
+    $("plan-title").textContent = seq.name || "New Plan";
+  }
+  function openRunSequence(id) {
+    var seq = findSequence(id); if (!seq) return;
+    var steps = buildStepsForRoutines(sequenceRoutines(seq));
+    if (!steps.length) { toast("Add routines with exercises first"); return; }
+    beginRun(seq.name || "Class plan", steps);
+  }
+
+  // ===========================================================================
+  // Run mode — flatten blocks/exercises into a sequence of timed steps
+  // ===========================================================================
+  var run = { steps: [], title: "", index: 0, remaining: 0, running: false, ticker: null, lastTick: 0, elapsedBefore: 0, total: 0 };
+
+  function buildSteps(r) {
+    var steps = [];
+    r.blocks.forEach(function (b) {
+      b.exercises.forEach(function (ex) {
+        // Always emit a work step so the exercise (name/spring/side/reps) is shown,
+        // even if its work time is 0 (e.g. a reps-only move). Zero-duration steps
+        // are passed through by the timer's auto-advance.
+        steps.push({ kind: "work", block: b.name, name: ex.name, spring: ex.spring, side: ex.side, reps: ex.reps, duration: ex.duration || 0 });
+        if (ex.rest > 0) {
+          steps.push({ kind: "rest", block: b.name, name: "Rest", spring: "", side: "", reps: "", duration: ex.rest });
+        }
+      });
+    });
+    return steps;
+  }
+
+  // Start the run engine with a prepared step list (used by both single routines and plans).
+  function beginRun(title, steps) {
+    if (!steps.length) { toast("Nothing to run yet"); return; }
+    run.title = title;
+    run.steps = steps;
+    run.index = 0;
+    run.elapsedBefore = 0;
+    run.remaining = steps[0].duration || 0;
+    run.total = steps.reduce(function (s, st) { return s + (st.duration || 0); }, 0);
+    run.running = false;
+    $("run-routine").textContent = title;
+    $("run-mode-label").textContent = state.settings.mode === "personal" ? "Personal" : "Class";
+    document.documentElement.style.overflow = "hidden";
+    openOverlay("run-overlay", "btn-run-play");
+    renderRun();
+    announce("Ready: " + announceText(curStep()));
+    setPlayLabel();
+  }
+  function openRun(id) {
+    var r = findRoutine(id);
+    if (!r || exerciseCount(r) === 0) { toast("Add an exercise first"); return; }
+    beginRun(r.name || "Untitled routine", buildSteps(r));
+  }
+  function closeRun() {
+    stopTicker(); run.running = false;
+    closeOverlay("run-overlay");
+    document.documentElement.style.overflow = "";
+  }
+  function curStep() { return run.steps[run.index]; }
+
+  function renderRun() {
+    if (run.index >= run.steps.length) { renderRunDone(); return; }
+    var st = curStep();
+    var overlay = $("run-overlay");
+    overlay.className = "run-overlay is-" + st.kind;
+    var stage = $("run-stage"); stage.className = "run-stage t-" + st.kind;
+    $("run-live").classList.remove("hidden");
+    $("run-done").classList.add("hidden");
+
+    // In a plan, prefix the block label with the current routine name.
+    $("run-block-label").textContent = (st.routine ? st.routine + (st.block ? " · " + st.block : "") : (st.block || ""));
+    $("run-type").textContent = st.kind === "rest" ? "Rest" : "Exercise";
+    $("run-ex-name").textContent = st.name || (st.kind === "rest" ? "Rest" : "(unnamed)");
+
+    var sp = [];
+    if (st.spring) sp.push("<span>" + escapeHtml(state.settings.loadLabel) + " <b>" + escapeHtml(st.spring) + "</b></span>");
+    if (st.side) sp.push("<span>" + escapeHtml(sideLabel(st.side)) + "</span>");
+    if (st.reps) sp.push("<span><b>" + escapeHtml(st.reps) + "</b> reps</span>");
+    $("run-spring").innerHTML = sp.join("");
+
+    $("run-position").textContent = "Step " + (run.index + 1) + " of " + run.steps.length;
+
+    var next = run.steps[run.index + 1];
+    $("run-next").innerHTML = next
+      ? "Next: <b>" + escapeHtml(next.name || (next.kind === "rest" ? "Rest" : "(unnamed)")) + "</b>" +
+        (next.spring ? " · " + escapeHtml(state.settings.loadLabel.toLowerCase()) + " " + escapeHtml(next.spring) : "") + " · " + fmtTime(next.duration || 0)
+      : "Last step";
+    updateRunTime();
+  }
+
+  function updateRunTime() {
+    var st = curStep(); if (!st) return;
+    var timeEl = $("run-time");
+    // Ceil so the countdown shows N..1 each for a full second and only hits 0:00 at the boundary.
+    timeEl.textContent = fmtTime(Math.ceil(run.remaining));
+    timeEl.classList.toggle("warn", run.remaining <= 5 && run.running);
+    var dur = st.duration || 0;
+    var pct = dur > 0 ? (1 - run.remaining / dur) * 100 : 100;
+    $("run-progress-bar").style.width = Math.min(100, Math.max(0, pct)) + "%";
+    var elapsed = run.elapsedBefore + ((st.duration || 0) - run.remaining);
+    $("run-elapsed").textContent = fmtTime(elapsed);
+    $("run-remaining").textContent = fmtTime(run.total - elapsed);
+  }
+
+  function setPlayLabel() {
+    var btn = $("btn-run-play");
+    if (run.index >= run.steps.length) { btn.textContent = "↺ Restart"; btn.className = "gold big"; return; }
+    btn.textContent = run.running ? "⏸ Pause" : "▶ Start";
+    btn.className = (run.running ? "" : "gold") + " big";
+  }
+  function announceText(st) {
+    if (!st) return "";
+    return (st.kind === "rest" ? "Rest" : (st.name || "exercise")) +
+      (st.spring ? ", " + state.settings.loadLabel.toLowerCase() + " " + st.spring : "") + ", " + fmtTime(st.duration || 0);
+  }
+
+  function playPause() {
+    if (run.index >= run.steps.length) { restartRun(); return; }
+    if (run.running) pauseRun(); else startRun();
+  }
+  function startRun() { ensureAudio(); run.running = true; run.lastTick = Date.now(); startTicker(); setPlayLabel(); updateRunTime(); }
+  function pauseRun() { run.running = false; stopTicker(); setPlayLabel(); updateRunTime(); }
+  function startTicker() { stopTicker(); run.ticker = setInterval(tick, 200); }
+  function stopTicker() { if (run.ticker) { clearInterval(run.ticker); run.ticker = null; } }
+
+  function tick() {
+    if (!run.running) return;
+    var now = Date.now(); var dt = (now - run.lastTick) / 1000; run.lastTick = now;
+    var prev = run.remaining; run.remaining -= dt;
+    // Countdown beeps for any of 3/2/1 crossed this tick (clamped so a long lag spike still cues).
+    var prevCeil = Math.ceil(prev), curCeil = Math.ceil(Math.max(0, run.remaining));
+    for (var n = prevCeil - 1; n >= curCeil; n--) if (n >= 1 && n <= 3) beep(880, 0.08);
+    if (run.remaining <= 0) advanceStep(true); else updateRunTime();
+  }
+
+  function advanceStep(fromTimer) {
+    var carry = (fromTimer && state.settings.autostart) ? Math.max(-2, run.remaining) : 0;
+    run.elapsedBefore += (curStep().duration || 0);
+    run.index++;
+    while (run.index < run.steps.length) {
+      var nxt = run.steps[run.index];
+      run.remaining = (nxt.duration || 0) + carry; carry = 0;
+      if (run.remaining > 0) break;
+      run.elapsedBefore += (nxt.duration || 0); run.index++;
+    }
+    if (run.index >= run.steps.length) {
+      beep(660, 0.5); run.running = false; stopTicker();
+      announce("Routine complete"); renderRunDone(); return;
+    }
+    beep(1046, 0.25);
+    renderRun();
+    announce(announceText(curStep()));
+    var keepRunning = run.running && (!fromTimer || state.settings.autostart);
+    if (keepRunning) { run.running = true; run.lastTick = Date.now(); setPlayLabel(); }
+    else { run.running = false; stopTicker(); setPlayLabel(); }
+  }
+
+  function prevStep() {
+    if (run.index >= run.steps.length) {
+      run.index = run.steps.length - 1;
+      run.elapsedBefore -= (curStep().duration || 0);
+      run.remaining = curStep().duration || 0;
+      if (run.running) run.lastTick = Date.now();
+      renderRun(); announce(announceText(curStep())); setPlayLabel(); return;
+    }
+    if (run.index === 0) {
+      run.remaining = curStep().duration || 0;
+      if (run.running) run.lastTick = Date.now();
+      updateRunTime(); announce(announceText(curStep())); return;
+    }
+    // Step back, skipping over any zero-duration (reps-only) steps so Prev lands on a real one.
+    do {
+      run.index--;
+      run.elapsedBefore -= (curStep().duration || 0);
+    } while (run.index > 0 && (curStep().duration || 0) <= 0);
+    run.remaining = curStep().duration || 0;
+    if (run.running) run.lastTick = Date.now();
+    renderRun(); announce(announceText(curStep())); setPlayLabel();
+  }
+  function skipStep() { if (run.index < run.steps.length) advanceStep(false); }
+  function restartRun() {
+    run.index = 0; run.elapsedBefore = 0;
+    run.remaining = run.steps[0].duration || 0; run.running = false; stopTicker();
+    renderRun(); setPlayLabel();
+  }
+  function renderRunDone() {
+    var overlay = $("run-overlay"); overlay.className = "run-overlay done";
+    $("run-position").textContent = "Complete"; $("run-block-label").textContent = "";
+    $("run-stage").className = "run-stage";
+    $("run-live").classList.add("hidden");
+    var d = $("run-done"); d.classList.remove("hidden");
+    d.innerHTML = "<h2>✓ Complete</h2><p class='muted'>" +
+      escapeHtml(run.title || "") + " · total " + fmtTime(run.total) + "</p>";
+    setPlayLabel();
+  }
+
+  // ===========================================================================
+  // Audio
+  // ===========================================================================
+  var audioCtx = null;
+  function ensureAudio() {
+    if (!state.settings.beeps) return;
+    try {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+    } catch (e) {}
+  }
+  function beep(freq, dur) {
+    if (!state.settings.beeps || !audioCtx) return;
+    try {
+      var osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.frequency.value = freq; osc.type = "sine"; gain.gain.value = 0.0001;
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      var t = audioCtx.currentTime;
+      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      osc.start(t); osc.stop(t + dur + 0.02);
+    } catch (e) {}
+  }
+
+  // ===========================================================================
+  // Exports (grouped by block, with cumulative start times)
+  // ===========================================================================
+  var exportId = null;
+  function openExport(id) {
+    var r = findRoutine(id);
+    if (!r || exerciseCount(r) === 0) { toast("Add an exercise first"); return; }
+    exportId = id;
+    $("export-title").textContent = 'Export "' + (r.name || "Untitled routine") + '"';
+    openOverlay("export-modal", "btn-exp-pdf");
+  }
+  function closeExport() { closeOverlay("export-modal"); }
+
+  // Flat rows across blocks with cumulative start time.
+  function exportRows(r) {
+    var rows = [], startAt = 0;
+    r.blocks.forEach(function (b, bi) {
+      b.exercises.forEach(function (e, ei) {
+        rows.push({
+          block: b.name || ("Block " + (bi + 1)), blockIndex: bi,
+          n: ei + 1, name: e.name || "(unnamed)", spring: e.spring || "",
+          side: sideLabel(e.side), reps: e.reps || "",
+          duration: e.duration || 0, rest: e.rest || 0, startAt: startAt
+        });
+        startAt += (e.duration || 0) + (e.rest || 0);
+      });
+    });
+    return rows;
+  }
+  function exportFilename(r, ext) {
+    var base = (r.name || "routine").replace(/[^a-z0-9]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase();
+    return (base || "routine") + "." + ext;
+  }
+
+  function exportPDF() {
+    var r = findRoutine(exportId);
+    var studio = state.settings.studioName || "Tempo";
+    var html = "";
+    if (state.settings.logo) html += "<img src='" + state.settings.logo + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
+    html += "<h1>" + escapeHtml(r.name || "Untitled routine") + "</h1>";
+    html += "<p class='ps-sub'>" + escapeHtml(studio) +
+      (r.description ? " — " + escapeHtml(r.description) : "") +
+      " · " + fmtTime(routineDuration(r)) + " total · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises" +
+      ((r.tags || []).length ? " · " + escapeHtml(r.tags.join(", ")) : "") + "</p>";
+    var startAt = 0;
+    r.blocks.forEach(function (b, bi) {
+      html += "<h2>" + (bi + 1) + ". " + escapeHtml(b.name || "Block " + (bi + 1)) +
+        " <span style='font-weight:normal;color:#666'>(" + fmtTime(blockDuration(b)) + ")</span></h2>";
+      html += "<table><thead><tr><th>#</th><th>Exercise</th><th>" + escapeHtml(state.settings.loadLabel) + "</th><th>Side</th><th>Reps</th><th>Start</th><th>Work</th><th>Rest</th></tr></thead><tbody>";
+      b.exercises.forEach(function (e, ei) {
+        html += "<tr class='r-" + (e.rest ? "rest" : "work") + "'>" +
+          "<td class='num'>" + (ei + 1) + "</td>" +
+          "<td>" + escapeHtml(e.name || "(unnamed)") + "</td>" +
+          "<td>" + escapeHtml(e.spring || "") + "</td>" +
+          "<td>" + escapeHtml(sideLabel(e.side)) + "</td>" +
+          "<td>" + escapeHtml(e.reps || "") + "</td>" +
+          "<td class='num'>" + fmtTime(startAt) + "</td>" +
+          "<td class='num'>" + fmtTime(e.duration || 0) + "</td>" +
+          "<td class='num'>" + (e.rest ? fmtTime(e.rest) : "—") + "</td>" +
+          "</tr>";
+        startAt += (e.duration || 0) + (e.rest || 0);
+      });
+      html += "</tbody></table>";
+    });
+    html += "<p class='ps-foot'>Total " + fmtTime(routineDuration(r)) + " · Generated by Tempo · " + new Date().toLocaleString() + "</p>";
+    $("print-area").innerHTML = html;
+    closeExport();
+    setTimeout(function () { window.print(); }, 50);
+  }
+
+  function csv(v) {
+    v = String(v == null ? "" : v);
+    if (/^[=+\-@\t\r]/.test(v)) v = "'" + v;
+    if (/[",\r\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+    return v;
+  }
+  function exportCSV() {
+    var r = findRoutine(exportId);
+    var rows = exportRows(r);
+    var lines = [];
+    lines.push(["Block", "#", "Exercise", csv(state.settings.loadLabel), "Side", "Reps", "Start", "Work", "Rest (sec)", "Work (sec)"].join(","));
+    var totWork = 0, totRest = 0;
+    rows.forEach(function (x) {
+      totWork += x.duration; totRest += x.rest;
+      lines.push([csv(x.block), x.n, csv(x.name), csv(x.spring), csv(x.side), csv(x.reps),
+        fmtTime(x.startAt), fmtTime(x.duration), x.rest, x.duration].join(","));
+    });
+    // Totals reconcile with their own columns: work under Work, rest under Rest.
+    lines.push(["", "", "TOTAL", "", "", "", "", fmtTime(totWork), totRest, totWork].join(","));
+    downloadFile(exportFilename(r, "csv"), lines.join("\r\n"), "text/csv");
+    closeExport(); toast("CSV downloaded");
+  }
+
+  function buildText(r) {
+    var studio = state.settings.studioName || "Tempo";
+    var out = [];
+    out.push((r.name || "Untitled routine").toUpperCase());
+    out.push(studio + (r.description ? " — " + r.description : ""));
+    out.push("Total " + fmtTime(routineDuration(r)) + " · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises");
+    if ((r.tags || []).length) out.push("Tags: " + r.tags.join(", "));
+    out.push("");
+    var startAt = 0;
+    r.blocks.forEach(function (b, bi) {
+      out.push("── " + (bi + 1) + ". " + (b.name || "Block " + (bi + 1)) + "  (" + fmtTime(blockDuration(b)) + ")");
+      b.exercises.forEach(function (e, ei) {
+        var line = "  " + pad((ei + 1) + ".", 4) + pad("[" + fmtTime(startAt) + "]", 9) + " " +
+          (e.name || "(unnamed)") + "  (" + fmtTime(e.duration || 0) + ")";
+        var extra = [];
+        if (e.spring) extra.push(state.settings.loadLabel.toLowerCase() + " " + e.spring);
+        if (e.side) extra.push(sideLabel(e.side));
+        if (e.reps) extra.push(e.reps + " reps");
+        if (e.rest) extra.push("rest " + fmtTime(e.rest));
+        if (extra.length) line += "  — " + extra.join(", ");
+        out.push(line);
+        startAt += (e.duration || 0) + (e.rest || 0);
+      });
+      out.push("");
+    });
+    return out.join("\n").replace(/\n+$/, "");
+  }
+  function pad(s, n) { s = String(s); while (s.length < n) s += " "; return s; }
+
+  function exportTextCopy() {
+    var text = buildText(findRoutine(exportId));
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast("Copied to clipboard"); }, function () { fallbackCopy(text); });
+    } else fallbackCopy(text);
+    closeExport();
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast("Copied to clipboard"); } catch (e) { toast("Copy failed — use Download .txt"); }
+    document.body.removeChild(ta);
+  }
+  function exportTextFile() {
+    var r = findRoutine(exportId);
+    downloadFile(exportFilename(r, "txt"), buildText(r), "text/plain");
+    closeExport(); toast("Text file downloaded");
+  }
+  function downloadFile(filename, content, mime) {
+    var blob = new Blob([content], { type: mime + ";charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a"); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // ===========================================================================
+  // Settings + backup + mode
+  // ===========================================================================
+  function setMode(mode) {
+    state.settings.mode = (mode === "personal") ? "personal" : "class";
+    save(); updateModeUI();
+    if (!$("view-library").classList.contains("hidden")) renderLibrary();
+  }
+  function updateModeUI() {
+    var isPersonal = state.settings.mode === "personal";
+    $("mode-class").classList.toggle("active", !isPersonal);
+    $("mode-personal").classList.toggle("active", isPersonal);
+    $("btn-new").textContent = isPersonal ? "+ New Workout" : "+ New Routine";
+  }
+  // Logo is staged here and only committed to settings on Save (like the other fields).
+  var pendingLogo = "";
+  var pendingLogoCustom = false;
+  function showLogoPreview(url) {
+    var img = $("logo-preview");
+    if (url) { img.src = url; img.style.display = ""; }
+    else { img.removeAttribute("src"); img.style.display = "none"; }
+    // "Remove" only applies to a custom upload (the built-in icon is the default floor).
+    $("btn-remove-logo").classList.toggle("hidden", !pendingLogoCustom);
+  }
+  function loadLogoFile(file) {
+    if (!file || !/^image\//.test(file.type)) { toast("Please choose an image file"); return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        // Downscale so it stays small in browser storage (and crisp on exports).
+        var max = 400, scale = Math.min(1, max / Math.max(img.width, img.height));
+        var w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+        var canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        var dataUrl;
+        try { dataUrl = canvas.toDataURL("image/png"); } catch (e) { dataUrl = reader.result; }
+        pendingLogo = dataUrl;
+        pendingLogoCustom = true; // an uploaded logo is preserved across reloads
+        showLogoPreview(dataUrl);
+      };
+      img.onerror = function () { toast("Could not read that image"); };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function openSettings() {
+    $("set-studio").value = state.settings.studioName || "";
+    $("set-loadlabel").value = state.settings.loadLabel || "Load";
+    $("set-accent").value = state.settings.accent || "#0085b8";
+    pendingLogo = state.settings.logo || "";
+    pendingLogoCustom = !!state.settings.logoCustom;
+    showLogoPreview(pendingLogo);
+    $("set-beeps").checked = !!state.settings.beeps;
+    $("set-autostart").checked = !!state.settings.autostart;
+    var hasUndo = false;
+    try { hasUndo = !!localStorage.getItem(STORE_KEY + ".prerestore"); } catch (e) {}
+    $("btn-undo-restore").classList.toggle("hidden", !hasUndo);
+    openOverlay("settings-modal", "set-studio");
+  }
+  function closeSettings() { closeOverlay("settings-modal"); }
+  function saveSettings() {
+    state.settings.studioName = $("set-studio").value.trim();
+    var lbl = $("set-loadlabel").value.trim();
+    state.settings.loadLabel = lbl || "Load";
+    var acc = $("set-accent").value;
+    state.settings.accent = (acc && acc.toLowerCase() !== "#0085b8") ? acc : "";
+    // A custom upload is kept; otherwise fall back to the built-in icon.
+    state.settings.logoCustom = pendingLogoCustom && !!pendingLogo;
+    state.settings.logo = state.settings.logoCustom ? pendingLogo : ECHELON_LOGO;
+    state.settings.beeps = $("set-beeps").checked;
+    state.settings.autostart = $("set-autostart").checked;
+    save(); updateBrand(); closeSettings(); toast("Settings saved");
+    if (!$("view-builder").classList.contains("hidden")) renderBlocks();
+  }
+  // Apply the studio name as the wordmark and the chosen brand color across the UI.
+  function updateBrand() {
+    var name = state.settings.studioName;
+    var logo = $("brand-logo");
+    if (state.settings.logo) {
+      logo.innerHTML = "";
+      var img = document.createElement("img");
+      img.src = state.settings.logo;
+      img.alt = name || "Logo";
+      img.style.height = "26px"; img.style.maxWidth = "190px";
+      img.style.objectFit = "contain"; img.style.display = "block";
+      logo.appendChild(img);
+      // Pair the icon with the name as a lockup (name color adapts to the theme).
+      if (name) { var t = document.createElement("span"); t.textContent = name; logo.appendChild(t); }
+    } else if (name) {
+      logo.textContent = name;
+    } else {
+      logo.innerHTML = 'Temp<span class="accent">o</span>';
+    }
+    $("studio-label").textContent = "";
+    var root = document.documentElement, acc = state.settings.accent;
+    if (acc) {
+      root.style.setProperty("--gold", acc);
+      root.style.setProperty("--gold-dim", "color-mix(in srgb, " + acc + " 72%, black)");
+      root.style.setProperty("--gold-soft", "color-mix(in srgb, " + acc + " 16%, transparent)");
+      // Pick readable button-label + accent-text colors for the chosen accent's brightness.
+      var lum = accentLuminance(acc);
+      root.style.setProperty("--gold-ink", lum > 0.5 ? "#06202b" : "#ffffff");
+      root.style.setProperty("--accent-text", lum < 0.35 ? acc : "color-mix(in srgb, " + acc + " 72%, black)");
+    } else {
+      root.style.removeProperty("--gold");
+      root.style.removeProperty("--gold-dim");
+      root.style.removeProperty("--gold-soft");
+      root.style.removeProperty("--gold-ink");
+      root.style.removeProperty("--accent-text");
+    }
+  }
+  // Rough perceived brightness (0-1) of a #rrggbb color.
+  function accentLuminance(hex) {
+    var m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return 0.4;
+    var n = parseInt(m[1], 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+  function applyTheme() {
+    document.documentElement.setAttribute("data-theme", state.settings.theme === "light" ? "light" : "dark");
+  }
+  function toggleTheme() {
+    state.settings.theme = (state.settings.theme === "light") ? "dark" : "light";
+    save(); applyTheme(); updateBrand();
+    toast(state.settings.theme === "light" ? "Light theme" : "Dark theme");
+  }
+  function backup() {
+    downloadFile("tempo-backup.json", JSON.stringify(state, null, 2), "application/json");
+    toast("Backup downloaded");
+  }
+  function restore(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var clean;
+      try {
+        var parsed = JSON.parse(reader.result);
+        if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.routines)) throw new Error("bad");
+        clean = normalizeState(parsed);
+      } catch (e) { toast("That file is not a valid Tempo backup"); return; }
+      if (!confirm("Restore will REPLACE your current " + state.routines.length +
+        " routine(s) with " + clean.routines.length + " from the backup. Continue?")) return;
+      var snapshotted = false;
+      try { localStorage.setItem(STORE_KEY + ".prerestore", JSON.stringify(state)); snapshotted = true; } catch (e) {}
+      state = clean;
+      var ok = save();
+      updateBrand(); updateModeUI(); closeSettings(); showLibrary();
+      if (!ok) { toast("Restore loaded but couldn't be saved — storage may be full"); return; }
+      toast(snapshotted ? "Backup restored — undo available in Settings" : "Backup restored");
+    };
+    reader.readAsText(file);
+  }
+  function undoRestore() {
+    var prev = null;
+    try { prev = localStorage.getItem(STORE_KEY + ".prerestore"); } catch (e) {}
+    if (!prev) { toast("Nothing to undo"); return; }
+    if (!confirm("Undo the last restore and bring back your previous routines?")) return;
+    try {
+      state = normalizeState(JSON.parse(prev)); save();
+      localStorage.removeItem(STORE_KEY + ".prerestore");
+      updateBrand(); updateModeUI(); closeSettings(); showLibrary();
+      toast("Previous routines restored");
+    } catch (e) { toast("Could not undo restore"); }
+  }
+
+  // ===========================================================================
+  // Events
+  // ===========================================================================
+  $("btn-new").onclick = createRoutine;
+  $("btn-back").onclick = function () {
+    saveBuilder(false);
+    var r = findRoutine(currentEditId);
+    if (r && routineIsEmpty(r)) { state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); save(); }
+    showLibrary();
+  };
+  $("btn-save").onclick = function () { saveBuilder(true); };
+  $("btn-add-block").onclick = addBlock;
+  $("routine-name").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.name = $("routine-name").value; markDirty(); } };
+  $("routine-desc").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.description = $("routine-desc").value; markDirty(); } };
+  $("routine-tags").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.tags = parseTags($("routine-tags").value); markDirty(); } };
+  $("btn-run-from-builder").onclick = function () { saveBuilder(false); openRun(currentEditId); };
+  $("btn-export-builder").onclick = function () { saveBuilder(false); openExport(currentEditId); };
+
+  $("mode-class").onclick = function () { setMode("class"); };
+  $("mode-personal").onclick = function () { setMode("personal"); };
+
+  // When navigating away from the builder/plan editor, discard a never-filled draft
+  // so blank "Untitled" cards don't pile up (the in-page Back buttons already do this).
+  function leaveCurrentEditor() {
+    if (!$("view-builder").classList.contains("hidden")) {
+      saveBuilder(false);
+      var r = findRoutine(currentEditId);
+      if (r && routineIsEmpty(r)) { state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); }
+    } else if (!$("view-plan-editor").classList.contains("hidden")) {
+      savePlan(false);
+      var s = findSequence(currentPlanId);
+      if (s && planIsEmpty(s)) { state.sequences = state.sequences.filter(function (x) { return x.id !== s.id; }); }
+    }
+    clearTimeout(autosaveTimer); save();
+  }
+  $("btn-moves").onclick = showCatalog;
+  $("btn-theme").onclick = toggleTheme;
+  $("btn-plans").onclick = function () { leaveCurrentEditor(); showPlans(); };
+  // Logo doubles as a "home" button back to the routine library.
+  var brandLogo = $("brand-logo");
+  brandLogo.style.cursor = "pointer";
+  brandLogo.title = "Home"; brandLogo.setAttribute("role", "button"); brandLogo.setAttribute("tabindex", "0");
+  brandLogo.setAttribute("aria-label", "Home — routine library");
+  brandLogo.onclick = function () { leaveCurrentEditor(); showLibrary(); };
+  brandLogo.onkeydown = function (e) { if (e.key === "Enter" || e.code === "Space") { e.preventDefault(); brandLogo.click(); } };
+  $("btn-new-plan").onclick = createPlan;
+  $("btn-plan-back").onclick = function () {
+    savePlan(false);
+    var seq = findSequence(currentPlanId);
+    if (seq && planIsEmpty(seq)) { state.sequences = state.sequences.filter(function (x) { return x.id !== seq.id; }); save(); }
+    showPlans();
+  };
+  $("btn-save-plan").onclick = function () { savePlan(true); };
+  $("btn-add-plan-routine").onclick = addPlanRoutine;
+  $("btn-run-plan").onclick = function () { savePlan(false); openRunSequence(currentPlanId); };
+  $("plan-name").oninput = function () { var s = findSequence(currentPlanId); if (s) { s.name = $("plan-name").value; $("plan-title").textContent = s.name.trim() || "New Plan"; markPlanDirty(); } };
+  $("btn-catalog-back").onclick = function () {
+    clearTimeout(autosaveTimer); save();
+    if (catalogReturnView === "builder" && findRoutine(currentEditId)) showBuilder(currentEditId);
+    else showLibrary();
+  };
+  $("btn-add-move").onclick = addMove;
+  $("btn-add-move-2").onclick = addMove;
+  $("btn-import-moves").onclick = importMovesFromRoutines;
+
+  $("btn-run-play").onclick = playPause;
+  $("btn-run-prev").onclick = prevStep;
+  $("btn-run-next").onclick = skipStep;
+  $("btn-run-restart").onclick = restartRun;
+  $("btn-run-exit").onclick = closeRun;
+
+  $("btn-settings").onclick = openSettings;
+  $("btn-settings-close").onclick = closeSettings;
+  $("btn-settings-save").onclick = saveSettings;
+  $("btn-backup").onclick = backup;
+  $("btn-restore").onclick = function () { $("restore-file").click(); };
+  $("btn-undo-restore").onclick = undoRestore;
+  $("restore-file").onchange = function (e) { if (e.target.files[0]) restore(e.target.files[0]); e.target.value = ""; };
+  $("btn-upload-logo").onclick = function () { $("logo-file").click(); };
+  $("btn-remove-logo").onclick = function () { pendingLogo = ECHELON_LOGO; pendingLogoCustom = false; showLogoPreview(ECHELON_LOGO); };
+  $("logo-file").onchange = function (e) { if (e.target.files[0]) loadLogoFile(e.target.files[0]); e.target.value = ""; };
+
+  $("btn-exp-pdf").onclick = exportPDF;
+  $("btn-exp-csv").onclick = exportCSV;
+  $("btn-exp-txt").onclick = exportTextCopy;
+  $("btn-exp-txt-file").onclick = exportTextFile;
+  $("btn-export-close").onclick = closeExport;
+
+  document.addEventListener("keydown", function (e) {
+    if (!$("run-overlay").classList.contains("hidden")) {
+      if (e.code === "Space") { e.preventDefault(); playPause(); }
+      else if (e.code === "ArrowRight") skipStep();
+      else if (e.code === "ArrowLeft") prevStep();
+      else if (e.code === "Escape") closeRun();
+      return;
+    }
+    if (!$("settings-modal").classList.contains("hidden") && e.code === "Escape") closeSettings();
+    if (!$("export-modal").classList.contains("hidden") && e.code === "Escape") closeExport();
+  });
+  $("settings-modal").addEventListener("click", function (e) { if (e.target === this) closeSettings(); });
+  $("export-modal").addEventListener("click", function (e) { if (e.target === this) closeExport(); });
+  window.addEventListener("beforeunload", function () {
+    if (currentEditId && !$("view-builder").classList.contains("hidden")) saveBuilder(false);
+    else { clearTimeout(autosaveTimer); save(); } // flush any pending catalog/edit autosave
+  });
+
+  // ===========================================================================
+  // Init
+  // ===========================================================================
+  applyTheme();
+  updateBrand();
+  updateModeUI();
+  updateMoveDatalist();
+  showLibrary();
+})();
+</script>
+</body>
+</html>
