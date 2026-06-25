@@ -357,7 +357,9 @@
 
   /* SIGNATURE: the countdown as a depleting interval dial. The ring drains as the
      interval runs (teal for work, amber for rest); the numerals sit inside it. */
-  .run-dial { position: relative; width: clamp(260px, 62vw, 460px); aspect-ratio: 1; display: grid; place-items: center; margin: 4px 0; }
+  /* Size by width AND cap by height (44vh) so on short landscape screens (e.g. a
+     1366×768 laptop) the dial never grows tall enough to push the controls off-screen. */
+  .run-dial { position: relative; width: min(clamp(260px, 62vw, 460px), 44vh); aspect-ratio: 1; display: grid; place-items: center; margin: 4px 0; }
   .run-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
   .run-ring-track { fill: none; stroke: var(--panel-2); stroke-width: 3.5; }
   .run-ring-fill { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round;
@@ -1302,10 +1304,13 @@
   // --- Shared metric-field renderers (used by BOTH the builder and the catalog) ---
   // The CSS grid columns for a row, derived from a format's field list:
   //   idx | name | (one per metric field) | time | rest | actions
-  function exGridCols(fields) {
+  function exGridCols(fields, actionsWidth) {
     var cols = ["28px", "minmax(110px,1.4fr)"];
     fields.forEach(function (f) { cols.push(f.type === "side" ? "80px" : "92px"); });
-    return cols.concat(["96px", "58px", "80px"]).join(" ");
+    // Last track is the action cluster. The builder needs room for five buttons
+    // (note · up · down · duplicate · delete) — default 158px; the catalog passes a
+    // narrower width since its rows only have a delete button.
+    return cols.concat(["96px", "58px", actionsWidth || "158px"]).join(" ");
   }
   // One metric control bound to obj.metrics[field.key]: a Side dropdown for the
   // "side" field type, otherwise a free-text box. onChange runs after each edit.
@@ -1638,7 +1643,7 @@
       var o = document.createElement("option"); o.value = k; o.textContent = DISCIPLINES[k].label;
       if (catalogDiscipline === k) o.selected = true; dsel.appendChild(o);
     });
-    var fields = DISCIPLINES[catalogDiscipline].fields, cols = exGridCols(fields);
+    var fields = DISCIPLINES[catalogDiscipline].fields, cols = exGridCols(fields, "56px"); // catalog rows: just a delete button
     updateMoveDatalist();
 
     var head = $("catalog-head"); head.innerHTML = ""; head.style.setProperty("--ex-cols", cols);
