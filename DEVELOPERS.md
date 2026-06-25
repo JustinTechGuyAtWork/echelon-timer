@@ -64,19 +64,43 @@ Saved as JSON under the `localStorage` key **`tempo.v1`**:
 ```js
 state = {
   settings:  { studioName, mode, theme, beeps, autostart,
-               loadLabel, accent, logo, logoCustom },
-  routines:  [ { id, name, description, tags:[], createdAt, updatedAt,
+               accent, logo, logoCustom, lastDiscipline },
+  routines:  [ { id, name, description, tags:[], discipline, createdAt, updatedAt,
                  blocks:[ { id, name, exercises:[
-                   { id, name, spring, side, duration, rest, reps } ] } ] } ],
-  catalog:   [ exercise-shaped templates the user reuses ],
+                   { id, name, duration, rest, metrics:{} } ] } ] } ],
+  catalog:   [ exercise-shaped templates, each with its own `discipline` ],
   sequences: [ { id, name, routineIds:[] } ]   // "class plans"
 }
 ```
-- `duration` = work seconds, `rest` = rest seconds after the exercise,
-  `side` = `"L"`/`"R"`/`"both"`/`""`, `spring` = the load value (free text).
+- `duration` = work seconds, `rest` = rest seconds after the exercise.
+- **`discipline`** = the class format (`lagree`/`cycle`/`treadmill`/`strength`). It
+  decides which metric fields an exercise has.
+- **`metrics`** = `{ fieldKey: value }` for that format, e.g. `{spring,side,reps}` for
+  Lagree, `{cadence,resistance}` for cycle. (`side` = `"L"/"R"/"both"/""`.)
 - **Data is per-device** (in the browser). It is NOT synced between people/devices.
   Settings → Backup/Restore moves it as a JSON file. A shared/synced library would
   need a backend (not present today).
+
+### Class formats ("disciplines")
+All formats live in one config object near the top of the script:
+```js
+var DISCIPLINES = { lagree:{label, fields:[{key,label,type?}]}, cycle:{…}, … };
+var DISCIPLINE_ORDER = ["lagree","cycle","treadmill","strength"];
+```
+Each `fields` entry is a column. `type:"side"` renders a Left/Right/Both dropdown;
+anything else is a text box, stored at `exercise.metrics[field.key]`. The builder,
+the live timer, exports, and the catalog all generate their columns from this map —
+so **to add a format (Rowing, Barre, …), add one entry here and (optionally) its key
+to `DISCIPLINE_ORDER`; nothing else needs to change.** Old saves that predate this
+(top-level `spring/side/reps`, no `discipline`) are migrated automatically by
+`normalizeExercise` / `normalizeState` on load.
+
+> ⚠️ **Never rename or remove a `DISCIPLINES` key (or a field `key`) once it has
+> shipped.** Routines and saved moves store the key, so a backup made on an older
+> version references it. On load, `normalizeState` falls any unknown key back to
+> `lagree`; the old metric values stay in the JSON but the UI can no longer show or
+> edit them. Always **add** new keys; if you retire a format, leave its key in the
+> map so existing data keeps working. Renaming a *label* is always safe.
 
 ---
 

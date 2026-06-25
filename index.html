@@ -29,14 +29,18 @@
   THE DATA MODEL (everything the user creates) — saved as JSON in localStorage
     key "tempo.v1":
       state = {
-        settings:  { studioName, mode, theme, beeps, autostart, loadLabel,
-                     accent, logo, logoCustom },
-        routines:  [ { id, name, description, tags:[], createdAt, updatedAt,
+        settings:  { studioName, mode, theme, beeps, autostart, accent, logo,
+                     logoCustom, lastDiscipline },
+        routines:  [ { id, name, description, tags:[], discipline, createdAt, updatedAt,
                        blocks:[ { id, name, exercises:[
-                         { id, name, spring, side, duration, rest, reps } ] } ] } ],
-        catalog:   [ exercise-shaped templates the user reuses ],
+                         { id, name, duration, rest, metrics:{} } ] } ] } ],
+        catalog:   [ exercise-shaped templates (each with its own `discipline`) ],
         sequences: [ { id, name, routineIds:[] } ]   // "class plans"
       }
+    discipline = the class format key (lagree/cycle/treadmill/strength); it decides
+      which metric fields each exercise has. metrics = { fieldKey: value } per format
+      (e.g. {spring,side,reps} for Lagree, {cadence,resistance} for cycle). See
+      DISCIPLINES near the top of the script.
     Data is PER DEVICE/BROWSER (not synced). Settings > Backup/Restore moves it.
 
   WHERE TO CHANGE COMMON THINGS
@@ -240,7 +244,10 @@
 
   .ex-head, .ex-row {
     display: grid;
-    grid-template-columns: 28px minmax(110px, 1.4fr) 72px 78px 94px 58px 56px 80px;
+    /* Columns are set per-row at runtime (--ex-cols) because the metric columns
+       depend on the routine's class format. The mobile rule below overrides this
+       with a stacked layout. Fallback covers the no-JS / older case. */
+    grid-template-columns: var(--ex-cols, 28px minmax(110px,1.4fr) 92px 80px 70px 94px 58px 80px);
     gap: 8px; align-items: center;
   }
   .ex-head { padding: 4px 12px; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; }
@@ -310,6 +317,10 @@
   .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; }
   .modal h2 { margin: 0 0 14px; font-size: 1.2rem; }
   .modal .field { margin-bottom: 14px; }
+  .tips h3 { margin: 0 0 6px; font-size: 0.95rem; }
+  .tips ul { margin: 0 0 16px; padding-left: 18px; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+  .tips li { margin-bottom: 7px; }
+  .tips b { color: var(--text); font-weight: 600; }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
   .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .toggle-row label { margin: 0; color: var(--text); }
@@ -409,7 +420,7 @@
     </div>
 
     <div class="card" style="padding:16px;">
-      <div class="field-row three">
+      <div class="field-row three" style="margin-bottom:14px;">
         <div>
           <label for="routine-name">Routine name</label>
           <input id="routine-name" placeholder="e.g. 45-min Full Body" />
@@ -423,6 +434,10 @@
           <input id="routine-tags" placeholder="full body, intermediate" />
         </div>
       </div>
+      <div style="max-width:280px;">
+        <label for="routine-discipline">Class format (sets the exercise fields)</label>
+        <select id="routine-discipline"></select>
+      </div>
     </div>
 
     <div id="blocks"></div>
@@ -430,7 +445,7 @@
     <div style="margin-top:14px;">
       <button id="btn-add-block">+ Add block</button>
     </div>
-    <p class="hint">A <b>block</b> is a section of your class (e.g. “Lower Body”). Each exercise has a work <b>time</b>, an optional <b>rest</b> after it, and a resistance/load setting. Use <b>Side</b> for left/right moves.</p>
+    <p class="hint">A <b>block</b> is a section of your class (e.g. “Lower Body” or “Climbs”). The columns for each exercise come from the <b>Class format</b> above; every exercise also has a work <b>time</b> and optional <b>rest</b>.</p>
 
     <div class="builder-foot">
       <span class="total">Total: <b id="builder-total">0:00</b></span>
@@ -448,7 +463,11 @@
       <button id="btn-import-moves" class="ghost">⤓ Import from routines</button>
       <button class="gold" id="btn-add-move">+ Add move</button>
     </div>
-    <p class="hint" style="margin-top:0;">Save your go-to moves here once. When building a routine, start typing an exercise name and pick a saved move to auto-fill its resistance, side, time, rest, and reps.</p>
+    <p class="hint" style="margin-top:0;">Save your go-to moves here once. When building a routine, start typing an exercise name and pick a saved move of the same format to auto-fill its fields, time, and rest.</p>
+    <div style="max-width:280px; margin-bottom:12px;">
+      <label for="catalog-discipline">Format (which moves to show / add)</label>
+      <select id="catalog-discipline"></select>
+    </div>
     <div class="card" style="padding:8px 6px 4px;">
       <div class="ex-head" id="catalog-head"></div>
       <div id="move-rows"></div>
@@ -529,28 +548,17 @@
 <div id="settings-modal" class="modal-back hidden" role="dialog" aria-modal="true" aria-labelledby="settings-heading">
   <div class="modal card">
     <h2 id="settings-heading">Settings</h2>
-    <div class="field">
-      <label for="set-studio">Studio / company name (shown as the logo &amp; on exports)</label>
-      <input id="set-studio" placeholder="Your Studio" />
-    </div>
-    <div class="field-row">
-      <div>
-        <label for="set-loadlabel">Resistance label (what you call the load setting)</label>
-        <input id="set-loadlabel" placeholder="Load / Weight / Level / Spring" />
-      </div>
-      <div>
-        <label for="set-accent">Brand color</label>
-        <input type="color" id="set-accent" value="#0085b8" style="height:40px; padding:4px;" />
-      </div>
-    </div>
-    <div class="field">
-      <label>Logo (optional — replaces the text name, also shown on PDF exports)</label>
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <img id="logo-preview" alt="Logo preview" style="height:40px; max-width:170px; object-fit:contain; background:#ffffff; border:1px solid var(--line); border-radius:8px; padding:3px; display:none;" />
-        <button id="btn-upload-logo">Upload logo</button>
-        <button id="btn-remove-logo" class="ghost hidden">Remove logo</button>
-        <input type="file" id="logo-file" accept="image/*" class="hidden" />
-      </div>
+    <div class="tips">
+      <h3>Quick tips</h3>
+      <ul>
+        <li><b>Build a routine</b> — choose a <b>Class format</b> (Lagree, Cycle, Treadmill, Strength); each shows the right fields, e.g. Cadence &amp; Resistance for cycle. Add blocks (sections) and exercises with a time and optional rest.</li>
+        <li><b>Run it</b> — tap a routine card (or ▶ Start). The timer auto-advances; use the on-screen buttons or Space / ← / → / Esc.</li>
+        <li><b>◫ Plans</b> — chain routines into one back-to-back class.</li>
+        <li><b>☰ Moves</b> — save go-to exercises per format; while building, start typing a name to auto-fill from a saved move.</li>
+        <li><b>Export</b> — from a routine, get a PDF run sheet, spreadsheet, or text.</li>
+        <li><b>Your data stays on this device.</b> Use <b>Backup</b> before switching phones/computers, then <b>Restore</b> on the new one.</li>
+        <li><b>Add to Home Screen</b> (iPhone: Share → Add to Home Screen) to use it like an app.</li>
+      </ul>
     </div>
     <div class="toggle-row">
       <input type="checkbox" id="set-beeps" />
@@ -650,10 +658,39 @@
   // It's the DEFAULT/built-in logo; a user-uploaded logo replaces it (see logoCustom).
   var ECHELON_LOGO = "data:image/png;base64,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";
 
+  // ===========================================================================
+  // CLASS FORMATS ("disciplines")
+  //   Each routine has a discipline that decides which METRIC fields its exercises
+  //   show — in the builder, the live timer, and exports. Every exercise also has
+  //   the universal fields: name, work time (duration), and rest.
+  //   Field types: "side" renders a Left/Right/Both dropdown; anything else is a
+  //   free-text box. Values are stored per-exercise in ex.metrics[field.key].
+  //   TO ADD A FORMAT: add an entry here and (optionally) its key to DISCIPLINE_ORDER.
+  //   Nothing else needs to change — the UI is generated from this map.
+  // ===========================================================================
+  var DISCIPLINES = {
+    lagree:    { label: "Lagree / Pilates", fields: [
+                   { key: "spring", label: "Spring" },
+                   { key: "side",   label: "Side", type: "side" },
+                   { key: "reps",   label: "Reps" } ] },
+    cycle:     { label: "Cycle / Spin", fields: [
+                   { key: "cadence",    label: "Cadence" },
+                   { key: "resistance", label: "Resistance" } ] },
+    treadmill: { label: "Treadmill / Run", fields: [
+                   { key: "speed",   label: "Speed" },
+                   { key: "incline", label: "Incline" } ] },
+    strength:  { label: "Strength", fields: [
+                   { key: "weight", label: "Weight" },
+                   { key: "reps",   label: "Reps" } ] }
+  };
+  var DISCIPLINE_ORDER = ["lagree", "cycle", "treadmill", "strength"];
+  function disciplineKey(r) { return (r && DISCIPLINES[r.discipline]) ? r.discipline : "lagree"; }
+  function disciplineFields(r) { return DISCIPLINES[disciplineKey(r)].fields; }
+
   // The settings every NEW install starts with. (Existing installs keep their own
   // saved settings; missing fields get filled in by normalizeState below.)
   function defaultSettings() {
-    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: false, loadLabel: "Load", accent: "", logo: ECHELON_LOGO, logoCustom: false };
+    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: false, accent: "", logo: ECHELON_LOGO, logoCustom: false, lastDiscipline: "lagree" };
   }
   // Read the saved state from localStorage at startup. If nothing is saved (or it's
   // unreadable), start fresh. Whatever we load is run through normalizeState first.
@@ -680,8 +717,8 @@
     if (parsed.settings.theme !== "light") parsed.settings.theme = "dark";
     parsed.settings.beeps = parsed.settings.beeps !== false;
     parsed.settings.autostart = parsed.settings.autostart === true;
-    if (typeof parsed.settings.loadLabel !== "string" || !parsed.settings.loadLabel.trim()) parsed.settings.loadLabel = "Load";
     if (typeof parsed.settings.accent !== "string") parsed.settings.accent = "";
+    if (!DISCIPLINES[parsed.settings.lastDiscipline]) parsed.settings.lastDiscipline = "lagree"; // default format for new routines
     // Logo: keep an uploaded custom logo; otherwise always use the current built-in
     // icon (this migrates any older built-in logo, e.g. the full wordmark, to the icon).
     parsed.settings.logoCustom = parsed.settings.logoCustom === true;
@@ -692,7 +729,7 @@
     if (!Array.isArray(parsed.catalog)) parsed.catalog = [];
     parsed.catalog = parsed.catalog
       .filter(function (m) { return m && typeof m === "object"; })
-      .map(normalizeExercise);
+      .map(function (m) { m = normalizeExercise(m); m.discipline = DISCIPLINES[m.discipline] ? m.discipline : "lagree"; return m; });
     if (!Array.isArray(parsed.routines)) parsed.routines = [];
     parsed.routines = parsed.routines
       .filter(function (r) { return r && typeof r === "object"; })
@@ -700,6 +737,7 @@
         r.id = r.id || uid();
         if (typeof r.createdAt !== "number") r.createdAt = Date.now();
         if (typeof r.updatedAt !== "number") r.updatedAt = Date.now();
+        r.discipline = DISCIPLINES[r.discipline] ? r.discipline : "lagree"; // class format
         r.name = typeof r.name === "string" ? r.name : "";
         r.description = typeof r.description === "string" ? r.description : "";
         if (!Array.isArray(r.tags)) r.tags = [];
@@ -729,17 +767,36 @@
     return parsed;
   }
   // Force one exercise (or catalog "move", same shape) into a valid form.
-  // duration = work seconds, rest = seconds of rest after it, side = L/R/both/"".
+  //  duration = work seconds, rest = seconds of rest after it.
+  //  metrics  = the format-specific values, keyed by field key (e.g. spring, cadence,
+  //             side, reps...). The old layout stored spring/side/reps as top-level
+  //             fields; this migrates them into metrics so old saves keep working.
   function normalizeExercise(e) {
     e.id = e.id || uid();
     e.name = typeof e.name === "string" ? e.name : "";
-    e.spring = typeof e.spring === "string" ? e.spring : (e.spring != null ? String(e.spring) : "");
-    e.side = (e.side === "L" || e.side === "R" || e.side === "both") ? e.side : "";
+    if (!e.metrics || typeof e.metrics !== "object") e.metrics = {};
+    // migrate legacy top-level fields into metrics (once), then remove them
+    ["spring", "side", "reps"].forEach(function (k) {
+      if (e[k] != null && e.metrics[k] == null) e.metrics[k] = String(e[k]);
+      delete e[k];
+    });
+    // coerce every metric value to a string ("side" maps to an L/R/both/"" code,
+    // accepting common spellings from imported/hand-edited data, e.g. "left"->"L")
+    Object.keys(e.metrics).forEach(function (k) {
+      var v = e.metrics[k];
+      if (k === "side") {
+        var s = String(v == null ? "" : v).trim().toLowerCase();
+        e.metrics[k] = (s === "l" || s === "left") ? "L" : (s === "r" || s === "right") ? "R" : (s === "both" || s === "b") ? "both" : "";
+      } else {
+        e.metrics[k] = (v == null ? "" : String(v));
+      }
+    });
     e.duration = num(e.duration);
     e.rest = num(e.rest);
-    e.reps = typeof e.reps === "string" ? e.reps : (e.reps != null ? String(e.reps) : "");
     return e;
   }
+  // Read/write a single metric value on an exercise/move.
+  function metricVal(e, key) { return (e.metrics && e.metrics[key] != null) ? e.metrics[key] : ""; }
   function num(v) { return (typeof v === "number" && isFinite(v) && v >= 0) ? v : 0; } // safe non-negative number, else 0
 
   var state = loadState();          // <-- the one in-memory copy of all data; everything reads/writes this
@@ -959,16 +1016,21 @@
   function createRoutine() {
     var r = {
       id: uid(), name: "", description: "", tags: [],
+      discipline: disciplineKey({ discipline: state.settings.lastDiscipline }), // default to the last format used
       createdAt: Date.now(), updatedAt: Date.now(),
       blocks: [ newBlock("Block 1") ]
     };
     state.routines.push(r); save(); showBuilder(r.id);
   }
   function newBlock(name) { return { id: uid(), name: name || "", exercises: [ newExercise() ] }; } // a block starts with 1 exercise
-  function newExercise() { return { id: uid(), name: "", spring: "", side: "", duration: 45, rest: 0, reps: "" }; } // default 45s work
+  function newExercise() { return { id: uid(), name: "", metrics: {}, duration: 45, rest: 0 }; } // default 45s work, no metrics yet
   function findRoutine(id) {            // look up a routine object by its id
     for (var i = 0; i < state.routines.length; i++) if (state.routines[i].id === id) return state.routines[i];
     return null;
+  }
+  // True if an exercise has no metric values set (any metric filled => "touched").
+  function exerciseHasMetrics(e) {
+    return Object.keys(e.metrics || {}).some(function (k) { return (e.metrics[k] || "").toString().trim(); });
   }
   // True if a routine is still in its just-created, untouched state (used to auto-discard
   // abandoned blank routines so the library doesn't fill with "Untitled" junk).
@@ -981,10 +1043,8 @@
       if (b.exercises.length === 0) return true;
       if (b.exercises.length === 1) {
         var e = b.exercises[0];
-        // "Untouched" = matches the freshly-created defaults. Any change to time,
-        // side, rest, name, spring or reps counts as real work and is kept.
-        return !(e.name || "").trim() && !(e.spring || "").trim() && !(e.reps || "").trim()
-          && !e.side && (e.duration || 0) === 45 && !(e.rest || 0);
+        // "Untouched" = matches the freshly-created defaults (name blank, no metrics, default time, no rest).
+        return !(e.name || "").trim() && !exerciseHasMetrics(e) && (e.duration || 0) === 45 && !(e.rest || 0);
       }
     }
     return false;
@@ -1018,7 +1078,13 @@
     $("routine-name").value = r.name;
     $("routine-desc").value = r.description;
     $("routine-tags").value = (r.tags || []).join(", ");
-    updateMoveDatalist(); // so the exercise-name autocomplete is ready
+    // Fill the Class format dropdown and select this routine's format.
+    var dsel = $("routine-discipline"); dsel.innerHTML = "";
+    DISCIPLINE_ORDER.forEach(function (k) {
+      var o = document.createElement("option"); o.value = k; o.textContent = DISCIPLINES[k].label;
+      if (disciplineKey(r) === k) o.selected = true; dsel.appendChild(o);
+    });
+    updateMoveDatalist(disciplineKey(r)); // autocomplete suggests this format's moves
     renderBlocks();
   }
 
@@ -1034,11 +1100,70 @@
     var t = 0; b.exercises.forEach(function (e) { t += (e.duration || 0) + (e.rest || 0); }); return t;
   }
 
+  // --- Shared metric-field renderers (used by BOTH the builder and the catalog) ---
+  // The CSS grid columns for a row, derived from a format's field list:
+  //   idx | name | (one per metric field) | time | rest | actions
+  function exGridCols(fields) {
+    var cols = ["28px", "minmax(110px,1.4fr)"];
+    fields.forEach(function (f) { cols.push(f.type === "side" ? "80px" : "92px"); });
+    return cols.concat(["96px", "58px", "80px"]).join(" ");
+  }
+  // One metric control bound to obj.metrics[field.key]: a Side dropdown for the
+  // "side" field type, otherwise a free-text box. onChange runs after each edit.
+  function metricNode(obj, field, onChange) {
+    if (field.type === "side") {
+      var sel = document.createElement("select"); sel.setAttribute("aria-label", field.label);
+      [["", "—"], ["L", "Left"], ["R", "Right"], ["both", "Both"]].forEach(function (o) {
+        var opt = document.createElement("option"); opt.value = o[0]; opt.textContent = o[1];
+        if (metricVal(obj, field.key) === o[0]) opt.selected = true; sel.appendChild(opt);
+      });
+      sel.onchange = function () { obj.metrics[field.key] = sel.value; onChange(); };
+      return sel;
+    }
+    var inp = document.createElement("input"); inp.className = "spring";
+    inp.value = metricVal(obj, field.key); inp.placeholder = "—"; inp.setAttribute("aria-label", field.label);
+    inp.oninput = function () { obj.metrics[field.key] = inp.value; onChange(); };
+    return inp;
+  }
+  // The work-time (min:sec) control bound to obj.duration.
+  function durNode(obj, onChange) {
+    var durWrap = el("div", "dur-input");
+    var min = document.createElement("input"); min.type = "number"; min.min = "0";
+    min.value = Math.floor((obj.duration || 0) / 60); min.setAttribute("aria-label", "Work minutes");
+    var sec = document.createElement("input"); sec.type = "number"; sec.min = "0"; sec.max = "59";
+    sec.value = (obj.duration || 0) % 60; sec.setAttribute("aria-label", "Work seconds");
+    function readDur() {
+      var m = parseInt(min.value, 10); if (isNaN(m) || m < 0) m = 0;
+      var s = parseInt(sec.value, 10); if (isNaN(s) || s < 0) s = 0;
+      obj.duration = m * 60 + s; onChange();
+    }
+    function normDur() { var t = obj.duration || 0; min.value = Math.floor(t / 60); sec.value = t % 60; }
+    min.oninput = readDur; sec.oninput = readDur; min.onchange = normDur; sec.onchange = normDur;
+    durWrap.appendChild(min); durWrap.appendChild(el("span", null, ":")); durWrap.appendChild(sec);
+    return durWrap;
+  }
+  // The rest-seconds control bound to obj.rest.
+  function restNode(obj, onChange) {
+    var rest = document.createElement("input"); rest.type = "number"; rest.min = "0";
+    rest.value = obj.rest || 0; rest.placeholder = "0"; rest.setAttribute("aria-label", "Rest seconds");
+    rest.oninput = function () { var v = parseInt(rest.value, 10); if (isNaN(v) || v < 0) v = 0; obj.rest = v; onChange(); };
+    return rest;
+  }
+  // Wrap a control in a .cell (carries the column label shown on narrow screens).
+  function fieldCell(node, label, cls) {
+    var c = el("div", "cell" + (cls ? " " + cls : ""));
+    if (label) c.setAttribute("data-k", label);
+    c.appendChild(node);
+    return c;
+  }
+
   function buildBlock(block, bi, r) {
     var wrap = el("div", "block card");
     wrap.style.padding = "8px 6px 4px";
+    var fields = disciplineFields(r);     // metric columns for this routine's format
+    var cols = exGridCols(fields);
 
-    // header
+    // header (block name + reorder/delete)
     var head = el("div", "block-head");
     head.appendChild(el("div", "block-badge", String(bi + 1)));
     var bname = document.createElement("input");
@@ -1059,15 +1184,14 @@
     head.appendChild(ba);
     wrap.appendChild(head);
 
-    // column headers
-    var colhead = el("div", "ex-head");
-    ["", "Exercise", state.settings.loadLabel, "Side", "Time", "Rest", "Reps", ""].forEach(function (c) {
-      colhead.appendChild(el("span", null, c));
-    });
+    // column headers (Exercise + the format's metric labels + Time + Rest)
+    var colhead = el("div", "ex-head"); colhead.style.setProperty("--ex-cols", cols);
+    [""].concat(["Exercise"]).concat(fields.map(function (f) { return f.label; })).concat(["Time", "Rest", ""])
+      .forEach(function (c) { colhead.appendChild(el("span", null, c)); });
     wrap.appendChild(colhead);
 
     var rows = el("div");
-    block.exercises.forEach(function (ex, ei) { rows.appendChild(buildExRow(ex, ei, block)); });
+    block.exercises.forEach(function (ex, ei) { rows.appendChild(buildExRow(ex, ei, block, r)); });
     wrap.appendChild(rows);
 
     var add = el("div", "block-add");
@@ -1078,78 +1202,38 @@
     return wrap;
   }
 
-  // Build one editable exercise row: name (with catalog autocomplete), the load
-  // field (labeled by settings.loadLabel), side, work time (min:sec), rest, reps,
-  // and the move/duplicate/delete buttons. Each control edits `ex` live + autosaves.
-  function buildExRow(ex, ei, block) {
-    var row = el("div", "ex-row");
-    row.dataset.id = ex.id;
-    // Each field sits in a .cell so it can carry a small label that only shows on
-    // narrow (phone) screens; on desktop the cells line up as table columns.
-    function cell(node, label, cls) {
-      var c = el("div", "cell" + (cls ? " " + cls : ""));
-      if (label) c.setAttribute("data-k", label);
-      c.appendChild(node);
-      return c;
-    }
+  // Build one editable exercise row. The metric columns are generated from the
+  // routine's class format (disciplineFields), so a cycle routine shows
+  // Cadence/Resistance, a treadmill one shows Speed/Incline, etc. Name has catalog
+  // autocomplete; the action buttons reorder/duplicate/delete. Edits autosave.
+  function buildExRow(ex, ei, block, r) {
+    var fields = disciplineFields(r);
+    var row = el("div", "ex-row"); row.dataset.id = ex.id;
+    row.style.setProperty("--ex-cols", exGridCols(fields));
+    var onEdit = function () { markDirty(); };
+    var onTime = function () { updateBuilderTotals(); markDirty(); };
 
-    row.appendChild(cell(el("div", "idx", String(ei + 1)), "", "idx-cell"));
+    row.appendChild(fieldCell(el("div", "idx", String(ei + 1)), "", "idx-cell"));
 
     var name = document.createElement("input");
     name.value = ex.name; name.placeholder = "Exercise name"; name.setAttribute("aria-label", "Exercise name");
     name.setAttribute("list", "move-list"); // suggest saved catalog moves
     name.oninput = function () { ex.name = name.value; markDirty(); };
     name.onchange = function () {
-      // If the typed/picked name matches a saved move and this exercise is still
-      // at its defaults, auto-fill resistance/side/time/rest/reps from the move.
-      var mv = findMoveByName(ex.name);
-      if (mv && exerciseIsDefault(ex)) { applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from catalog: " + mv.name); }
+      // If the typed/picked name matches a saved move of the SAME format and this
+      // exercise is still at its defaults, auto-fill its metrics/time/rest.
+      var mv = findMoveByName(ex.name, disciplineKey(r));
+      if (mv && exerciseIsDefault(ex)) {
+        applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from catalog: " + mv.name);
+      }
     };
-    row.appendChild(cell(name, "Exercise", "name-cell"));
+    row.appendChild(fieldCell(name, "Exercise", "name-cell"));
 
-    var spring = document.createElement("input");
-    spring.className = "spring"; spring.value = ex.spring; spring.placeholder = "—"; spring.setAttribute("aria-label", state.settings.loadLabel);
-    spring.oninput = function () { ex.spring = spring.value; markDirty(); };
-    row.appendChild(cell(spring, state.settings.loadLabel));
+    // one cell per metric field for this format
+    fields.forEach(function (f) { row.appendChild(fieldCell(metricNode(ex, f, onEdit), f.label)); });
 
-    var side = document.createElement("select");
-    side.setAttribute("aria-label", "Side");
-    [["", "—"], ["L", "Left"], ["R", "Right"], ["both", "Both"]].forEach(function (o) {
-      var opt = document.createElement("option"); opt.value = o[0]; opt.textContent = o[1];
-      if (ex.side === o[0]) opt.selected = true; side.appendChild(opt);
-    });
-    side.onchange = function () { ex.side = side.value; markDirty(); };
-    row.appendChild(cell(side, "Side"));
-
-    // time min:sec
-    var durWrap = el("div", "dur-input");
-    var min = document.createElement("input"); min.type = "number"; min.min = "0";
-    min.value = Math.floor((ex.duration || 0) / 60); min.setAttribute("aria-label", "Work minutes");
-    var sec = document.createElement("input"); sec.type = "number"; sec.min = "0"; sec.max = "59";
-    sec.value = (ex.duration || 0) % 60; sec.setAttribute("aria-label", "Work seconds");
-    function readDur() {
-      var m = parseInt(min.value, 10); if (isNaN(m) || m < 0) m = 0;
-      var s = parseInt(sec.value, 10); if (isNaN(s) || s < 0) s = 0;
-      ex.duration = m * 60 + s; updateBuilderTotals(); markDirty();
-    }
-    function normDur() { var t = ex.duration || 0; min.value = Math.floor(t / 60); sec.value = t % 60; }
-    min.oninput = readDur; sec.oninput = readDur; min.onchange = normDur; sec.onchange = normDur;
-    durWrap.appendChild(min); durWrap.appendChild(el("span", null, ":")); durWrap.appendChild(sec);
-    row.appendChild(cell(durWrap, "Time"));
-
-    // rest (seconds)
-    var rest = document.createElement("input"); rest.type = "number"; rest.min = "0";
-    rest.value = ex.rest || 0; rest.placeholder = "0"; rest.setAttribute("aria-label", "Rest seconds");
-    rest.oninput = function () {
-      var v = parseInt(rest.value, 10); if (isNaN(v) || v < 0) v = 0;
-      ex.rest = v; updateBuilderTotals(); markDirty();
-    };
-    row.appendChild(cell(rest, "Rest"));
-
-    var reps = document.createElement("input");
-    reps.value = ex.reps || ""; reps.placeholder = "—"; reps.setAttribute("aria-label", "Reps");
-    reps.oninput = function () { ex.reps = reps.value; markDirty(); };
-    row.appendChild(cell(reps, "Reps"));
+    row.appendChild(fieldCell(durNode(ex, onTime), "Time"));
+    row.appendChild(fieldCell(restNode(ex, onTime), "Rest"));
 
     var actions = el("div", "ex-actions");
     var up = el("button", "ghost", "↑"); up.title = "Move up"; up.setAttribute("aria-label", "Move exercise up");
@@ -1161,7 +1245,7 @@
     var del = el("button", "danger", "✕"); del.title = "Delete"; del.setAttribute("aria-label", "Delete exercise");
     del.onclick = function () { deleteExercise(block.id, ex.id); };
     [up, down, dup, del].forEach(function (b) { actions.appendChild(b); });
-    row.appendChild(cell(actions, "", "actions-cell"));
+    row.appendChild(fieldCell(actions, "", "actions-cell"));
     return row;
   }
 
@@ -1188,7 +1272,7 @@
   function deleteBlock(blockId) {
     var r = findRoutine(currentEditId);
     var b = findBlock(r, blockId);
-    var hasData = b && b.exercises.some(function (e) { return (e.name || "").trim() || (e.spring || "").trim(); });
+    var hasData = b && b.exercises.some(function (e) { return (e.name || "").trim() || exerciseHasMetrics(e); });
     if (hasData && !confirm('Delete block "' + (b.name || "Untitled") + '" and its exercises?')) return;
     r.blocks = r.blocks.filter(function (x) { return x.id !== blockId; });
     markDirty(); renderBlocks();
@@ -1224,7 +1308,7 @@
   function deleteExercise(blockId, exId) {
     var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
     var ex = b.exercises.filter(function (e) { return e.id === exId; })[0];
-    var hasData = ex && ((ex.name || "").trim() || (ex.spring || "").trim() || (ex.reps || "").trim());
+    var hasData = ex && ((ex.name || "").trim() || exerciseHasMetrics(ex));
     if (hasData && !confirm('Delete exercise "' + (ex.name || "(unnamed)") + '"?')) return;
     b.exercises = b.exercises.filter(function (e) { return e.id !== exId; });
     markDirty(); renderBlocks();
@@ -1279,112 +1363,95 @@
   // ===========================================================================
   function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(save, 500); } // debounced save for catalog/plan edits
 
-  // Rebuild the <datalist> the builder's exercise-name input reads for suggestions.
-  function updateMoveDatalist() {
+  var catalogDiscipline = "lagree";    // which format's moves the ☰ Moves screen shows/adds
+  // Rebuild the <datalist> the builder's exercise-name input reads. If a format is
+  // passed, only suggest moves of that format (so a cycle routine sees cycle moves).
+  function updateMoveDatalist(disc) {
     var dl = $("move-list"); dl.innerHTML = "";
     var seen = {};
     state.catalog.forEach(function (m) {
+      if (disc && m.discipline !== disc) return;
       var n = (m.name || "").trim();
       if (!n || seen[n.toLowerCase()]) return;
       seen[n.toLowerCase()] = true;
       var opt = document.createElement("option"); opt.value = n; dl.appendChild(opt);
     });
   }
-  function findMoveByName(name) {       // case-insensitive lookup of a catalog move by name
+  // Find a catalog move by name (case-insensitive). If a format is given, only match
+  // a move of that format, so autofill respects the routine's format.
+  function findMoveByName(name, disc) {
     name = (name || "").trim().toLowerCase(); if (!name) return null;
     for (var i = 0; i < state.catalog.length; i++) {
-      if ((state.catalog[i].name || "").trim().toLowerCase() === name) return state.catalog[i];
+      var m = state.catalog[i];
+      if ((m.name || "").trim().toLowerCase() === name && (!disc || m.discipline === disc)) return m;
     }
     return null;
   }
-  // A fresh exercise (only a name) can be auto-filled from a catalog move without
-  // clobbering anything the user already set.
+  // A fresh exercise (only a name typed) can be auto-filled from a catalog move
+  // without clobbering anything the user already set.
   function exerciseIsDefault(ex) {
-    return !(ex.spring || "").trim() && !(ex.reps || "").trim() && !ex.side
-      && (ex.duration || 0) === 45 && !(ex.rest || 0);
+    return !exerciseHasMetrics(ex) && (ex.duration || 0) === 45 && !(ex.rest || 0);
   }
+  // Copy a catalog move's metrics + timing onto an exercise (deep-copies metrics).
   function applyMoveTemplate(ex, m) {
-    ex.spring = m.spring || ""; ex.side = m.side || ""; ex.duration = m.duration || 0;
-    ex.rest = m.rest || 0; ex.reps = m.reps || ""; markDirty();
+    ex.metrics = JSON.parse(JSON.stringify(m.metrics || {}));
+    ex.duration = m.duration || 0; ex.rest = m.rest || 0; markDirty();
   }
 
   function renderCatalog() {
-    updateMoveDatalist();
-    var head = $("catalog-head"); head.innerHTML = "";
-    ["", "Move", state.settings.loadLabel, "Side", "Time", "Rest", "Reps", ""].forEach(function (c) {
-      head.appendChild(el("span", null, c));
+    // Format selector — which format's moves this screen shows/adds.
+    var dsel = $("catalog-discipline"); dsel.innerHTML = "";
+    DISCIPLINE_ORDER.forEach(function (k) {
+      var o = document.createElement("option"); o.value = k; o.textContent = DISCIPLINES[k].label;
+      if (catalogDiscipline === k) o.selected = true; dsel.appendChild(o);
     });
+    var fields = DISCIPLINES[catalogDiscipline].fields, cols = exGridCols(fields);
+    updateMoveDatalist();
+
+    var head = $("catalog-head"); head.innerHTML = ""; head.style.setProperty("--ex-cols", cols);
+    [""].concat(["Move"]).concat(fields.map(function (f) { return f.label; })).concat(["Time", "Rest", ""])
+      .forEach(function (c) { head.appendChild(el("span", null, c)); });
+
+    var moves = state.catalog.filter(function (m) { return m.discipline === catalogDiscipline; });
     var wrap = $("move-rows"); wrap.innerHTML = "";
-    if (state.catalog.length === 0) {
+    if (moves.length === 0) {
       var empty = el("div", "empty"); empty.style.margin = "8px";
-      empty.innerHTML = "<h2>No saved moves</h2><p>Add moves you reuse often, or import the ones already in your routines.</p>";
+      empty.innerHTML = "<h2>No saved moves</h2><p>Add " + escapeHtml(DISCIPLINES[catalogDiscipline].label) +
+        " moves you reuse often, or import the ones already in your routines.</p>";
       wrap.appendChild(empty); return;
     }
-    state.catalog.forEach(function (m) { wrap.appendChild(buildMoveRow(m)); });
+    moves.forEach(function (m) { wrap.appendChild(buildMoveRow(m, fields, cols)); });
   }
 
-  function buildMoveRow(m) {
+  // A catalog row mirrors an exercise row (same field renderers) but with a delete
+  // button only, and edits debounce-save instead of marking a routine dirty.
+  function buildMoveRow(m, fields, cols) {
     var row = el("div", "ex-row"); row.dataset.id = m.id;
-    function cell(node, label, cls) {
-      var c = el("div", "cell" + (cls ? " " + cls : ""));
-      if (label) c.setAttribute("data-k", label);
-      c.appendChild(node); return c;
-    }
-    row.appendChild(cell(el("div", "idx", "•"), "", "idx-cell"));
+    row.style.setProperty("--ex-cols", cols);
+    var onEdit = function () { scheduleSave(); };
+    row.appendChild(fieldCell(el("div", "idx", "•"), "", "idx-cell"));
 
     var name = document.createElement("input");
     name.value = m.name; name.placeholder = "Move name"; name.setAttribute("aria-label", "Move name");
     name.oninput = function () { m.name = name.value; updateMoveDatalist(); scheduleSave(); };
-    row.appendChild(cell(name, "Move", "name-cell"));
+    row.appendChild(fieldCell(name, "Move", "name-cell"));
 
-    var spring = document.createElement("input");
-    spring.className = "spring"; spring.value = m.spring; spring.placeholder = "—"; spring.setAttribute("aria-label", state.settings.loadLabel);
-    spring.oninput = function () { m.spring = spring.value; scheduleSave(); };
-    row.appendChild(cell(spring, state.settings.loadLabel));
-
-    var side = document.createElement("select"); side.setAttribute("aria-label", "Side");
-    [["", "—"], ["L", "Left"], ["R", "Right"], ["both", "Both"]].forEach(function (o) {
-      var opt = document.createElement("option"); opt.value = o[0]; opt.textContent = o[1];
-      if (m.side === o[0]) opt.selected = true; side.appendChild(opt);
-    });
-    side.onchange = function () { m.side = side.value; scheduleSave(); };
-    row.appendChild(cell(side, "Side"));
-
-    var durWrap = el("div", "dur-input");
-    var min = document.createElement("input"); min.type = "number"; min.min = "0";
-    min.value = Math.floor((m.duration || 0) / 60); min.setAttribute("aria-label", "Minutes");
-    var sec = document.createElement("input"); sec.type = "number"; sec.min = "0"; sec.max = "59";
-    sec.value = (m.duration || 0) % 60; sec.setAttribute("aria-label", "Seconds");
-    function readDur() {
-      var mm = parseInt(min.value, 10); if (isNaN(mm) || mm < 0) mm = 0;
-      var ss = parseInt(sec.value, 10); if (isNaN(ss) || ss < 0) ss = 0;
-      m.duration = mm * 60 + ss; scheduleSave();
-    }
-    function normDur() { var t = m.duration || 0; min.value = Math.floor(t / 60); sec.value = t % 60; }
-    min.oninput = readDur; sec.oninput = readDur; min.onchange = normDur; sec.onchange = normDur;
-    durWrap.appendChild(min); durWrap.appendChild(el("span", null, ":")); durWrap.appendChild(sec);
-    row.appendChild(cell(durWrap, "Time"));
-
-    var rest = document.createElement("input"); rest.type = "number"; rest.min = "0";
-    rest.value = m.rest || 0; rest.placeholder = "0"; rest.setAttribute("aria-label", "Rest seconds");
-    rest.oninput = function () { var v = parseInt(rest.value, 10); if (isNaN(v) || v < 0) v = 0; m.rest = v; scheduleSave(); };
-    row.appendChild(cell(rest, "Rest"));
-
-    var reps = document.createElement("input");
-    reps.value = m.reps || ""; reps.placeholder = "—"; reps.setAttribute("aria-label", "Reps");
-    reps.oninput = function () { m.reps = reps.value; scheduleSave(); };
-    row.appendChild(cell(reps, "Reps"));
+    fields.forEach(function (f) { row.appendChild(fieldCell(metricNode(m, f, onEdit), f.label)); });
+    row.appendChild(fieldCell(durNode(m, onEdit), "Time"));
+    row.appendChild(fieldCell(restNode(m, onEdit), "Rest"));
 
     var actions = el("div", "ex-actions");
     var del = el("button", "danger", "✕"); del.title = "Delete move"; del.setAttribute("aria-label", "Delete move");
     del.onclick = function () { deleteMove(m.id); };
     actions.appendChild(del);
-    row.appendChild(cell(actions, "", "actions-cell"));
+    row.appendChild(fieldCell(actions, "", "actions-cell"));
     return row;
   }
 
   function addMove() {
-    state.catalog.push(normalizeExercise({ name: "", spring: "", side: "", duration: 45, rest: 0, reps: "" }));
+    var m = normalizeExercise({ name: "", metrics: {}, duration: 45, rest: 0 });
+    m.discipline = catalogDiscipline;   // new moves belong to the format currently shown
+    state.catalog.push(m);
     save(); renderCatalog();
     var rows = $("move-rows").querySelectorAll(".ex-row");
     var last = rows[rows.length - 1];
@@ -1392,7 +1459,7 @@
   }
   function deleteMove(id) {
     var m = state.catalog.filter(function (x) { return x.id === id; })[0];
-    var hasData = m && ((m.name || "").trim() || (m.spring || "").trim());
+    var hasData = m && ((m.name || "").trim() || exerciseHasMetrics(m));
     if (hasData && !confirm('Delete move "' + (m.name || "(unnamed)") + '" from the catalog?')) return;
     state.catalog = state.catalog.filter(function (x) { return x.id !== id; });
     save(); renderCatalog();
@@ -1400,17 +1467,20 @@
   // One-click populate the catalog from every exercise already used in any routine
   // (skips names already in the catalog). Handy first-time setup.
   function importMovesFromRoutines() {
+    // Dedupe by format + name (the same name in two formats is two distinct moves).
     var existing = {};
-    state.catalog.forEach(function (m) { var n = (m.name || "").trim().toLowerCase(); if (n) existing[n] = true; });
+    function key(disc, name) { return disc + "|" + (name || "").trim().toLowerCase(); }
+    state.catalog.forEach(function (m) { if ((m.name || "").trim()) existing[key(m.discipline, m.name)] = true; });
     var added = 0;
     state.routines.forEach(function (r) {
+      var disc = disciplineKey(r);
       r.blocks.forEach(function (b) {
         b.exercises.forEach(function (e) {
-          var n = (e.name || "").trim();
-          if (!n || existing[n.toLowerCase()]) return;
-          existing[n.toLowerCase()] = true;
-          state.catalog.push(normalizeExercise({ name: n, spring: e.spring, side: e.side, duration: e.duration, rest: e.rest, reps: e.reps }));
-          added++;
+          var n = (e.name || "").trim(); if (!n || existing[key(disc, n)]) return;
+          existing[key(disc, n)] = true;
+          var mv = normalizeExercise({ name: n, metrics: JSON.parse(JSON.stringify(e.metrics || {})), duration: e.duration, rest: e.rest });
+          mv.discipline = disc;
+          state.catalog.push(mv); added++;
         });
       });
     });
@@ -1609,16 +1679,27 @@
   var run = { steps: [], title: "", index: 0, remaining: 0, running: false, ticker: null, lastTick: 0, elapsedBefore: 0, total: 0 };
 
   // Flatten ONE routine into work/rest steps (see section header for the model).
+  // Display chips for a step: [{label, value}] for each non-empty metric of the
+  // routine's format (Side shows "Left/Right/Both" rather than its code).
+  function stepMeta(ex, fields) {
+    var out = [];
+    fields.forEach(function (f) {
+      var v = metricVal(ex, f.key); if (!(v || "").toString().trim()) return;
+      out.push({ label: f.label, value: f.type === "side" ? sideLabel(v) : v });
+    });
+    return out;
+  }
   function buildSteps(r) {
     var steps = [];
+    var fields = disciplineFields(r);   // metric columns for this routine's format
     r.blocks.forEach(function (b) {
       b.exercises.forEach(function (ex) {
-        // Always emit a work step so the exercise (name/spring/side/reps) is shown,
-        // even if its work time is 0 (e.g. a reps-only move). Zero-duration steps
-        // are passed through by the timer's auto-advance.
-        steps.push({ kind: "work", block: b.name, name: ex.name, spring: ex.spring, side: ex.side, reps: ex.reps, duration: ex.duration || 0 });
+        // Always emit a work step so the exercise (name + metrics) is shown, even if
+        // its work time is 0 (e.g. a reps-only move). Zero-duration steps are passed
+        // through by the timer's auto-advance.
+        steps.push({ kind: "work", block: b.name, name: ex.name, meta: stepMeta(ex, fields), duration: ex.duration || 0 });
         if (ex.rest > 0) {
-          steps.push({ kind: "rest", block: b.name, name: "Rest", spring: "", side: "", reps: "", duration: ex.rest });
+          steps.push({ kind: "rest", block: b.name, name: "Rest", meta: [], duration: ex.rest });
         }
       });
     });
@@ -1669,18 +1750,24 @@
     $("run-type").textContent = st.kind === "rest" ? "Rest" : "Exercise";
     $("run-ex-name").textContent = st.name || (st.kind === "rest" ? "Rest" : "(unnamed)");
 
-    var sp = [];
-    if (st.spring) sp.push("<span>" + escapeHtml(state.settings.loadLabel) + " <b>" + escapeHtml(st.spring) + "</b></span>");
-    if (st.side) sp.push("<span>" + escapeHtml(sideLabel(st.side)) + "</span>");
-    if (st.reps) sp.push("<span><b>" + escapeHtml(st.reps) + "</b> reps</span>");
+    // Metric chips for this step, e.g. "Spring 2 reds", "Cadence 90", "Resistance 12".
+    var sp = (st.meta || []).map(function (mt) {
+      return "<span>" + escapeHtml(mt.label) + " <b>" + escapeHtml(mt.value) + "</b></span>";
+    });
     $("run-spring").innerHTML = sp.join("");
 
     $("run-position").textContent = "Step " + (run.index + 1) + " of " + run.steps.length;
 
-    var next = run.steps[run.index + 1];
+    // Preview the next step the timer will actually land on — skip past any
+    // zero-duration steps (e.g. reps-only moves), which advanceStep auto-advances.
+    var next = null;
+    for (var ni = run.index + 1; ni < run.steps.length; ni++) {
+      if ((run.steps[ni].duration || 0) > 0) { next = run.steps[ni]; break; }
+    }
+    var nextHint = (next && next.meta && next.meta[0]) ? (" · " + next.meta[0].label.toLowerCase() + " " + escapeHtml(next.meta[0].value)) : "";
     $("run-next").innerHTML = next
       ? "Next: <b>" + escapeHtml(next.name || (next.kind === "rest" ? "Rest" : "(unnamed)")) + "</b>" +
-        (next.spring ? " · " + escapeHtml(state.settings.loadLabel.toLowerCase()) + " " + escapeHtml(next.spring) : "") + " · " + fmtTime(next.duration || 0)
+        nextHint + " · " + fmtTime(next.duration || 0)
       : "Last step";
     updateRunTime();
   }
@@ -1707,8 +1794,9 @@
   }
   function announceText(st) {
     if (!st) return "";
+    var extra = (st.meta || []).map(function (mt) { return mt.label + " " + mt.value; }).join(", ");
     return (st.kind === "rest" ? "Rest" : (st.name || "exercise")) +
-      (st.spring ? ", " + state.settings.loadLabel.toLowerCase() + " " + st.spring : "") + ", " + fmtTime(st.duration || 0);
+      (extra ? ", " + extra : "") + ", " + fmtTime(st.duration || 0);
   }
 
   function playPause() {
@@ -1850,15 +1938,17 @@
   }
   function closeExport() { closeOverlay("export-modal"); }
 
-  // Flat rows across blocks with cumulative start time.
+  // Human-readable value of one metric field on an exercise (Side -> "Left" etc.).
+  function metricDisplay(e, field) { var v = metricVal(e, field.key); return field.type === "side" ? sideLabel(v) : v; }
+  // Flat rows across blocks with cumulative start time. `ex` is the source exercise
+  // so exporters can read its metric values for the routine's format.
   function exportRows(r) {
     var rows = [], startAt = 0;
     r.blocks.forEach(function (b, bi) {
       b.exercises.forEach(function (e, ei) {
         rows.push({
-          block: b.name || ("Block " + (bi + 1)), blockIndex: bi,
-          n: ei + 1, name: e.name || "(unnamed)", spring: e.spring || "",
-          side: sideLabel(e.side), reps: e.reps || "",
+          block: b.name || ("Block " + (bi + 1)), blockIndex: bi, n: ei + 1,
+          name: e.name || "(unnamed)", ex: e,
           duration: e.duration || 0, rest: e.rest || 0, startAt: startAt
         });
         startAt += (e.duration || 0) + (e.rest || 0);
@@ -1873,26 +1963,29 @@
 
   function exportPDF() {
     var r = findRoutine(exportId);
+    var fields = disciplineFields(r);   // metric columns for this routine's format
     var studio = state.settings.studioName || "Tempo";
     var html = "";
     if (state.settings.logo) html += "<img src='" + state.settings.logo + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
     html += "<h1>" + escapeHtml(r.name || "Untitled routine") + "</h1>";
     html += "<p class='ps-sub'>" + escapeHtml(studio) +
       (r.description ? " — " + escapeHtml(r.description) : "") +
+      " · " + escapeHtml(DISCIPLINES[disciplineKey(r)].label) +
       " · " + fmtTime(routineDuration(r)) + " total · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises" +
       ((r.tags || []).length ? " · " + escapeHtml(r.tags.join(", ")) : "") + "</p>";
     var startAt = 0;
     r.blocks.forEach(function (b, bi) {
       html += "<h2>" + (bi + 1) + ". " + escapeHtml(b.name || "Block " + (bi + 1)) +
         " <span style='font-weight:normal;color:#666'>(" + fmtTime(blockDuration(b)) + ")</span></h2>";
-      html += "<table><thead><tr><th>#</th><th>Exercise</th><th>" + escapeHtml(state.settings.loadLabel) + "</th><th>Side</th><th>Reps</th><th>Start</th><th>Work</th><th>Rest</th></tr></thead><tbody>";
+      var ths = "<th>#</th><th>Exercise</th>" +
+        fields.map(function (f) { return "<th>" + escapeHtml(f.label) + "</th>"; }).join("") +
+        "<th>Start</th><th>Work</th><th>Rest</th>";
+      html += "<table><thead><tr>" + ths + "</tr></thead><tbody>";
       b.exercises.forEach(function (e, ei) {
+        var tds = fields.map(function (f) { return "<td>" + escapeHtml(metricDisplay(e, f)) + "</td>"; }).join("");
         html += "<tr class='r-" + (e.rest ? "rest" : "work") + "'>" +
           "<td class='num'>" + (ei + 1) + "</td>" +
-          "<td>" + escapeHtml(e.name || "(unnamed)") + "</td>" +
-          "<td>" + escapeHtml(e.spring || "") + "</td>" +
-          "<td>" + escapeHtml(sideLabel(e.side)) + "</td>" +
-          "<td>" + escapeHtml(e.reps || "") + "</td>" +
+          "<td>" + escapeHtml(e.name || "(unnamed)") + "</td>" + tds +
           "<td class='num'>" + fmtTime(startAt) + "</td>" +
           "<td class='num'>" + fmtTime(e.duration || 0) + "</td>" +
           "<td class='num'>" + (e.rest ? fmtTime(e.rest) : "—") + "</td>" +
@@ -1919,27 +2012,36 @@
   }
   function exportCSV() {
     var r = findRoutine(exportId);
+    var fields = disciplineFields(r);
     var rows = exportRows(r);
     var lines = [];
-    lines.push(["Block", "#", "Exercise", csv(state.settings.loadLabel), "Side", "Reps", "Start", "Work", "Rest (sec)", "Work (sec)"].join(","));
+    // Header: Block, #, Exercise, <metric labels…>, Start, Work, Rest (sec), Work (sec)
+    lines.push(["Block", "#", "Exercise"].concat(fields.map(function (f) { return f.label; }))
+      .concat(["Start", "Work", "Rest (sec)", "Work (sec)"]).map(csv).join(","));
     var totWork = 0, totRest = 0;
     rows.forEach(function (x) {
       totWork += x.duration; totRest += x.rest;
-      lines.push([csv(x.block), x.n, csv(x.name), csv(x.spring), csv(x.side), csv(x.reps),
-        fmtTime(x.startAt), fmtTime(x.duration), x.rest, x.duration].join(","));
+      var cells = [csv(x.block), x.n, csv(x.name)]
+        .concat(fields.map(function (f) { return csv(metricDisplay(x.ex, f)); }))
+        .concat([fmtTime(x.startAt), fmtTime(x.duration), x.rest, x.duration]);
+      lines.push(cells.join(","));
     });
     // Totals reconcile with their own columns: work under Work, rest under Rest.
-    lines.push(["", "", "TOTAL", "", "", "", "", fmtTime(totWork), totRest, totWork].join(","));
+    var total = ["", "", "TOTAL"].concat(fields.map(function () { return ""; }))
+      .concat(["", fmtTime(totWork), totRest, totWork]);
+    lines.push(total.join(","));
     downloadFile(exportFilename(r, "csv"), lines.join("\r\n"), "text/csv");
     closeExport(); toast("CSV downloaded");
   }
 
   function buildText(r) {
     var studio = state.settings.studioName || "Tempo";
+    var fields = disciplineFields(r);
     var out = [];
     out.push((r.name || "Untitled routine").toUpperCase());
     out.push(studio + (r.description ? " — " + r.description : ""));
-    out.push("Total " + fmtTime(routineDuration(r)) + " · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises");
+    out.push(DISCIPLINES[disciplineKey(r)].label + " · Total " + fmtTime(routineDuration(r)) +
+      " · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises");
     if ((r.tags || []).length) out.push("Tags: " + r.tags.join(", "));
     out.push("");
     var startAt = 0;
@@ -1949,9 +2051,7 @@
         var line = "  " + pad((ei + 1) + ".", 4) + pad("[" + fmtTime(startAt) + "]", 9) + " " +
           (e.name || "(unnamed)") + "  (" + fmtTime(e.duration || 0) + ")";
         var extra = [];
-        if (e.spring) extra.push(state.settings.loadLabel.toLowerCase() + " " + e.spring);
-        if (e.side) extra.push(sideLabel(e.side));
-        if (e.reps) extra.push(e.reps + " reps");
+        fields.forEach(function (f) { var v = metricDisplay(e, f); if ((v || "").toString().trim()) extra.push(f.label.toLowerCase() + " " + v); });
         if (e.rest) extra.push("rest " + fmtTime(e.rest));
         if (extra.length) line += "  — " + extra.join(", ");
         out.push(line);
@@ -1993,11 +2093,11 @@
   // Settings, branding, theme, backup/restore
   // ---------------------------------------------------------------------------
   //   setMode/updateModeUI ... Class vs Personal toggle (relabels the UI).
-  //   logo upload ............ staged in pendingLogo* then committed on Save;
-  //                            uploads are downscaled to keep storage small.
-  //   openSettings/saveSettings  read the modal fields into state.settings.
-  //   updateBrand ............ applies studio name (wordmark), logo, and the
-  //                            chosen accent color across the app at runtime.
+  //   openSettings/saveSettings  the Settings dialog now holds only the per-user
+  //                            toggles (beeps, auto-start) + tips + backup/restore;
+  //                            branding is fixed (not user-editable).
+  //   updateBrand ............ applies the (fixed) Echelon name (wordmark), logo,
+  //                            and accent across the app at runtime.
   //   applyTheme/toggleTheme . switch the data-theme attribute (dark/light).
   //   backup/restore/undoRestore  export/import the whole state as a .json file.
   // ===========================================================================
@@ -2012,69 +2112,24 @@
     $("mode-personal").classList.toggle("active", isPersonal);
     $("btn-new").textContent = isPersonal ? "+ New Workout" : "+ New Routine";
   }
-  // Logo is staged here and only committed to settings on Save (like the other fields).
-  var pendingLogo = "";
-  var pendingLogoCustom = false;
-  function showLogoPreview(url) {
-    var img = $("logo-preview");
-    if (url) { img.src = url; img.style.display = ""; }
-    else { img.removeAttribute("src"); img.style.display = "none"; }
-    // "Remove" only applies to a custom upload (the built-in icon is the default floor).
-    $("btn-remove-logo").classList.toggle("hidden", !pendingLogoCustom);
-  }
-  function loadLogoFile(file) {
-    if (!file || !/^image\//.test(file.type)) { toast("Please choose an image file"); return; }
-    var reader = new FileReader();
-    reader.onload = function () {
-      var img = new Image();
-      img.onload = function () {
-        // Downscale so it stays small in browser storage (and crisp on exports).
-        var max = 400, scale = Math.min(1, max / Math.max(img.width, img.height));
-        var w = Math.round(img.width * scale), h = Math.round(img.height * scale);
-        var canvas = document.createElement("canvas"); canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        var dataUrl;
-        try { dataUrl = canvas.toDataURL("image/png"); } catch (e) { dataUrl = reader.result; }
-        pendingLogo = dataUrl;
-        pendingLogoCustom = true; // an uploaded logo is preserved across reloads
-        showLogoPreview(dataUrl);
-      };
-      img.onerror = function () { toast("Could not read that image"); };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  }
-
+  // Settings now holds only per-user preferences + the tips/backup sections.
+  // Branding (name/logo/accent) is fixed to Echelon — set in defaultSettings(), not
+  // editable here — so the app looks consistent for everyone it's distributed to.
   function openSettings() {
-    $("set-studio").value = state.settings.studioName || "";
-    $("set-loadlabel").value = state.settings.loadLabel || "Load";
-    $("set-accent").value = state.settings.accent || "#0085b8";
-    pendingLogo = state.settings.logo || "";
-    pendingLogoCustom = !!state.settings.logoCustom;
-    showLogoPreview(pendingLogo);
     $("set-beeps").checked = !!state.settings.beeps;
     $("set-autostart").checked = !!state.settings.autostart;
     var hasUndo = false;
     try { hasUndo = !!localStorage.getItem(STORE_KEY + ".prerestore"); } catch (e) {}
     $("btn-undo-restore").classList.toggle("hidden", !hasUndo);
-    openOverlay("settings-modal", "set-studio");
+    openOverlay("settings-modal", "set-beeps");
   }
   function closeSettings() { closeOverlay("settings-modal"); }
   function saveSettings() {
-    state.settings.studioName = $("set-studio").value.trim();
-    var lbl = $("set-loadlabel").value.trim();
-    state.settings.loadLabel = lbl || "Load";
-    var acc = $("set-accent").value;
-    state.settings.accent = (acc && acc.toLowerCase() !== "#0085b8") ? acc : "";
-    // A custom upload is kept; otherwise fall back to the built-in icon.
-    state.settings.logoCustom = pendingLogoCustom && !!pendingLogo;
-    state.settings.logo = state.settings.logoCustom ? pendingLogo : ECHELON_LOGO;
     state.settings.beeps = $("set-beeps").checked;
     state.settings.autostart = $("set-autostart").checked;
-    save(); updateBrand(); closeSettings(); toast("Settings saved");
-    if (!$("view-builder").classList.contains("hidden")) renderBlocks();
+    save(); closeSettings(); toast("Settings saved");
   }
-  // Apply the studio name as the wordmark and the chosen brand color across the UI.
+  // Apply the (fixed Echelon) studio name as the wordmark + accent across the UI.
   function updateBrand() {
     var name = state.settings.studioName;
     var logo = $("brand-logo");
@@ -2234,6 +2289,14 @@
   $("btn-add-move").onclick = addMove;
   $("btn-add-move-2").onclick = addMove;
   $("btn-import-moves").onclick = importMovesFromRoutines;
+  // Class format selectors
+  $("routine-discipline").onchange = function () {
+    var r = findRoutine(currentEditId); if (!r) return;
+    r.discipline = $("routine-discipline").value;
+    state.settings.lastDiscipline = r.discipline;  // remember for the next new routine
+    markDirty(); updateMoveDatalist(disciplineKey(r)); renderBlocks();
+  };
+  $("catalog-discipline").onchange = function () { catalogDiscipline = $("catalog-discipline").value; renderCatalog(); };
 
   $("btn-run-play").onclick = playPause;
   $("btn-run-prev").onclick = prevStep;
@@ -2248,9 +2311,6 @@
   $("btn-restore").onclick = function () { $("restore-file").click(); };
   $("btn-undo-restore").onclick = undoRestore;
   $("restore-file").onchange = function (e) { if (e.target.files[0]) restore(e.target.files[0]); e.target.value = ""; };
-  $("btn-upload-logo").onclick = function () { $("logo-file").click(); };
-  $("btn-remove-logo").onclick = function () { pendingLogo = ECHELON_LOGO; pendingLogoCustom = false; showLogoPreview(ECHELON_LOGO); };
-  $("logo-file").onchange = function (e) { if (e.target.files[0]) loadLogoFile(e.target.files[0]); e.target.value = ""; };
 
   $("btn-exp-pdf").onclick = exportPDF;
   $("btn-exp-csv").onclick = exportCSV;
