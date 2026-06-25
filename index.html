@@ -32,13 +32,15 @@
         settings:  { studioName, mode, theme, beeps, autostart, accent, logo,
                      logoCustom, lastDiscipline },
         routines:  [ { id, name, description, tags:[], discipline, createdAt, updatedAt,
-                       blocks:[ { id, name, exercises:[
+                       blocks:[ { id, name, discipline, exercises:[
                          { id, name, duration, rest, metrics:{} } ] } ] } ],
         catalog:   [ exercise-shaped templates (each with its own `discipline`) ],
         sequences: [ { id, name, routineIds:[] } ]   // "class plans"
       }
-    discipline = the class format key (lagree/cycle/treadmill/strength); it decides
-      which metric fields each exercise has. metrics = { fieldKey: value } per format
+    discipline = the class format key (lagree/cycle/treadmill/strength). It lives on
+      each BLOCK and decides that block's metric fields, so one routine can mix formats
+      (e.g. a Cycle block then a Strength block). The routine-level `discipline` is now
+      only a default seed for new blocks. metrics = { fieldKey: value } per format
       (e.g. {spring,side,reps} for Lagree, {cadence,resistance} for cycle). See
       DISCIPLINES near the top of the script.
     Data is PER DEVICE/BROWSER (not synced). Settings > Backup/Restore moves it.
@@ -231,13 +233,14 @@
   .field-row.three { grid-template-columns: 1.3fr 1.3fr 1fr; }
 
   .block { margin-top: 16px; }
-  .block-head { display: flex; align-items: center; gap: 10px; padding: 6px 4px; }
+  .block-head { display: flex; align-items: center; gap: 10px; padding: 6px 4px; flex-wrap: wrap; }
   .block-head .block-badge {
     width: 26px; height: 26px; border-radius: 7px; background: var(--gold-soft); color: var(--accent-text);
     display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
   }
-  .block-head input.block-name { font-weight: 600; background: transparent; border-color: transparent; }
+  .block-head input.block-name { font-weight: 600; background: transparent; border-color: transparent; flex: 1 1 140px; min-width: 120px; }
   .block-head input.block-name:hover { border-color: var(--line); }
+  .block-head select.block-format { flex-shrink: 0; width: auto; max-width: 170px; padding: 4px 8px; font-size: 0.82rem; color: var(--muted); }
   .block-head .block-dur { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .block-head .block-actions { display: flex; gap: 4px; }
   .block-head .block-actions button { padding: 4px 8px; font-size: 0.82rem; }
@@ -434,10 +437,6 @@
           <input id="routine-tags" placeholder="full body, intermediate" />
         </div>
       </div>
-      <div style="max-width:280px;">
-        <label for="routine-discipline">Class format (sets the exercise fields)</label>
-        <select id="routine-discipline"></select>
-      </div>
     </div>
 
     <div id="blocks"></div>
@@ -445,7 +444,7 @@
     <div style="margin-top:14px;">
       <button id="btn-add-block">+ Add block</button>
     </div>
-    <p class="hint">A <b>block</b> is a section of your class (e.g. “Lower Body” or “Climbs”). The columns for each exercise come from the <b>Class format</b> above; every exercise also has a work <b>time</b> and optional <b>rest</b>.</p>
+    <p class="hint">A <b>block</b> is a section of your class (e.g. “Lower Body” or “Climbs”). Each block picks its own <b>Class format</b> (in its header), so one routine can mix formats — e.g. a Cycle block then a Strength block. The format sets the columns for that block's exercises; every exercise also has a work <b>time</b> and optional <b>rest</b>.</p>
 
     <div class="builder-foot">
       <span class="total">Total: <b id="builder-total">0:00</b></span>
@@ -551,7 +550,7 @@
     <div class="tips">
       <h3>Quick tips</h3>
       <ul>
-        <li><b>Build a routine</b> — choose a <b>Class format</b> (Lagree, Cycle, Treadmill, Strength); each shows the right fields, e.g. Cadence &amp; Resistance for cycle. Add blocks (sections) and exercises with a time and optional rest.</li>
+        <li><b>Build a routine</b> — add blocks (sections) and exercises with a time and optional rest. Each block has its own <b>Class format</b> (Lagree, Cycle, Treadmill, Strength) that sets its fields, e.g. Cadence &amp; Resistance for cycle. Mix formats in one routine for crossover classes (e.g. a Cycle block then a Strength block).</li>
         <li><b>Run it</b> — tap a routine card (or ▶ Start). The timer auto-advances; use the on-screen buttons or Space / ← / → / Esc.</li>
         <li><b>◫ Plans</b> — chain routines into one back-to-back class.</li>
         <li><b>☰ Moves</b> — save go-to exercises per format; while building, start typing a name to auto-fill from a saved move.</li>
@@ -684,8 +683,31 @@
                    { key: "reps",   label: "Reps" } ] }
   };
   var DISCIPLINE_ORDER = ["lagree", "cycle", "treadmill", "strength"];
+  // disciplineKey/disciplineFields read `.discipline` off whatever object you pass
+  // — a block (the authoritative format) or, as a fallback default, a routine.
   function disciplineKey(r) { return (r && DISCIPLINES[r.discipline]) ? r.discipline : "lagree"; }
   function disciplineFields(r) { return DISCIPLINES[disciplineKey(r)].fields; }
+  // The distinct block formats used in a routine, in first-seen order (a routine can mix formats).
+  function routineDisciplines(r) {
+    var seen = {}, list = [];
+    (r.blocks || []).forEach(function (b) { var k = disciplineKey(b); if (!seen[k]) { seen[k] = true; list.push(k); } });
+    return list.length ? list : ["lagree"];
+  }
+  // Union of metric fields across a routine's blocks (deduped by key, order preserved).
+  // Used for the flat CSV export, where one table must cover every block's columns.
+  function routineFields(r) {
+    var seen = {}, out = [];
+    routineDisciplines(r).forEach(function (k) {
+      DISCIPLINES[k].fields.forEach(function (f) { if (!seen[f.key]) { seen[f.key] = true; out.push(f); } });
+    });
+    return out;
+  }
+  // A short label for a routine's format(s): the one format's label, or "Mixed: A + B".
+  function routineFormatLabel(r) {
+    var ks = routineDisciplines(r);
+    return ks.length === 1 ? DISCIPLINES[ks[0]].label
+      : "Mixed: " + ks.map(function (k) { return DISCIPLINES[k].label; }).join(" + ");
+  }
 
   // The settings every NEW install starts with. (Existing installs keep their own
   // saved settings; missing fields get filled in by normalizeState below.)
@@ -737,7 +759,10 @@
         r.id = r.id || uid();
         if (typeof r.createdAt !== "number") r.createdAt = Date.now();
         if (typeof r.updatedAt !== "number") r.updatedAt = Date.now();
-        r.discipline = DISCIPLINES[r.discipline] ? r.discipline : "lagree"; // class format
+        // Routine-level format is now just the default for new blocks; the
+        // authoritative class format lives on each block (b.discipline) so one
+        // routine can mix formats (e.g. a Cycle block then a Strength block).
+        r.discipline = DISCIPLINES[r.discipline] ? r.discipline : "lagree";
         r.name = typeof r.name === "string" ? r.name : "";
         r.description = typeof r.description === "string" ? r.description : "";
         if (!Array.isArray(r.tags)) r.tags = [];
@@ -747,6 +772,8 @@
           .map(function (b) {
             b.id = b.id || uid();
             b.name = typeof b.name === "string" ? b.name : "";
+            // legacy routines have no per-block format → inherit the routine's
+            b.discipline = DISCIPLINES[b.discipline] ? b.discipline : r.discipline;
             if (!Array.isArray(b.exercises)) b.exercises = [];
             b.exercises = b.exercises
               .filter(function (e) { return e && typeof e === "object"; })
@@ -1022,7 +1049,8 @@
     };
     state.routines.push(r); save(); showBuilder(r.id);
   }
-  function newBlock(name) { return { id: uid(), name: name || "", exercises: [ newExercise() ] }; } // a block starts with 1 exercise
+  // A block starts with 1 exercise and its own class format (defaults to the last format used).
+  function newBlock(name, disc) { return { id: uid(), name: name || "", discipline: disciplineKey({ discipline: disc || state.settings.lastDiscipline }), exercises: [ newExercise() ] }; }
   function newExercise() { return { id: uid(), name: "", metrics: {}, duration: 45, rest: 0 }; } // default 45s work, no metrics yet
   function findRoutine(id) {            // look up a routine object by its id
     for (var i = 0; i < state.routines.length; i++) if (state.routines[i].id === id) return state.routines[i];
@@ -1078,13 +1106,10 @@
     $("routine-name").value = r.name;
     $("routine-desc").value = r.description;
     $("routine-tags").value = (r.tags || []).join(", ");
-    // Fill the Class format dropdown and select this routine's format.
-    var dsel = $("routine-discipline"); dsel.innerHTML = "";
-    DISCIPLINE_ORDER.forEach(function (k) {
-      var o = document.createElement("option"); o.value = k; o.textContent = DISCIPLINES[k].label;
-      if (disciplineKey(r) === k) o.selected = true; dsel.appendChild(o);
-    });
-    updateMoveDatalist(disciplineKey(r)); // autocomplete suggests this format's moves
+    // Class format is chosen per block (in each block's header), not per routine,
+    // so a routine can mix formats. The name-autocomplete lists moves from every
+    // format; picking one still autofills using the block's own format.
+    updateMoveDatalist();
     renderBlocks();
   }
 
@@ -1160,10 +1185,10 @@
   function buildBlock(block, bi, r) {
     var wrap = el("div", "block card");
     wrap.style.padding = "8px 6px 4px";
-    var fields = disciplineFields(r);     // metric columns for this routine's format
+    var fields = disciplineFields(block);   // metric columns for THIS block's format
     var cols = exGridCols(fields);
 
-    // header (block name + reorder/delete)
+    // header (block name + per-block class format + reorder/delete)
     var head = el("div", "block-head");
     head.appendChild(el("div", "block-badge", String(bi + 1)));
     var bname = document.createElement("input");
@@ -1171,6 +1196,19 @@
     bname.setAttribute("aria-label", "Block name");
     bname.oninput = function () { block.name = bname.value; markDirty(); };
     head.appendChild(bname);
+    // Class format for this block — changing it swaps which metric columns show.
+    var fsel = document.createElement("select");
+    fsel.className = "block-format"; fsel.setAttribute("aria-label", "Class format for this block");
+    DISCIPLINE_ORDER.forEach(function (k) {
+      var o = document.createElement("option"); o.value = k; o.textContent = DISCIPLINES[k].label;
+      if (disciplineKey(block) === k) o.selected = true; fsel.appendChild(o);
+    });
+    fsel.onchange = function () {
+      block.discipline = fsel.value;
+      state.settings.lastDiscipline = block.discipline; // remember for the next new block
+      markDirty(); renderBlocks();                       // rebuild columns for the new format
+    };
+    head.appendChild(fsel);
     var dur = el("div", "block-dur", fmtTime(blockDuration(block)));
     head.appendChild(dur);
     var ba = el("div", "block-actions");
@@ -1203,11 +1241,11 @@
   }
 
   // Build one editable exercise row. The metric columns are generated from the
-  // routine's class format (disciplineFields), so a cycle routine shows
+  // block's class format (disciplineFields), so a cycle block shows
   // Cadence/Resistance, a treadmill one shows Speed/Incline, etc. Name has catalog
   // autocomplete; the action buttons reorder/duplicate/delete. Edits autosave.
   function buildExRow(ex, ei, block, r) {
-    var fields = disciplineFields(r);
+    var fields = disciplineFields(block);
     var row = el("div", "ex-row"); row.dataset.id = ex.id;
     row.style.setProperty("--ex-cols", exGridCols(fields));
     var onEdit = function () { markDirty(); };
@@ -1222,7 +1260,7 @@
     name.onchange = function () {
       // If the typed/picked name matches a saved move of the SAME format and this
       // exercise is still at its defaults, auto-fill its metrics/time/rest.
-      var mv = findMoveByName(ex.name, disciplineKey(r));
+      var mv = findMoveByName(ex.name, disciplineKey(block));
       if (mv && exerciseIsDefault(ex)) {
         applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from catalog: " + mv.name);
       }
@@ -1259,7 +1297,9 @@
   }
   function addBlock() {
     var r = findRoutine(currentEditId);
-    r.blocks.push(newBlock("Block " + (r.blocks.length + 1)));
+    // new block inherits the previous block's format so a single-format class stays one pick
+    var prev = r.blocks[r.blocks.length - 1];
+    r.blocks.push(newBlock("Block " + (r.blocks.length + 1), prev && prev.discipline));
     markDirty(); renderBlocks();
   }
   function moveBlock(blockId, dir) {
@@ -1473,8 +1513,8 @@
     state.catalog.forEach(function (m) { if ((m.name || "").trim()) existing[key(m.discipline, m.name)] = true; });
     var added = 0;
     state.routines.forEach(function (r) {
-      var disc = disciplineKey(r);
       r.blocks.forEach(function (b) {
+        var disc = disciplineKey(b);   // each block carries its own format
         b.exercises.forEach(function (e) {
           var n = (e.name || "").trim(); if (!n || existing[key(disc, n)]) return;
           existing[key(disc, n)] = true;
@@ -1691,8 +1731,8 @@
   }
   function buildSteps(r) {
     var steps = [];
-    var fields = disciplineFields(r);   // metric columns for this routine's format
     r.blocks.forEach(function (b) {
+      var fields = disciplineFields(b);   // metric fields for THIS block's format
       b.exercises.forEach(function (ex) {
         // Always emit a work step so the exercise (name + metrics) is shown, even if
         // its work time is 0 (e.g. a reps-only move). Zero-duration steps are passed
@@ -1948,7 +1988,7 @@
       b.exercises.forEach(function (e, ei) {
         rows.push({
           block: b.name || ("Block " + (bi + 1)), blockIndex: bi, n: ei + 1,
-          name: e.name || "(unnamed)", ex: e,
+          name: e.name || "(unnamed)", ex: e, discipline: disciplineKey(b),
           duration: e.duration || 0, rest: e.rest || 0, startAt: startAt
         });
         startAt += (e.duration || 0) + (e.rest || 0);
@@ -1963,20 +2003,20 @@
 
   function exportPDF() {
     var r = findRoutine(exportId);
-    var fields = disciplineFields(r);   // metric columns for this routine's format
     var studio = state.settings.studioName || "Tempo";
     var html = "";
     if (state.settings.logo) html += "<img src='" + state.settings.logo + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
     html += "<h1>" + escapeHtml(r.name || "Untitled routine") + "</h1>";
     html += "<p class='ps-sub'>" + escapeHtml(studio) +
       (r.description ? " — " + escapeHtml(r.description) : "") +
-      " · " + escapeHtml(DISCIPLINES[disciplineKey(r)].label) +
+      " · " + escapeHtml(routineFormatLabel(r)) +
       " · " + fmtTime(routineDuration(r)) + " total · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises" +
       ((r.tags || []).length ? " · " + escapeHtml(r.tags.join(", ")) : "") + "</p>";
     var startAt = 0;
     r.blocks.forEach(function (b, bi) {
+      var fields = disciplineFields(b);   // each block prints its own format's columns
       html += "<h2>" + (bi + 1) + ". " + escapeHtml(b.name || "Block " + (bi + 1)) +
-        " <span style='font-weight:normal;color:#666'>(" + fmtTime(blockDuration(b)) + ")</span></h2>";
+        " <span style='font-weight:normal;color:#666'>(" + escapeHtml(DISCIPLINES[disciplineKey(b)].label) + " · " + fmtTime(blockDuration(b)) + ")</span></h2>";
       var ths = "<th>#</th><th>Exercise</th>" +
         fields.map(function (f) { return "<th>" + escapeHtml(f.label) + "</th>"; }).join("") +
         "<th>Start</th><th>Work</th><th>Rest</th>";
@@ -2012,22 +2052,37 @@
   }
   function exportCSV() {
     var r = findRoutine(exportId);
-    var fields = disciplineFields(r);
+    // One flat table must cover every block, so use the union of all blocks' columns.
+    // Cells are blank where a metric doesn't apply to that row's format. When the
+    // routine mixes formats we add a "Format" column so each row is self-explaining.
+    var fields = routineFields(r);
+    var mixed = routineDisciplines(r).length > 1;
     var rows = exportRows(r);
     var lines = [];
-    // Header: Block, #, Exercise, <metric labels…>, Start, Work, Rest (sec), Work (sec)
-    lines.push(["Block", "#", "Exercise"].concat(fields.map(function (f) { return f.label; }))
-      .concat(["Start", "Work", "Rest (sec)", "Work (sec)"]).map(csv).join(","));
+    // Header: Block, #, Exercise, [Format], <metric labels…>, Start, Work, Rest (sec), Work (sec)
+    var head = ["Block", "#", "Exercise"];
+    if (mixed) head.push("Format");
+    head = head.concat(fields.map(function (f) { return f.label; }))
+      .concat(["Start", "Work", "Rest (sec)", "Work (sec)"]);
+    lines.push(head.map(csv).join(","));
     var totWork = 0, totRest = 0;
     rows.forEach(function (x) {
       totWork += x.duration; totRest += x.rest;
-      var cells = [csv(x.block), x.n, csv(x.name)]
-        .concat(fields.map(function (f) { return csv(metricDisplay(x.ex, f)); }))
+      // Only fill a metric cell if that field belongs to THIS row's block format.
+      // (Switching a block's format keeps the old values on the exercise so you can
+      // switch back — but they must not leak into another block's union column.)
+      var ownKeys = {};
+      disciplineFields({ discipline: x.discipline }).forEach(function (f) { ownKeys[f.key] = true; });
+      var cells = [csv(x.block), x.n, csv(x.name)];
+      if (mixed) cells.push(csv(DISCIPLINES[x.discipline].label));
+      cells = cells.concat(fields.map(function (f) { return ownKeys[f.key] ? csv(metricDisplay(x.ex, f)) : ""; }))
         .concat([fmtTime(x.startAt), fmtTime(x.duration), x.rest, x.duration]);
       lines.push(cells.join(","));
     });
     // Totals reconcile with their own columns: work under Work, rest under Rest.
-    var total = ["", "", "TOTAL"].concat(fields.map(function () { return ""; }))
+    var total = ["", "", "TOTAL"];
+    if (mixed) total.push("");
+    total = total.concat(fields.map(function () { return ""; }))
       .concat(["", fmtTime(totWork), totRest, totWork]);
     lines.push(total.join(","));
     downloadFile(exportFilename(r, "csv"), lines.join("\r\n"), "text/csv");
@@ -2036,17 +2091,17 @@
 
   function buildText(r) {
     var studio = state.settings.studioName || "Tempo";
-    var fields = disciplineFields(r);
     var out = [];
     out.push((r.name || "Untitled routine").toUpperCase());
     out.push(studio + (r.description ? " — " + r.description : ""));
-    out.push(DISCIPLINES[disciplineKey(r)].label + " · Total " + fmtTime(routineDuration(r)) +
+    out.push(routineFormatLabel(r) + " · Total " + fmtTime(routineDuration(r)) +
       " · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises");
     if ((r.tags || []).length) out.push("Tags: " + r.tags.join(", "));
     out.push("");
     var startAt = 0;
     r.blocks.forEach(function (b, bi) {
-      out.push("── " + (bi + 1) + ". " + (b.name || "Block " + (bi + 1)) + "  (" + fmtTime(blockDuration(b)) + ")");
+      var fields = disciplineFields(b);   // each block lists its own format's metrics
+      out.push("── " + (bi + 1) + ". " + (b.name || "Block " + (bi + 1)) + "  [" + DISCIPLINES[disciplineKey(b)].label + "]  (" + fmtTime(blockDuration(b)) + ")");
       b.exercises.forEach(function (e, ei) {
         var line = "  " + pad((ei + 1) + ".", 4) + pad("[" + fmtTime(startAt) + "]", 9) + " " +
           (e.name || "(unnamed)") + "  (" + fmtTime(e.duration || 0) + ")";
@@ -2289,13 +2344,8 @@
   $("btn-add-move").onclick = addMove;
   $("btn-add-move-2").onclick = addMove;
   $("btn-import-moves").onclick = importMovesFromRoutines;
-  // Class format selectors
-  $("routine-discipline").onchange = function () {
-    var r = findRoutine(currentEditId); if (!r) return;
-    r.discipline = $("routine-discipline").value;
-    state.settings.lastDiscipline = r.discipline;  // remember for the next new routine
-    markDirty(); updateMoveDatalist(disciplineKey(r)); renderBlocks();
-  };
+  // The builder's class-format selector is now per block, wired up in buildBlock().
+  // The catalog (☰ Moves) keeps its own single format selector:
   $("catalog-discipline").onchange = function () { catalogDiscipline = $("catalog-discipline").value; renderCatalog(); };
 
   $("btn-run-play").onclick = playPause;

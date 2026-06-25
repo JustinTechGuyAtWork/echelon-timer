@@ -91,9 +91,17 @@ Each `fields` entry is a column. `type:"side"` renders a Left/Right/Both dropdow
 anything else is a text box, stored at `exercise.metrics[field.key]`. The builder,
 the live timer, exports, and the catalog all generate their columns from this map —
 so **to add a format (Rowing, Barre, …), add one entry here and (optionally) its key
-to `DISCIPLINE_ORDER`; nothing else needs to change.** Old saves that predate this
-(top-level `spring/side/reps`, no `discipline`) are migrated automatically by
-`normalizeExercise` / `normalizeState` on load.
+to `DISCIPLINE_ORDER`; nothing else needs to change.**
+
+**Format lives on each BLOCK** (`block.discipline`), so one routine can mix formats
+(crossover classes). `disciplineKey(obj)` / `disciplineFields(obj)` read `.discipline`
+off whatever you pass — pass a *block* for the authoritative format. The routine's own
+`discipline` is just the default seed for new blocks (`newBlock`; `addBlock` copies the
+previous block's). For the flat CSV export, `routineFields(r)` returns the **union** of
+every block's columns and `routineFormatLabel(r)` returns one label or `"Mixed: A + B"`.
+Old saves that predate this (top-level `spring/side/reps`, no per-block `discipline`)
+are migrated automatically by `normalizeExercise` / `normalizeState` on load — each
+block inherits the routine's old format.
 
 > ⚠️ **Never rename or remove a `DISCIPLINES` key (or a field `key`) once it has
 > shipped.** Routines and saved moves store the key, so a backup made on an older
