@@ -43,7 +43,8 @@ Every exercise also always has a **Name**, a **Time** (work duration, minutes : 
 - Per-block and total times update live. Everything **autosaves** as you type.
 
 ### Run it live (tap-to-run)
-- **Tap a routine card** (or its **▶ Start**) to launch the immersive timer.
+- **Tap a routine card** (or its **Start** button) to launch the immersive timer.
+- A **get-ready countdown** leads in before the first exercise (previewing the first move). Set its length — Off / 3 / 5 / 10 seconds — in ⚙ Settings.
 - It shows the current exercise, its metrics for the format (e.g. cadence & resistance, highlighted so you can call them out) as a depleting **ring timer**, its coaching note, the block name, what's next, and overall elapsed/remaining.
 - **On a big screen (laptop/TV in landscape)** it becomes a **class dashboard**: the timer on the left and the full **running order** on the right — every block and exercise (and, in a plan, every routine), with the current step highlighted so the room can see what's now and what's coming. Phones keep the full-screen timer.
 - Rest intervals run as their own (amber) steps.
@@ -75,6 +76,7 @@ Toggle **Class / Personal** in the top bar (matches TempoFlow). It relabels the 
 ### Settings (⚙)
 - **Quick tips** — a short how-to for building, running, plans, moves, export, and backing up.
 - **Beeps** on/off · **Auto-start** on/off
+- **Get-ready countdown** — Off / 3 / 5 / 10 seconds before the first exercise
 - **Backup / Restore** all routines (with **Undo last restore** if you pick the wrong file)
 
 (Branding is fixed to Echelon, so the app looks the same for everyone it's shared with.)

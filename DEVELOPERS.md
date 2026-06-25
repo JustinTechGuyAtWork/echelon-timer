@@ -47,7 +47,18 @@ Open it and you'll find, top to bottom:
    the run overlay becomes a two-column "class dashboard": the timer (`.run-col`) plus a
    **running-order panel** (`#run-order`, built by `buildRunOrder()` from `run.steps`).
    Each exercise can carry an optional `note` (coaching cue) shown under the dial (`#run-note`)
-   and flagged with ✎ in the panel and the builder.
+   and flagged with a marker in the panel and the builder.
+
+   **Icons** are inline SVG (no icon font / CDN). `ICONS` is a name→SVG-path map; `ic(name)`
+   returns an `<svg class="ic">` string; `iconBtn(name,cls,label,title)` builds a button.
+   Static buttons carry `data-ic="name"` + a text label and are hydrated once at init by
+   `hydrateIcons()`; dynamic buttons call `ic()`/`iconBtn()`. Icons inherit `currentColor`
+   and scale with font size. To add/replace an icon, edit `ICONS`.
+
+   **Get-ready lead-in:** `settings.leadIn` (0/3/5/10s) plays a countdown before the FIRST
+   exercise. The run object has `lead`/`leadTotal`/`ledIn`; `startRun()` enters it on a fresh
+   run, `tick()` counts `run.lead` down, `endLeadIn()` (also called by Skip) starts step 0,
+   and `renderReady()`/`updateReadyTime()` reuse the live elements to preview the first move.
 3. **`<body>`** — the markup. The UI is several full-screen **views** (library,
    builder, catalog, plans, plan editor) plus **overlays** (run timer, settings &
    export dialogs). Only one view is visible at a time (others have `.hidden`).

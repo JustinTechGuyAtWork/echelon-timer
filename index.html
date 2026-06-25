@@ -29,7 +29,7 @@
   THE DATA MODEL (everything the user creates) — saved as JSON in localStorage
     key "tempo.v1":
       state = {
-        settings:  { studioName, mode, theme, beeps, autostart, accent, logo,
+        settings:  { studioName, mode, theme, beeps, autostart, leadIn, accent, logo,
                      logoCustom, lastDiscipline },
         routines:  [ { id, name, description, tags:[], discipline, createdAt, updatedAt,
                        blocks:[ { id, name, discipline, exercises:[
@@ -169,7 +169,10 @@
     font: inherit; cursor: pointer; border: 1px solid var(--line);
     border-radius: 9px; padding: 9px 14px; background: var(--panel-2); color: var(--text);
     transition: filter .12s ease, background .12s ease, border-color .12s ease;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   }
+  /* Inline SVG icons inherit text color + scale with the button's font size. */
+  .ic { width: 1.08em; height: 1.08em; flex: none; display: inline-block; }
   button:hover { filter: brightness(1.14); }
   button:active { filter: brightness(0.95); }
   /* AA-tuned: white label needs the top gradient stop ≥ ~#0079a8 against #fff */
@@ -263,7 +266,7 @@
   .kebab-wrap { position: relative; }
   .kebab-menu { position: absolute; right: 0; bottom: calc(100% + 6px); min-width: 150px; z-index: 5;
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 5px; }
-  .kebab-menu button { display: block; width: 100%; text-align: left; border: none; background: transparent; border-radius: 7px; padding: 9px 11px; font-size: 0.9rem; }
+  .kebab-menu button { display: flex; align-items: center; gap: 10px; justify-content: flex-start; width: 100%; text-align: left; border: none; background: transparent; border-radius: 7px; padding: 9px 11px; font-size: 0.9rem; }
   .kebab-menu button:hover { background: var(--panel-2); filter: none; }
   .kebab-menu button.danger { color: var(--danger); }
   .empty { text-align: center; padding: 64px 20px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
@@ -385,7 +388,9 @@
   .run-controls button { min-height: 48px; }   /* touch-first: comfortable targets mid-class */
   .run-controls .big { font-size: 1.1rem; padding: 14px 30px; }
   .run-done-msg { text-align: center; }
-  .run-done-msg h2 { font-size: 2.4rem; margin: 0 0 6px; }
+  .run-done-msg h2 { font-size: 2.4rem; margin: 0 0 6px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .run-done-msg .done-check { color: var(--accent-text); display: inline-flex; }
+  .run-done-msg .done-check .ic { width: 1em; height: 1em; }
 
   /* Running-order panel (large landscape only). A scrollable list of the class's steps,
      grouped by routine/block, with the current step highlighted and auto-scrolled into view. */
@@ -503,10 +508,10 @@
     <button data-mode="class" id="mode-class">Class</button>
     <button data-mode="personal" id="mode-personal">Personal</button>
   </div>
-  <button class="ghost small" id="btn-plans" title="Class plans">◫ Plans</button>
-  <button class="ghost small" id="btn-moves" title="Exercise catalog">☰ Moves</button>
-  <button class="ghost small" id="btn-theme" title="Toggle light / dark" aria-label="Toggle light or dark theme">◐</button>
-  <button class="ghost small" id="btn-settings" title="Settings" aria-label="Settings">⚙</button>
+  <button class="ghost small" id="btn-plans" data-ic="layers" title="Class plans">Plans</button>
+  <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Exercise catalog">Moves</button>
+  <button class="ghost small" id="btn-theme" data-ic="contrast" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
+  <button class="ghost small" id="btn-settings" data-ic="settings" title="Settings" aria-label="Settings"></button>
 </header>
 
 <div class="app">
@@ -523,10 +528,10 @@
   <!-- ===== Builder ===== -->
   <section id="view-builder" class="hidden">
     <div class="builder-top">
-      <button class="ghost" id="btn-back">← Back</button>
+      <button class="ghost" id="btn-back" data-ic="arrowLeft">Back</button>
       <h1 id="builder-title">Edit Routine</h1>
-      <button id="btn-export-builder" class="ghost">⬇ Export</button>
-      <button class="gold" id="btn-run-from-builder">▶ Start</button>
+      <button id="btn-export-builder" class="ghost" data-ic="download">Export</button>
+      <button class="gold" id="btn-run-from-builder" data-ic="play">Start</button>
     </div>
 
     <div class="card" style="padding:16px;">
@@ -549,7 +554,7 @@
     <div id="blocks"></div>
 
     <div style="margin-top:14px;">
-      <button id="btn-add-block">+ Add block</button>
+      <button id="btn-add-block" data-ic="plus">Add block</button>
     </div>
     <p class="hint">A <b>block</b> is a section of your class (e.g. “Lower Body” or “Climbs”). Each block picks its own <b>Class format</b> (in its header), so one routine can mix formats — e.g. a Cycle block then a Strength block. The format sets the columns for that block's exercises; every exercise also has a work <b>time</b> and optional <b>rest</b>.</p>
 
@@ -564,10 +569,10 @@
   <!-- ===== Exercise Catalog ===== -->
   <section id="view-catalog" class="hidden">
     <div class="builder-top">
-      <button class="ghost" id="btn-catalog-back">← Back</button>
+      <button class="ghost" id="btn-catalog-back" data-ic="arrowLeft">Back</button>
       <h1>Exercise Catalog</h1>
-      <button id="btn-import-moves" class="ghost">⤓ Import from routines</button>
-      <button class="gold" id="btn-add-move">+ Add move</button>
+      <button id="btn-import-moves" class="ghost" data-ic="importF">Import from routines</button>
+      <button class="gold" id="btn-add-move" data-ic="plus">Add move</button>
     </div>
     <p class="hint" style="margin-top:0;">Save your go-to moves here once. When building a routine, start typing an exercise name and pick a saved move of the same format to auto-fill its fields, time, and rest.</p>
     <div style="max-width:280px; margin-bottom:12px;">
@@ -577,7 +582,7 @@
     <div class="card" style="padding:8px 6px 4px;">
       <div class="ex-head" id="catalog-head"></div>
       <div id="move-rows"></div>
-      <div class="block-add"><button id="btn-add-move-2">+ Add move</button></div>
+      <div class="block-add"><button id="btn-add-move-2" data-ic="plus">Add move</button></div>
     </div>
   </section>
 
@@ -585,7 +590,7 @@
   <section id="view-plans" class="hidden">
     <div class="lib-head">
       <h1>Class Plans</h1>
-      <button class="gold" id="btn-new-plan">+ New Plan</button>
+      <button class="gold" id="btn-new-plan" data-ic="plus">New Plan</button>
     </div>
     <p class="hint" style="margin-top:0;">A plan chains several routines into one back-to-back class that runs end to end.</p>
     <div id="plan-list"></div>
@@ -594,9 +599,9 @@
   <!-- ===== Plan editor ===== -->
   <section id="view-plan-editor" class="hidden">
     <div class="builder-top">
-      <button class="ghost" id="btn-plan-back">← Back</button>
+      <button class="ghost" id="btn-plan-back" data-ic="arrowLeft">Back</button>
       <h1 id="plan-title">Edit Plan</h1>
-      <button class="gold" id="btn-run-plan">▶ Start</button>
+      <button class="gold" id="btn-run-plan" data-ic="play">Start</button>
     </div>
     <div class="card" style="padding:16px;">
       <label for="plan-name">Plan name</label>
@@ -605,7 +610,7 @@
     <div class="card" style="padding:8px 6px 4px; margin-top:14px;">
       <div class="ex-head" id="plan-head"></div>
       <div id="plan-rows"></div>
-      <div class="block-add"><button id="btn-add-plan-routine">+ Add routine</button></div>
+      <div class="block-add"><button id="btn-add-plan-routine" data-ic="plus">Add routine</button></div>
     </div>
     <div class="builder-foot">
       <span class="total">Total: <b id="plan-total">0:00</b></span>
@@ -625,7 +630,7 @@
       <span class="run-routine" id="run-routine"></span>
       <span class="run-mode" id="run-mode-label">Class</span>
       <span class="muted" id="run-position"></span>
-      <button class="ghost small" id="btn-run-exit" aria-label="Exit run">✕ Exit</button>
+      <button class="ghost small" id="btn-run-exit" data-ic="x" aria-label="Exit run">Exit</button>
     </div>
     <div class="run-block-label" id="run-block-label"></div>
 
@@ -652,10 +657,10 @@
     </div>
 
     <div class="run-controls">
-      <button id="btn-run-prev">⏮ Back</button>
-      <button class="gold big" id="btn-run-play">▶ Start</button>
-      <button id="btn-run-next">⏭ Skip</button>
-      <button class="ghost" id="btn-run-restart">↺ Restart</button>
+      <button id="btn-run-prev" data-ic="back">Back</button>
+      <button class="gold big" id="btn-run-play">Start</button>
+      <button id="btn-run-next" data-ic="skip">Skip</button>
+      <button class="ghost" id="btn-run-restart" data-ic="restart">Restart</button>
     </div>
   </div>
 
@@ -671,9 +676,9 @@
       <h3>Quick tips</h3>
       <ul>
         <li><b>Build a routine</b> — add blocks (sections) and exercises with a time and optional rest. Each block has its own <b>Class format</b> (Lagree, Cycle, Treadmill, Strength) that sets its fields, e.g. Cadence &amp; Resistance for cycle. Mix formats in one routine for crossover classes (e.g. a Cycle block then a Strength block).</li>
-        <li><b>Run it</b> — tap a routine card (or ▶ Start). The timer auto-advances; use the on-screen buttons or Space / ← / → / Esc.</li>
-        <li><b>◫ Plans</b> — chain routines into one back-to-back class.</li>
-        <li><b>☰ Moves</b> — save go-to exercises per format; while building, start typing a name to auto-fill from a saved move.</li>
+        <li><b>Run it</b> — tap a routine card (or <b>Start</b>). A get-ready countdown leads in (set it in Settings below); the timer auto-advances. Use the on-screen buttons or Space / ← / → / Esc.</li>
+        <li><b>Plans</b> (top bar) — chain routines into one back-to-back class.</li>
+        <li><b>Moves</b> (top bar) — save go-to exercises per format; while building, start typing a name to auto-fill from a saved move.</li>
         <li><b>Export</b> — from a routine, get a PDF run sheet, spreadsheet, or text.</li>
         <li><b>Your data stays on this device.</b> Use <b>Backup</b> before switching phones/computers, then <b>Restore</b> on the new one.</li>
         <li><b>Add to Home Screen</b> (iPhone: Share → Add to Home Screen) to use it like an app.</li>
@@ -687,12 +692,21 @@
       <input type="checkbox" id="set-autostart" />
       <label for="set-autostart">Auto-start next exercise (continuous, no pause)</label>
     </div>
+    <div class="toggle-row">
+      <label for="set-leadin" style="flex:1;">Get-ready countdown before the first exercise</label>
+      <select id="set-leadin" style="width:auto;">
+        <option value="0">Off</option>
+        <option value="3">3 seconds</option>
+        <option value="5">5 seconds</option>
+        <option value="10">10 seconds</option>
+      </select>
+    </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
     <label>Backup &amp; restore all routines</label>
     <div style="display:flex; gap:10px; margin-top:6px; flex-wrap:wrap;">
-      <button id="btn-backup">⬇ Download backup</button>
-      <button id="btn-restore">⬆ Restore from file</button>
-      <button id="btn-undo-restore" class="ghost hidden">↶ Undo last restore</button>
+      <button id="btn-backup" data-ic="download">Download backup</button>
+      <button id="btn-restore" data-ic="upload">Restore from file</button>
+      <button id="btn-undo-restore" class="ghost hidden" data-ic="restart">Undo last restore</button>
       <input type="file" id="restore-file" accept="application/json" class="hidden" />
     </div>
     <div class="modal-actions">
@@ -708,10 +722,10 @@
     <h2 id="export-title">Export routine</h2>
     <p class="muted" style="margin-top:-6px;">Each format lists every block and exercise with its load, duration, and start time.</p>
     <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px;">
-      <button id="btn-exp-pdf">📄 PDF run sheet (print → Save as PDF)</button>
-      <button id="btn-exp-csv">📊 Spreadsheet (.csv for Excel / Sheets)</button>
-      <button id="btn-exp-txt">📋 Copy as plain text</button>
-      <button id="btn-exp-txt-file">💾 Download as .txt</button>
+      <button id="btn-exp-pdf" data-ic="pdf">PDF run sheet (print → Save as PDF)</button>
+      <button id="btn-exp-csv" data-ic="table">Spreadsheet (.csv for Excel / Sheets)</button>
+      <button id="btn-exp-txt" data-ic="clipboard">Copy as plain text</button>
+      <button id="btn-exp-txt-file" data-ic="download">Download as .txt</button>
     </div>
     <div class="modal-actions">
       <button class="ghost" id="btn-export-close">Close</button>
@@ -832,7 +846,7 @@
   // The settings every NEW install starts with. (Existing installs keep their own
   // saved settings; missing fields get filled in by normalizeState below.)
   function defaultSettings() {
-    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: false, accent: "", logo: ECHELON_LOGO, logoCustom: false, lastDiscipline: "lagree" };
+    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: false, leadIn: 5, accent: "", logo: ECHELON_LOGO, logoCustom: false, lastDiscipline: "lagree" };
   }
   // Read the saved state from localStorage at startup. If nothing is saved (or it's
   // unreadable), start fresh. Whatever we load is run through normalizeState first.
@@ -861,6 +875,7 @@
     parsed.settings.autostart = parsed.settings.autostart === true;
     if (typeof parsed.settings.accent !== "string") parsed.settings.accent = "";
     if (!DISCIPLINES[parsed.settings.lastDiscipline]) parsed.settings.lastDiscipline = "lagree"; // default format for new routines
+    if ([0, 3, 5, 10].indexOf(parsed.settings.leadIn) < 0) parsed.settings.leadIn = 5; // get-ready countdown seconds
     // Logo: keep an uploaded custom logo; otherwise always use the current built-in
     // icon (this migrates any older built-in logo, e.g. the full wordmark, to the icon).
     parsed.settings.logoCustom = parsed.settings.logoCustom === true;
@@ -964,6 +979,58 @@
     if (cls) e.className = cls;
     if (txt != null) e.textContent = txt;                            // textContent (not innerHTML) -> safe from HTML injection
     return e;
+  }
+  // ---------- Icons ----------------------------------------------------------
+  // A small inline-SVG icon set (Lucide-style line icons) so the UI uses crisp,
+  // consistent, theme-aware glyphs instead of emoji/unicode — and stays a single
+  // offline file (no icon font / CDN). Icons inherit color via currentColor.
+  var ICONS = {
+    play:    '<polygon points="6 4 20 12 6 20" fill="currentColor" stroke="none"/>',
+    pause:   '<rect x="6" y="5" width="4.2" height="14" rx="1.2" fill="currentColor" stroke="none"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.2" fill="currentColor" stroke="none"/>',
+    back:    '<polygon points="18 5 9 12 18 19" fill="currentColor" stroke="none"/><rect x="5" y="5" width="2.4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+    skip:    '<polygon points="6 5 15 12 6 19" fill="currentColor" stroke="none"/><rect x="16.6" y="5" width="2.4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+    restart: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+    x:       '<path d="M18 6 6 18M6 6l12 12"/>',
+    up:      '<path d="M12 19V6M6 12l6-6 6 6"/>',
+    down:    '<path d="M12 5v13M18 12l-6 6-6-6"/>',
+    copy:    '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+    note:    '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    pencil:  '<path d="M11 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/>',
+    more:    '<circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/>',
+    trash:   '<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6"/>',
+    download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+    upload:  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 8l5-5 5 5"/><path d="M12 3v12"/>',
+    importF: '<path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>',
+    pdf:     '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+    table:   '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>',
+    clipboard:'<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
+    settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    dumbbell:'<path d="M6 7v10M3.5 9.5v5M18 7v10M20.5 9.5v5M6 12h12"/>',
+    layers:  '<path d="M12 3 2 8l10 5 10-5-10-5Z"/><path d="m2 13 10 5 10-5"/>',
+    contrast:'<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18Z" fill="currentColor" stroke="none"/>',
+    check:   '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
+    arrowLeft:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
+    plus:    '<path d="M12 5v14M5 12h14"/>'
+  };
+  function ic(name) {
+    return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[name] || '') + '</svg>';
+  }
+  // Build a button whose content is an icon, optionally followed by a text label.
+  // Icon-only buttons must pass a title (used as the accessible label).
+  function iconBtn(name, cls, label, title) {
+    var b = document.createElement("button");
+    if (cls) b.className = cls;
+    b.innerHTML = ic(name) + (label ? "<span>" + escapeHtml(label) + "</span>" : "");
+    if (title) b.title = title;
+    if (!label) b.setAttribute("aria-label", title || name);
+    return b;
+  }
+  // Replace the leading glyph of every static [data-ic] button with its SVG icon (run once at init).
+  function hydrateIcons() {
+    document.querySelectorAll("[data-ic]").forEach(function (e) {
+      e.insertAdjacentHTML("afterbegin", ic(e.getAttribute("data-ic")));
+    });
   }
   // Seconds -> clock string. Shows "m:ss" under an hour, "h:mm:ss" at/over an hour.
   function fmtTime(total) {
@@ -1115,11 +1182,12 @@
   // actions = [{ label, fn, danger? }]. Click-outside closes via the document handler.
   function kebabMenu(actions) {
     var wrap = el("div", "kebab-wrap");
-    var btn = el("button", "small ghost", "⋯");
+    var btn = el("button", "small ghost"); btn.innerHTML = ic("more");
     btn.setAttribute("aria-label", "More actions"); btn.setAttribute("aria-haspopup", "true"); btn.setAttribute("aria-expanded", "false");
     var menu = el("div", "kebab-menu hidden");
     actions.forEach(function (a) {
-      var b = el("button", a.danger ? "danger" : null, a.label);
+      var b = el("button", a.danger ? "danger" : null);
+      b.innerHTML = ic(a.icon) + "<span>" + escapeHtml(a.label) + "</span>";
       b.onclick = function (ev) { ev.stopPropagation(); closeKebabs(); a.fn(); };
       menu.appendChild(b);
     });
@@ -1149,7 +1217,7 @@
       var empty = el("div", "empty");
       empty.innerHTML = "<h2>No " + (isPersonal ? "workouts" : "routines") + " yet</h2><p>Build your first " +
         (isPersonal ? "workout" : "routine") + " — blocks of timed exercises, each with its own class format.</p>";
-      var b = el("button", "gold", isPersonal ? "+ New Workout" : "+ New Routine"); b.onclick = createRoutine;
+      var b = iconBtn("plus", "gold", isPersonal ? "New Workout" : "New Routine"); b.onclick = createRoutine;
       empty.appendChild(b); list.appendChild(empty); return;
     }
     routines.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
@@ -1193,16 +1261,16 @@
 
       // Primary action loud; the rest demoted into a "⋯" overflow menu.
       var row = el("div", "row");
-      var startBtn = el("button", "gold small", "▶ Start");
+      var startBtn = iconBtn("play", "gold small", "Start");
       startBtn.disabled = !runnable;
       startBtn.onclick = function () { openRun(r.id); };
       row.appendChild(startBtn);
       row.appendChild(el("div", "spacer"));
       var menu = kebabMenu([
-        { label: "Edit", fn: function () { showBuilder(r.id); } },
-        { label: "Export", fn: function () { if (runnable) openExport(r.id); } },
-        { label: "Duplicate", fn: function () { duplicateRoutine(r.id); } },
-        { label: "Delete", danger: true, fn: function () { deleteRoutine(r.id); } }
+        { label: "Edit", icon: "pencil", fn: function () { showBuilder(r.id); } },
+        { label: "Export", icon: "download", fn: function () { if (runnable) openExport(r.id); } },
+        { label: "Duplicate", icon: "copy", fn: function () { duplicateRoutine(r.id); } },
+        { label: "Delete", icon: "trash", danger: true, fn: function () { deleteRoutine(r.id); } }
       ]);
       row.appendChild(menu);
       card.appendChild(row);
@@ -1398,11 +1466,11 @@
     var dur = el("div", "block-dur", fmtTime(blockDuration(block)));
     head.appendChild(dur);
     var ba = el("div", "block-actions");
-    var bUp = el("button", "ghost", "↑"); bUp.title = "Move block up"; bUp.setAttribute("aria-label", "Move block up");
+    var bUp = el("button", "ghost"); bUp.innerHTML = ic("up"); bUp.title = "Move block up"; bUp.setAttribute("aria-label", "Move block up");
     bUp.disabled = bi === 0; bUp.onclick = function () { moveBlock(block.id, -1); };
-    var bDown = el("button", "ghost", "↓"); bDown.title = "Move block down"; bDown.setAttribute("aria-label", "Move block down");
+    var bDown = el("button", "ghost"); bDown.innerHTML = ic("down"); bDown.title = "Move block down"; bDown.setAttribute("aria-label", "Move block down");
     bDown.disabled = bi === r.blocks.length - 1; bDown.onclick = function () { moveBlock(block.id, 1); };
-    var bDel = el("button", "danger", "✕"); bDel.title = "Delete block"; bDel.setAttribute("aria-label", "Delete block");
+    var bDel = el("button", "danger"); bDel.innerHTML = ic("x"); bDel.title = "Delete block"; bDel.setAttribute("aria-label", "Delete block");
     bDel.onclick = function () { deleteBlock(block.id); };
     [bUp, bDown, bDel].forEach(function (b) { ba.appendChild(b); });
     head.appendChild(ba);
@@ -1419,7 +1487,7 @@
     wrap.appendChild(rows);
 
     var add = el("div", "block-add");
-    var addBtn = el("button", null, "+ Add exercise");
+    var addBtn = iconBtn("plus", null, "Add exercise");
     addBtn.onclick = function () { addExercise(block.id); };
     add.appendChild(addBtn);
     wrap.appendChild(add);
@@ -1465,19 +1533,19 @@
     if (!(ex.note || "").trim()) noteCell.classList.add("hidden");
 
     var actions = el("div", "ex-actions");
-    var noteBtn = el("button", "ghost" + ((ex.note || "").trim() ? " has-note" : ""), "✎");
+    var noteBtn = el("button", "ghost" + ((ex.note || "").trim() ? " has-note" : "")); noteBtn.innerHTML = ic("note");
     noteBtn.title = "Coaching note"; noteBtn.setAttribute("aria-label", "Toggle coaching note");
     noteBtn.onclick = function () {
       noteCell.classList.toggle("hidden");
       if (!noteCell.classList.contains("hidden")) { var inp = noteCell.querySelector("input"); if (inp) inp.focus(); }
     };
-    var up = el("button", "ghost", "↑"); up.title = "Move up"; up.setAttribute("aria-label", "Move exercise up");
+    var up = el("button", "ghost"); up.innerHTML = ic("up"); up.title = "Move up"; up.setAttribute("aria-label", "Move exercise up");
     up.disabled = ei === 0; up.onclick = function () { moveExercise(block.id, ex.id, -1); };
-    var down = el("button", "ghost", "↓"); down.title = "Move down"; down.setAttribute("aria-label", "Move exercise down");
+    var down = el("button", "ghost"); down.innerHTML = ic("down"); down.title = "Move down"; down.setAttribute("aria-label", "Move exercise down");
     down.disabled = ei === block.exercises.length - 1; down.onclick = function () { moveExercise(block.id, ex.id, 1); };
-    var dup = el("button", "ghost", "⧉"); dup.title = "Duplicate"; dup.setAttribute("aria-label", "Duplicate exercise");
+    var dup = el("button", "ghost"); dup.innerHTML = ic("copy"); dup.title = "Duplicate"; dup.setAttribute("aria-label", "Duplicate exercise");
     dup.onclick = function () { duplicateExercise(block.id, ex.id); };
-    var del = el("button", "danger", "✕"); del.title = "Delete"; del.setAttribute("aria-label", "Delete exercise");
+    var del = el("button", "danger"); del.innerHTML = ic("x"); del.title = "Delete"; del.setAttribute("aria-label", "Delete exercise");
     del.onclick = function () { deleteExercise(block.id, ex.id); };
     [noteBtn, up, down, dup, del].forEach(function (b) { actions.appendChild(b); });
     row.appendChild(fieldCell(actions, "", "actions-cell"));
@@ -1679,7 +1747,7 @@
     row.appendChild(fieldCell(restNode(m, onEdit), "Rest"));
 
     var actions = el("div", "ex-actions");
-    var del = el("button", "danger", "✕"); del.title = "Delete move"; del.setAttribute("aria-label", "Delete move");
+    var del = el("button", "danger"); del.innerHTML = ic("x"); del.title = "Delete move"; del.setAttribute("aria-label", "Delete move");
     del.onclick = function () { deleteMove(m.id); };
     actions.appendChild(del);
     row.appendChild(fieldCell(actions, "", "actions-cell"));
@@ -1754,7 +1822,7 @@
     if (state.sequences.length === 0) {
       var empty = el("div", "empty");
       empty.innerHTML = "<h2>No plans yet</h2><p>Chain routines into one back-to-back class.</p>";
-      var b = el("button", "gold", "+ New Plan"); b.onclick = createPlan; empty.appendChild(b);
+      var b = iconBtn("plus", "gold", "New Plan"); b.onclick = createPlan; empty.appendChild(b);
       list.appendChild(empty); return;
     }
     var grid = el("div", "routine-grid");
@@ -1780,13 +1848,13 @@
         routines.length + "</b> routine" + (routines.length === 1 ? "" : "s") + "</span>";
       card.appendChild(meta);
       var row = el("div", "row");
-      var runBtn = el("button", "gold small", "▶ Start"); runBtn.disabled = !runnable; runBtn.onclick = function () { openRunSequence(seq.id); };
+      var runBtn = iconBtn("play", "gold small", "Start"); runBtn.disabled = !runnable; runBtn.onclick = function () { openRunSequence(seq.id); };
       row.appendChild(runBtn);
       row.appendChild(el("div", "spacer"));
       row.appendChild(kebabMenu([
-        { label: "Edit", fn: function () { showPlanEditor(seq.id); } },
-        { label: "Duplicate", fn: function () { duplicatePlan(seq.id); } },
-        { label: "Delete", danger: true, fn: function () { deletePlan(seq.id); } }
+        { label: "Edit", icon: "pencil", fn: function () { showPlanEditor(seq.id); } },
+        { label: "Duplicate", icon: "copy", fn: function () { duplicatePlan(seq.id); } },
+        { label: "Delete", icon: "trash", danger: true, fn: function () { deletePlan(seq.id); } }
       ]));
       card.appendChild(row); grid.appendChild(card);
     });
@@ -1857,9 +1925,9 @@
     row.appendChild(dur);
 
     var acts = el("div"); acts.style.cssText = "display:flex;gap:4px;";
-    var up = el("button", "ghost small", "↑"); up.disabled = idx === 0; up.setAttribute("aria-label", "Move up"); up.onclick = function () { movePlanRow(idx, -1); };
-    var down = el("button", "ghost small", "↓"); down.disabled = idx === seq.routineIds.length - 1; down.setAttribute("aria-label", "Move down"); down.onclick = function () { movePlanRow(idx, 1); };
-    var del = el("button", "danger small", "✕"); del.setAttribute("aria-label", "Remove routine"); del.onclick = function () { seq.routineIds.splice(idx, 1); markPlanDirty(); renderPlanRows(); };
+    var up = el("button", "ghost small"); up.innerHTML = ic("up"); up.disabled = idx === 0; up.setAttribute("aria-label", "Move up"); up.onclick = function () { movePlanRow(idx, -1); };
+    var down = el("button", "ghost small"); down.innerHTML = ic("down"); down.disabled = idx === seq.routineIds.length - 1; down.setAttribute("aria-label", "Move down"); down.onclick = function () { movePlanRow(idx, 1); };
+    var del = el("button", "danger small"); del.innerHTML = ic("x"); del.setAttribute("aria-label", "Remove routine"); del.onclick = function () { seq.routineIds.splice(idx, 1); markPlanDirty(); renderPlanRows(); };
     [up, down, del].forEach(function (b) { acts.appendChild(b); });
     row.appendChild(acts);
     return row;
@@ -1928,7 +1996,8 @@
   //   elapsedBefore total seconds of all FULLY-completed steps (for overall elapsed)
   //   total         total seconds of the whole session
   // ===========================================================================
-  var run = { steps: [], title: "", index: 0, remaining: 0, running: false, ticker: null, lastTick: 0, elapsedBefore: 0, total: 0 };
+  var run = { steps: [], title: "", index: 0, remaining: 0, running: false, ticker: null, lastTick: 0, elapsedBefore: 0, total: 0,
+              lead: 0, leadTotal: 0, ledIn: false };  // lead = "get ready" seconds left; ledIn = already played once this run
 
   // Flatten ONE routine into work/rest steps (see section header for the model).
   // Display chips for a step: [{label, value}] for each non-empty metric of the
@@ -1968,6 +2037,7 @@
     run.remaining = steps[0].duration || 0;
     run.total = steps.reduce(function (s, st) { return s + (st.duration || 0); }, 0);
     run.running = false;
+    run.lead = 0; run.ledIn = false;          // reset the get-ready lead-in for a new run
     $("run-routine").textContent = title;
     $("run-mode-label").textContent = state.settings.mode === "personal" ? "Personal" : "Class";
     document.documentElement.style.overflow = "hidden";
@@ -2050,7 +2120,7 @@
         (i < run.index ? " done" : "") + (i === run.index ? " current" : "");
       var row = el("div", cls);
       row.appendChild(el("div", "ro-name", st.name || (st.kind === "rest" ? "Rest" : "(unnamed)")));
-      if ((st.note || "").trim()) { var nt = el("span", "ro-note", "✎"); nt.title = st.note; row.appendChild(nt); }
+      if ((st.note || "").trim()) { var nt = el("span", "ro-note"); nt.innerHTML = ic("note"); nt.title = st.note; row.appendChild(nt); }
       row.appendChild(el("div", "ro-dur", fmtTime(st.duration || 0)));
       panel.appendChild(row);
       if (i === run.index) currentRow = row;
@@ -2075,16 +2145,47 @@
     $("run-remaining").textContent = fmtTime(run.total - elapsed);
   }
 
+  // The "get ready" lead-in screen: previews the first exercise (name, metrics, note)
+  // with a depleting ring counting down whole seconds before the workout begins.
+  function renderReady() {
+    var st = run.steps[0]; if (!st) return;
+    $("run-overlay").className = "run-overlay is-work ready";
+    $("run-stage").className = "run-stage";
+    var live = $("run-live"); live.classList.remove("hidden");
+    live.classList.remove("step-in"); void live.offsetWidth; live.classList.add("step-in");
+    $("run-done").classList.add("hidden");
+    $("run-block-label").textContent = (st.routine ? st.routine + (st.block ? " · " + st.block : "") : (st.block || ""));
+    $("run-type").textContent = "Get Ready";
+    $("run-ex-name").textContent = st.name || "First exercise";
+    $("run-spring").innerHTML = (st.meta || []).map(function (mt) {
+      return "<span>" + escapeHtml(mt.label) + " <b>" + escapeHtml(mt.value) + "</b></span>";
+    }).join("");
+    $("run-note").textContent = st.note || "";
+    $("run-next").innerHTML = "Starting…";
+    $("run-position").textContent = "Get ready";
+    buildRunOrder();
+    updateReadyTime();
+  }
+  function updateReadyTime() {
+    var timeEl = $("run-time");
+    timeEl.textContent = String(Math.max(0, Math.ceil(run.lead)));   // whole seconds: 5,4,3…
+    timeEl.classList.toggle("warn", run.lead <= 3 && run.running);
+    var frac = run.leadTotal > 0 ? Math.max(0, Math.min(1, run.lead / run.leadTotal)) : 0;
+    $("run-ring-fill").style.strokeDashoffset = (276.46 * (1 - frac)).toFixed(2);
+    $("run-elapsed").textContent = "0:00";
+    $("run-remaining").textContent = fmtTime(run.total);
+  }
+
   function setPlayLabel() {
     var btn = $("btn-run-play");
-    if (run.index >= run.steps.length) { btn.textContent = "↺ Restart"; btn.className = "gold big"; return; }
-    if (run.running) { btn.textContent = "⏸ Pause"; btn.className = "big"; return; }
+    function set(name, label, cls) { btn.innerHTML = ic(name) + "<span>" + label + "</span>"; btn.className = cls; }
+    if (run.index >= run.steps.length) { set("restart", "Restart", "gold big"); return; }
+    if (run.running) { set("pause", "Pause", "big"); return; }
     // Paused mid-interval → "Resume" (reassures the instructor it won't restart); only a
     // brand-new, untouched run shows "Start".
     var st = curStep();
-    var started = run.index > 0 || run.elapsedBefore > 0 || (st && run.remaining < (st.duration || 0));
-    btn.textContent = started ? "▶ Resume" : "▶ Start";
-    btn.className = "gold big";
+    var started = run.lead > 0 || run.index > 0 || run.elapsedBefore > 0 || (st && run.remaining < (st.duration || 0));
+    set("play", started ? "Resume" : "Start", "gold big");
   }
   function announceText(st) {
     if (!st) return "";
@@ -2097,14 +2198,43 @@
     if (run.index >= run.steps.length) { restartRun(); return; }
     if (run.running) pauseRun(); else startRun();
   }
-  function startRun() { ensureAudio(); run.running = true; run.lastTick = Date.now(); startTicker(); setPlayLabel(); updateRunTime(); }
-  function pauseRun() { run.running = false; stopTicker(); setPlayLabel(); updateRunTime(); }
+  function startRun() {
+    ensureAudio(); run.running = true; run.lastTick = Date.now();
+    // Resuming a paused lead-in → keep counting it down.
+    if (run.lead > 0) { startTicker(); setPlayLabel(); updateReadyTime(); return; }
+    // Fresh, untouched run + a configured lead-in → play the "get ready" countdown first.
+    var st = curStep();
+    var fresh = run.index === 0 && run.elapsedBefore === 0 && st && run.remaining === (st.duration || 0);
+    if (fresh && !run.ledIn && (state.settings.leadIn || 0) > 0) {
+      run.ledIn = true; run.lead = state.settings.leadIn; run.leadTotal = state.settings.leadIn;
+      startTicker(); setPlayLabel(); renderReady(); announce("Get ready. Starting in " + run.lead + " seconds.");
+      return;
+    }
+    startTicker(); setPlayLabel(); updateRunTime();
+  }
+  function pauseRun() { run.running = false; stopTicker(); setPlayLabel(); if (run.lead > 0) updateReadyTime(); else updateRunTime(); }
+  // End the lead-in and begin the first exercise (shared by countdown-reaching-0 and Skip).
+  function endLeadIn() {
+    run.lead = 0;
+    beep(1046, 0.25);
+    renderRun(); announce(announceText(curStep()));
+    if (run.running) run.lastTick = Date.now();
+    setPlayLabel();
+  }
   function startTicker() { stopTicker(); run.ticker = setInterval(tick, 200); }
   function stopTicker() { if (run.ticker) { clearInterval(run.ticker); run.ticker = null; } }
 
   function tick() {
     if (!run.running) return;
     var now = Date.now(); var dt = (now - run.lastTick) / 1000; run.lastTick = now;
+    // Lead-in ("get ready") countdown runs before the first step.
+    if (run.lead > 0) {
+      var prevL = run.lead; run.lead -= dt;
+      var pcL = Math.ceil(prevL), ccL = Math.ceil(Math.max(0, run.lead));
+      for (var nl = pcL - 1; nl >= ccL; nl--) if (nl >= 1 && nl <= 3) beep(880, 0.08);
+      if (run.lead <= 0) endLeadIn(); else updateReadyTime();
+      return;
+    }
     var prev = run.remaining; run.remaining -= dt;
     // Countdown beeps for any of 3/2/1 crossed this tick (clamped so a long lag spike still cues).
     var prevCeil = Math.ceil(prev), curCeil = Math.ceil(Math.max(0, run.remaining));
@@ -2146,6 +2276,7 @@
   // zero-length steps). lastTick is reset so the next tick doesn't lose elapsed time.
 
   function prevStep() {
+    if (run.lead > 0) return;   // "Back" is a no-op during the get-ready lead-in (nothing precedes the first step)
     if (run.index >= run.steps.length) {
       run.index = run.steps.length - 1;
       run.elapsedBefore -= (curStep().duration || 0);
@@ -2167,10 +2298,14 @@
     if (run.running) run.lastTick = Date.now();
     renderRun(); announce(announceText(curStep())); setPlayLabel();
   }
-  function skipStep() { if (run.index < run.steps.length) advanceStep(false); }
+  function skipStep() {
+    if (run.lead > 0) { endLeadIn(); return; }   // Skip during the lead-in jumps straight into the first exercise
+    if (run.index < run.steps.length) advanceStep(false);
+  }
   function restartRun() {
     run.index = 0; run.elapsedBefore = 0;
     run.remaining = run.steps[0].duration || 0; run.running = false; stopTicker();
+    run.lead = 0; run.ledIn = false;             // a restart replays the get-ready lead-in
     renderRun(); setPlayLabel();
   }
   function renderRunDone() {
@@ -2179,7 +2314,7 @@
     $("run-stage").className = "run-stage";
     $("run-live").classList.add("hidden");
     var d = $("run-done"); d.classList.remove("hidden");
-    d.innerHTML = "<h2>✓ Complete</h2><p class='muted'>" +
+    d.innerHTML = "<h2><span class='done-check'>" + ic("check") + "</span> Complete</h2><p class='muted'>" +
       escapeHtml(run.title || "") + " · total " + fmtTime(run.total) + "</p>";
     buildRunOrder();   // refresh the panel so every step shows as done
     setPlayLabel();
@@ -2420,7 +2555,7 @@
     var isPersonal = state.settings.mode === "personal";
     $("mode-class").classList.toggle("active", !isPersonal);
     $("mode-personal").classList.toggle("active", isPersonal);
-    $("btn-new").textContent = isPersonal ? "+ New Workout" : "+ New Routine";
+    $("btn-new").innerHTML = ic("plus") + "<span>" + (isPersonal ? "New Workout" : "New Routine") + "</span>";
   }
   // Settings now holds only per-user preferences + the tips/backup sections.
   // Branding (name/logo/accent) is fixed to Echelon — set in defaultSettings(), not
@@ -2428,6 +2563,7 @@
   function openSettings() {
     $("set-beeps").checked = !!state.settings.beeps;
     $("set-autostart").checked = !!state.settings.autostart;
+    $("set-leadin").value = String(state.settings.leadIn);
     var hasUndo = false;
     try { hasUndo = !!localStorage.getItem(STORE_KEY + ".prerestore"); } catch (e) {}
     $("btn-undo-restore").classList.toggle("hidden", !hasUndo);
@@ -2437,6 +2573,7 @@
   function saveSettings() {
     state.settings.beeps = $("set-beeps").checked;
     state.settings.autostart = $("set-autostart").checked;
+    var li = parseInt($("set-leadin").value, 10); state.settings.leadIn = [0, 3, 5, 10].indexOf(li) >= 0 ? li : 5;
     save(); closeSettings(); toast("Settings saved");
   }
   // Apply the (fixed Echelon) studio name as the wordmark + accent across the UI.
@@ -2650,6 +2787,7 @@
   //   Class/Personal toggle, prime the exercise-name autocomplete, then show the
   //   library. (`state` was already loaded near the top via loadState().)
   // ===========================================================================
+  hydrateIcons();   // swap the static buttons' data-ic glyphs for inline SVG icons
   applyTheme();
   updateBrand();
   updateModeUI();
