@@ -33,10 +33,17 @@ home-screen install.
 ## 3. How `index.html` is organized
 Open it and you'll find, top to bottom:
 1. **`<head>`** — page meta + Add-to-Home-Screen tags.
-2. **`<style>`** — all CSS. Colors are **CSS variables** ("tokens") defined once in
-   `:root` (dark theme) and `html[data-theme="light"]` (light theme). Re-brand by
-   editing those tokens — components don't hardcode colors. See the theming note
-   at the top of `<style>`.
+2. **`<style>`** — all CSS. Colors, **fonts, type scale, and spacing are all CSS
+   variables** ("tokens") defined once in `:root` (dark theme) and
+   `html[data-theme="light"]` (light theme). Re-brand by editing those tokens —
+   components don't hardcode values. Notable tokens: `--font-display` (Oswald, loaded
+   via the Google Fonts `<link>` in `<head>`; used on the wordmark, headings, card
+   titles, and the timer numerals) vs `--font-ui` (system stack for everything else);
+   `--t-*` type scale; `--s1..--s6` spacing; `--shadow` (floating: modals/library
+   cards) vs `--shadow-sm` (contained sections). The live timer's countdown is an SVG
+   **arc-ring** (`#run-ring-fill`, a `<circle>` r=44, circumference 276.46) that
+   `updateRunTime` depletes via `stroke-dashoffset`. Cards' "⋯" overflow menus come
+   from `kebabMenu()` / `closeKebabs()`.
 3. **`<body>`** — the markup. The UI is several full-screen **views** (library,
    builder, catalog, plans, plan editor) plus **overlays** (run timer, settings &
    export dialogs). Only one view is visible at a time (others have `.hidden`).

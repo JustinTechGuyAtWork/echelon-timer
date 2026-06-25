@@ -61,6 +61,12 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Echelon — Routine Builder & Timer</title>
+<!-- Display typeface: Oswald (condensed, athletic) for the wordmark, headings, and the
+     timer numerals — the "scoreboard" voice. Body/UI stays on the fast system stack.
+     preconnect speeds the fetch; if offline the system stack is the graceful fallback. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap" />
 <!-- Add-to-Home-Screen / installable app (icons + manifest live alongside this file when hosted) -->
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" href="icon-192.png" />
@@ -110,7 +116,16 @@
     --rest-soft: rgba(224,162,60,0.15);
     --danger: #e5675f;
     --radius: 14px;
-    --shadow: 0 10px 34px rgba(0,0,0,0.5);
+    --shadow: 0 10px 34px rgba(0,0,0,0.5);   /* floating: modals, toast, library cards */
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.28); /* contained sections: block cards, field cards */
+    /* Type: one display face (Oswald) for brand surfaces, system stack for everything else */
+    --font-display: "Oswald", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    /* Type scale (one ladder so the same level looks the same in every view) */
+    --t-h1: 1.6rem; --t-h2: 1.25rem; --t-card: 1.15rem; --t-body: 1rem; --t-label: .78rem;
+    --track-label: .08em; --track-pill: .12em;
+    /* Spacing scale (4-based rhythm) */
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
     font-size: 16px;
   }
   /* Light theme (matches echelonfit.com: white + navy + teal) */
@@ -126,15 +141,16 @@
     --gold-soft: rgba(0,133,184,0.12);
     --accent-text: #006a8f;
     --gold-ink: #ffffff;
-    --rest: #bf7a1f;
-    --rest-soft: rgba(191,122,31,0.14);
+    --rest: #8f5800;            /* clears AA 4.5:1 as small text even on the amber rest overlay */
+    --rest-soft: rgba(143,88,0,0.14);
     --danger: #d4453d;
     --shadow: 0 8px 26px rgba(13,46,64,0.12);
+    --shadow-sm: 0 1px 3px rgba(13,46,64,0.10);
   }
   html[data-theme="light"] body { background: radial-gradient(1100px 720px at 75% -12%, #e3eef3 0%, var(--bg) 55%); }
   html[data-theme="light"] header.topbar { background: linear-gradient(var(--bg), rgba(244,247,249,0.88)); }
   html[data-theme="light"] input, html[data-theme="light"] select, html[data-theme="light"] textarea { background: #ffffff; }
-  html[data-theme="light"] ::placeholder { color: #9bafb8; }
+  html[data-theme="light"] ::placeholder { color: #7d96a1; }
   html[data-theme="light"] .run-overlay { background: radial-gradient(900px 640px at 50% -2%, #e6f3f9 0%, #ffffff 72%); }
   html[data-theme="light"] .run-overlay.is-rest { background: radial-gradient(900px 640px at 50% -2%, #fdf1de 0%, #ffffff 72%); }
   html[data-theme="light"] .run-overlay.done { background: radial-gradient(900px 640px at 50% -2%, #e3f4ee 0%, #ffffff 72%); }
@@ -145,7 +161,7 @@
     background: radial-gradient(1200px 760px at 72% -12%, #0c3340 0%, var(--bg) 58%);
     background-attachment: fixed;
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-ui);
     line-height: 1.45;
     -webkit-font-smoothing: antialiased;
   }
@@ -156,20 +172,27 @@
   }
   button:hover { filter: brightness(1.14); }
   button:active { filter: brightness(0.95); }
-  button.gold { background: linear-gradient(180deg, var(--gold), var(--gold-dim)); border-color: transparent; color: var(--gold-ink); font-weight: 700; }
+  /* AA-tuned: white label needs the top gradient stop ≥ ~#0079a8 against #fff */
+  button.gold { background: linear-gradient(180deg, #0079a8, var(--gold-dim)); border-color: transparent; color: var(--gold-ink); font-weight: 700; }
   button.ghost { background: transparent; }
   button.danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
   button.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
   button.small { padding: 5px 10px; font-size: 0.85rem; }
-  button:disabled { opacity: .4; cursor: not-allowed; filter: none; }
+  /* Disabled reads flat + desaturated, not just dim (so it never looks tappable) */
+  button:disabled { opacity: .5; cursor: not-allowed; filter: none; background: var(--panel); color: var(--muted); border-color: var(--line); }
+  button.gold:disabled { background: var(--panel); }
   input, select, textarea {
-    font: inherit; background: #0b0d11; color: var(--text);
+    font: inherit; background: var(--panel-2); color: var(--text);
     border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; width: 100%;
   }
   input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
-  label { font-size: 0.78rem; color: var(--muted); display: block; margin-bottom: 4px; }
+  /* Visible keyboard focus on every interactive element (WCAG 2.4.7); :focus-visible
+     keeps mouse clicks ring-free. Cards inset their ring so it isn't clipped. */
+  button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  .routine-card:focus-visible, .plan-card:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  label { font-size: var(--t-label); color: var(--muted); display: block; margin-bottom: 4px; }
   a { color: var(--accent-text); }
-  ::placeholder { color: #5c5749; }
+  ::placeholder { color: #6f8a96; opacity: 1; }   /* ~3:1 teal-family, opacity:1 fixes Firefox dimming */
 
   .app { max-width: 1040px; margin: 0 auto; padding: 0 16px 70px;
     /* keep content clear of side notches (landscape) and the home indicator */
@@ -189,10 +212,10 @@
     padding-left: calc(16px + env(safe-area-inset-left));
     padding-right: calc(16px + env(safe-area-inset-right));
     position: sticky; top: 0; z-index: 20;
-    background: linear-gradient(var(--bg), rgba(12,14,18,.86)); backdrop-filter: blur(7px);
+    background: linear-gradient(var(--bg), rgba(6,32,43,.86)); backdrop-filter: blur(7px);
   }
   .brand { display: flex; align-items: center; gap: 9px; }
-  .brand .logo { display: inline-flex; align-items: center; gap: 8px; font-size: 1.4rem; font-weight: 800; letter-spacing: -.5px; }
+  .brand .logo { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
   .brand .logo .accent { color: var(--accent-text); }
   .brand .studio { color: var(--muted); font-size: 0.9rem; }
   .topbar .spacer { flex: 1; }
@@ -202,37 +225,58 @@
   .seg-toggle button { border: none; background: transparent; border-radius: 999px; padding: 6px 14px; font-size: 0.85rem; color: var(--muted); }
   .seg-toggle button.active { background: var(--gold-soft); color: var(--accent-text); font-weight: 700; }
 
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  /* Default cards are contained sections → subtle shadow. Floating surfaces
+     (library cards, modals, toast) opt up to the heavier --shadow individually. */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+
+  /* Page titles all share the display face + scale so views feel like one product */
+  h1 { font-family: var(--font-display); font-weight: 600; letter-spacing: .3px; }
 
   /* ---------- Library ---------- */
-  .lib-head { display: flex; align-items: center; gap: 12px; margin: 10px 0 8px; }
-  .lib-head h1 { font-size: 1.5rem; margin: 0; flex: 1; }
-  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 18px; align-items: center; }
+  .lib-head { display: flex; align-items: center; gap: var(--s3); margin: 10px 0 8px; }
+  .lib-head h1 { font-size: var(--t-h1); margin: 0; flex: 1; }
+  .filters { display: flex; gap: var(--s2); flex-wrap: wrap; margin: 10px 0 var(--s5); align-items: center; }
   .tag-chip {
     border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
     border-radius: 999px; padding: 4px 12px; font-size: 0.82rem; cursor: pointer;
   }
   .tag-chip.active { background: var(--gold-soft); color: var(--accent-text); border-color: var(--gold-dim); }
-  .routine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-  .routine-card { padding: 16px; display: flex; flex-direction: column; gap: 10px; cursor: pointer; position: relative; }
+  .routine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s4); }
+  /* Library cards are the launch surface → they float (heavier shadow than .card default) */
+  .routine-card { padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); cursor: pointer; position: relative; box-shadow: var(--shadow); }
   .routine-card:hover { border-color: var(--gold-dim); }
-  .routine-card h3 { margin: 0; font-size: 1.15rem; }
-  .routine-card .desc { color: var(--muted); font-size: 0.9rem; min-height: 1.1em; }
+  .routine-card h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: var(--t-card); letter-spacing: .3px; }
+  .routine-card .desc { color: var(--muted); font-size: 0.9rem; }
+  /* Format badge(s) — the class type, the thing that distinguishes one card from the next */
+  .routine-card .fmts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .routine-card .fmt-badge { font-size: 0.72rem; font-weight: 600; letter-spacing: .02em; color: var(--accent-text);
+    background: var(--gold-soft); border: 1px solid color-mix(in srgb, var(--gold-dim) 50%, transparent); border-radius: 7px; padding: 2px 8px; }
   .routine-card .tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .routine-card .tags span { font-size: 0.72rem; color: var(--accent-text); background: var(--gold-soft); border-radius: 999px; padding: 2px 9px; }
-  .routine-card .meta { display: flex; gap: 14px; color: var(--muted); font-size: 0.84rem; flex-wrap: wrap; }
+  .routine-card .tags span { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+  /* Duration is the stat instructors scan → lead it; the rest stay quiet */
+  .routine-card .meta { display: flex; align-items: baseline; gap: 6px var(--s3); color: var(--muted); font-size: 0.82rem; flex-wrap: wrap; }
+  .routine-card .meta .lead { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
   .routine-card .meta b { color: var(--text); font-variant-numeric: tabular-nums; }
-  .routine-card .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+  .routine-card .row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin-top: auto; }
+  .routine-card .row .spacer { flex: 1; }
+  /* Overflow (kebab) menu for the demoted secondary actions */
+  .kebab-wrap { position: relative; }
+  .kebab-menu { position: absolute; right: 0; bottom: calc(100% + 6px); min-width: 150px; z-index: 5;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 5px; }
+  .kebab-menu button { display: block; width: 100%; text-align: left; border: none; background: transparent; border-radius: 7px; padding: 9px 11px; font-size: 0.9rem; }
+  .kebab-menu button:hover { background: var(--panel-2); filter: none; }
+  .kebab-menu button.danger { color: var(--danger); }
   .empty { text-align: center; padding: 64px 20px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
   .empty h2 { color: var(--text); }
 
   /* ---------- Builder ---------- */
-  .builder-top { display: flex; align-items: center; gap: 12px; margin: 6px 0 16px; flex-wrap: wrap; }
-  .builder-top h1 { font-size: 1.3rem; margin: 0; flex: 1; min-width: 160px; }
-  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .builder-top { display: flex; align-items: center; gap: var(--s3); margin: 6px 0 var(--s4); flex-wrap: wrap; }
+  .builder-top h1 { font-size: var(--t-h1); margin: 0; flex: 1; min-width: 160px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s4); }
   .field-row.three { grid-template-columns: 1.3fr 1.3fr 1fr; }
 
-  .block { margin-top: 16px; }
+  .block { margin-top: var(--s4); }
+  .block.card { padding: var(--s2) 6px var(--s1); }   /* compact section padding (was an inline style) */
   .block-head { display: flex; align-items: center; gap: 10px; padding: 6px 4px; flex-wrap: wrap; }
   .block-head .block-badge {
     width: 26px; height: 26px; border-radius: 7px; background: var(--gold-soft); color: var(--accent-text);
@@ -263,7 +307,7 @@
   .ex-row > .cell::before { content: attr(data-k); display: none; }
   .dur-input { display: flex; align-items: center; gap: 2px; }
   .dur-input input { width: 38px; text-align: center; padding: 8px 2px; margin: 0;
-    -webkit-appearance: none; -moz-appearance: textfield; }
+    font-variant-numeric: tabular-nums; -webkit-appearance: none; -moz-appearance: textfield; }
   .dur-input input::-webkit-outer-spin-button,
   .dur-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .dur-input span { color: var(--muted); font-size: 0.8rem; }
@@ -291,33 +335,48 @@
   .run-top { display: flex; align-items: center; gap: 12px; }
   .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; }
   .run-top .run-mode { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-text); background: var(--gold-soft); padding: 4px 10px; border-radius: 999px; }
-  .run-block-label { text-align: center; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; margin-top: 6px; }
+  .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: .82rem; margin-top: 6px; }
+  .is-rest .run-block-label { color: var(--rest); }
   .run-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
   #run-live { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
-  .run-type-pill { text-transform: uppercase; letter-spacing: .12em; font-size: .85rem; font-weight: 700; padding: 5px 14px; border-radius: 999px; background: var(--gold-soft); color: var(--accent-text); }
-  .is-rest .run-type-pill { background: var(--rest-soft); color: var(--rest); }
-  .run-ex-name { font-size: clamp(2rem, 7vw, 4.6rem); font-weight: 800; line-height: 1.04; margin: 2px 0; }
-  .run-spring { display: flex; gap: 18px; align-items: center; justify-content: center; color: var(--muted); font-size: 1.05rem; min-height: 1.4em; }
-  .run-spring b { color: var(--accent-text); font-size: 1.3rem; }
+  /* Phase label: a tracked uppercase signpost (not a pill — pills are for interactive chips) */
+  .run-type-pill { text-transform: uppercase; letter-spacing: var(--track-pill); font-size: .82rem; font-weight: 700; color: var(--accent-text); }
+  .is-rest .run-type-pill { color: var(--rest); }
+  .run-ex-name { font-family: var(--font-display); font-weight: 600; text-transform: uppercase; letter-spacing: .01em;
+    font-size: clamp(1.9rem, 6vw, 3.8rem); line-height: 1.04; margin: 2px 0; }
+  .run-spring { display: flex; gap: 18px; align-items: baseline; justify-content: center; color: var(--muted); font-size: 1.05rem; min-height: 1.4em; flex-wrap: wrap; }
+  .run-spring b { color: var(--accent-text); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
   .is-rest .run-spring b { color: var(--rest); }
-  .run-time { font-size: clamp(5rem, 25vw, 15rem); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -2px; }
-  .run-time.warn { color: var(--gold); }
+
+  /* SIGNATURE: the countdown as a depleting interval dial. The ring drains as the
+     interval runs (teal for work, amber for rest); the numerals sit inside it. */
+  .run-dial { position: relative; width: clamp(260px, 62vw, 460px); aspect-ratio: 1; display: grid; place-items: center; margin: 4px 0; }
+  .run-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .run-ring-track { fill: none; stroke: var(--panel-2); stroke-width: 3.5; }
+  .run-ring-fill { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round;
+    stroke-dasharray: 276.46; stroke-dashoffset: 0; transition: stroke-dashoffset .25s linear; }
+  .is-rest .run-ring-fill { stroke: var(--rest); }
+  .run-time { font-family: var(--font-display); font-size: clamp(3.2rem, 15vw, 7.4rem); font-weight: 600;
+    font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
+  .run-time.warn { color: var(--gold); animation: tick 1s ease-in-out infinite; }
   .is-rest .run-time.warn { color: var(--rest); }
-  .run-progress { width: min(680px, 92%); height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; margin-top: 4px; }
-  .run-progress > div { height: 100%; background: var(--gold); width: 0%; transition: width .2s linear; }
-  .is-rest .run-progress > div { background: var(--rest); }
-  .run-next { color: var(--muted); margin-top: 14px; font-size: 1.02rem; min-height: 1.3em; }
+  .run-next { color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 14px; font-size: 1.12rem; min-height: 1.3em; }
   .run-next b { color: var(--text); }
-  .run-overall { display: flex; gap: 26px; justify-content: center; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .run-overall { display: flex; gap: 26px; justify-content: center; color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 4px; font-size: 1.04rem; font-variant-numeric: tabular-nums; }
   .run-overall b { color: var(--text); }
+  /* Step-change reveal (per interval) + final-5s pulse. Both auto-disabled by reduced-motion. */
+  @keyframes stepIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  #run-live.step-in { animation: stepIn .26s ease-out; }
+  @keyframes tick { 0%, 100% { transform: none; } 50% { transform: scale(1.05); } }
   .run-controls { display: flex; gap: 12px; justify-content: center; align-items: center; padding: 14px 0 4px; flex-wrap: wrap; }
+  .run-controls button { min-height: 48px; }   /* touch-first: comfortable targets mid-class */
   .run-controls .big { font-size: 1.1rem; padding: 14px 30px; }
   .run-done-msg { text-align: center; }
   .run-done-msg h2 { font-size: 2.4rem; margin: 0 0 6px; }
 
   /* ---------- Modal ---------- */
   .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; }
+  .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; box-shadow: var(--shadow); }
   .modal h2 { margin: 0 0 14px; font-size: 1.2rem; }
   .modal .field { margin-bottom: 14px; }
   .tips h3 { margin: 0 0 6px; font-size: 0.95rem; }
@@ -377,7 +436,13 @@
     .ex-row > .cell.actions-cell .ex-actions { justify-content: flex-start; }
     .dur-input input { width: 100%; }
     .field-row, .field-row.three { grid-template-columns: 1fr; }
-    .run-time { font-size: clamp(4rem, 22vw, 13rem); letter-spacing: -1px; }
+    /* Touch targets: this is a phone/tablet-first builder, so the clustered icon
+       buttons and steppers must clear ~44px and not sit flush against delete. */
+    .ex-actions { gap: 8px; }
+    .ex-actions button, .block-head .block-actions button { min-height: 44px; min-width: 44px; padding: 8px 12px; font-size: 0.95rem; }
+    .block-head .block-actions { gap: 8px; }
+    .ex-row input, .ex-row select, .ex-row .dur-input input { min-height: 44px; }
+    .block-head select.block-format { min-height: 44px; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
@@ -388,7 +453,7 @@
 
 <header class="topbar">
   <div class="brand">
-    <span class="logo" id="brand-logo">Temp<span class="accent">o</span></span>
+    <span class="logo" id="brand-logo">Echel<span class="accent">o</span>n</span>
     <span class="studio" id="studio-label"></span>
   </div>
   <div class="spacer"></div>
@@ -524,8 +589,13 @@
       <span class="run-type-pill" id="run-type">Exercise</span>
       <div class="run-ex-name" id="run-ex-name">—</div>
       <div class="run-spring" id="run-spring"></div>
-      <div class="run-time" id="run-time">0:00</div>
-      <div class="run-progress"><div id="run-progress-bar"></div></div>
+      <div class="run-dial">
+        <svg class="run-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="run-ring-track" cx="50" cy="50" r="44"></circle>
+          <circle class="run-ring-fill" id="run-ring-fill" cx="50" cy="50" r="44"></circle>
+        </svg>
+        <div class="run-time" id="run-time">0:00</div>
+      </div>
       <div class="run-next" id="run-next"></div>
       <div class="run-overall">
         <span>Elapsed <b id="run-elapsed">0:00</b></span>
@@ -536,9 +606,9 @@
   </div>
 
   <div class="run-controls">
-    <button id="btn-run-prev">⏮ Prev</button>
+    <button id="btn-run-prev">⏮ Back</button>
     <button class="gold big" id="btn-run-play">▶ Start</button>
-    <button id="btn-run-next">Skip ⏭</button>
+    <button id="btn-run-next">⏭ Skip</button>
     <button class="ghost" id="btn-run-restart">↺ Restart</button>
   </div>
 </div>
@@ -983,6 +1053,35 @@
       wrap.appendChild(chip);
     });
   }
+  // Short format name for compact card badges ("Cycle / Spin" -> "Cycle").
+  function disciplineShort(k) { return DISCIPLINES[k] ? DISCIPLINES[k].label.split(" / ")[0] : ""; }
+  // Close every open overflow (kebab) menu. Wired to a document click in Events.
+  function closeKebabs() {
+    document.querySelectorAll(".kebab-menu").forEach(function (m) { m.classList.add("hidden"); });
+    document.querySelectorAll(".kebab-wrap button[aria-expanded]").forEach(function (b) { b.setAttribute("aria-expanded", "false"); });
+  }
+  // Build a "⋯ More actions" button + dropdown for demoted secondary actions.
+  // actions = [{ label, fn, danger? }]. Click-outside closes via the document handler.
+  function kebabMenu(actions) {
+    var wrap = el("div", "kebab-wrap");
+    var btn = el("button", "small ghost", "⋯");
+    btn.setAttribute("aria-label", "More actions"); btn.setAttribute("aria-haspopup", "true"); btn.setAttribute("aria-expanded", "false");
+    var menu = el("div", "kebab-menu hidden");
+    actions.forEach(function (a) {
+      var b = el("button", a.danger ? "danger" : null, a.label);
+      b.onclick = function (ev) { ev.stopPropagation(); closeKebabs(); a.fn(); };
+      menu.appendChild(b);
+    });
+    btn.onclick = function (ev) {
+      ev.stopPropagation();
+      var wasOpen = !menu.classList.contains("hidden");
+      closeKebabs();
+      if (!wasOpen) { menu.classList.remove("hidden"); btn.setAttribute("aria-expanded", "true"); }
+    };
+    wrap.appendChild(btn); wrap.appendChild(menu);
+    return wrap;
+  }
+
   function renderLibrary() {
     $("lib-title").textContent = state.settings.mode === "personal" ? "My Workouts" : "Class Library";
     // If the active tag no longer exists (its routine was edited/deleted), drop it
@@ -995,42 +1094,66 @@
     if (activeTag) routines = routines.filter(function (r) { return (r.tags || []).indexOf(activeTag) >= 0; });
 
     if (state.routines.length === 0) {
+      var isPersonal = state.settings.mode === "personal";
       var empty = el("div", "empty");
-      empty.innerHTML = "<h2>No routines yet</h2><p>Build your first routine — blocks of timed exercises with loads, sides, and rest.</p>";
-      var b = el("button", "gold", "+ New Routine"); b.onclick = createRoutine;
+      empty.innerHTML = "<h2>No " + (isPersonal ? "workouts" : "routines") + " yet</h2><p>Build your first " +
+        (isPersonal ? "workout" : "routine") + " — blocks of timed exercises, each with its own class format.</p>";
+      var b = el("button", "gold", isPersonal ? "+ New Workout" : "+ New Routine"); b.onclick = createRoutine;
       empty.appendChild(b); list.appendChild(empty); return;
     }
     routines.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
     var grid = el("div", "routine-grid");
     routines.forEach(function (r) {
       var card = el("div", "card routine-card");
-      // tapping the card body starts the routine (tap-to-run)
-      card.onclick = function (ev) { if (ev.target.closest("button")) return; if (exerciseCount(r) > 0) openRun(r.id); };
+      var runnable = exerciseCount(r) > 0;
+      // tapping the card body starts the routine (tap-to-run); keyboard-operable too
+      var runCard = function () { if (runnable) openRun(r.id); };
+      card.onclick = function (ev) { if (ev.target.closest("button")) return; runCard(); };
+      if (runnable) {
+        card.setAttribute("role", "button");
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("aria-label", "Run " + (r.name || "Untitled routine"));
+        card.onkeydown = function (ev) {
+          if (ev.target.closest("button")) return;
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); runCard(); }
+        };
+      }
 
       card.appendChild(el("h3", null, r.name || "Untitled routine"));
-      card.appendChild(el("div", "desc", r.description || ""));
+
+      // Format badge(s) — the class type(s), distinct per card (mixed routines show several)
+      var fmts = el("div", "fmts");
+      routineDisciplines(r).forEach(function (k) { fmts.appendChild(el("span", "fmt-badge", disciplineShort(k))); });
+      card.appendChild(fmts);
+
+      if (r.description) card.appendChild(el("div", "desc", r.description));
       if ((r.tags || []).length) {
         var tagWrap = el("div", "tags");
         r.tags.forEach(function (t) { tagWrap.appendChild(el("span", null, t)); });
         card.appendChild(tagWrap);
       }
       var meta = el("div", "meta");
+      var nb = r.blocks.length, ne = exerciseCount(r);
       meta.innerHTML =
-        "<span><b>" + fmtTime(routineDuration(r)) + "</b> total</span>" +
-        "<span><b>" + r.blocks.length + "</b> block" + (r.blocks.length === 1 ? "" : "s") + "</span>" +
-        "<span><b>" + exerciseCount(r) + "</b> exercises</span>";
+        "<span class='lead'>" + fmtTime(routineDuration(r)) + "</span><span>total</span>" +
+        "<span><b>" + nb + "</b> block" + (nb === 1 ? "" : "s") + "</span>" +
+        "<span><b>" + ne + "</b> exercise" + (ne === 1 ? "" : "s") + "</span>";
       card.appendChild(meta);
 
+      // Primary action loud; the rest demoted into a "⋯" overflow menu.
       var row = el("div", "row");
       var startBtn = el("button", "gold small", "▶ Start");
-      startBtn.disabled = exerciseCount(r) === 0;
+      startBtn.disabled = !runnable;
       startBtn.onclick = function () { openRun(r.id); };
-      var editBtn = el("button", "small", "Edit"); editBtn.onclick = function () { showBuilder(r.id); };
-      var expBtn = el("button", "small", "Export"); expBtn.disabled = exerciseCount(r) === 0;
-      expBtn.onclick = function () { openExport(r.id); };
-      var dupBtn = el("button", "small ghost", "Duplicate"); dupBtn.onclick = function () { duplicateRoutine(r.id); };
-      var delBtn = el("button", "small danger", "Delete"); delBtn.onclick = function () { deleteRoutine(r.id); };
-      [startBtn, editBtn, expBtn, dupBtn, delBtn].forEach(function (b) { row.appendChild(b); });
+      row.appendChild(startBtn);
+      row.appendChild(el("div", "spacer"));
+      var menu = kebabMenu([
+        { label: "Edit", fn: function () { showBuilder(r.id); } },
+        { label: "Export", fn: function () { if (runnable) openExport(r.id); } },
+        { label: "Duplicate", fn: function () { duplicateRoutine(r.id); } },
+        { label: "Delete", danger: true, fn: function () { deleteRoutine(r.id); } }
+      ]);
+      row.appendChild(menu);
       card.appendChild(row);
       grid.appendChild(card);
     });
@@ -1183,8 +1306,7 @@
   }
 
   function buildBlock(block, bi, r) {
-    var wrap = el("div", "block card");
-    wrap.style.padding = "8px 6px 4px";
+    var wrap = el("div", "block card");   /* padding comes from the .block.card CSS rule */
     var fields = disciplineFields(block);   // metric columns for THIS block's format
     var cols = exGridCols(fields);
 
@@ -1563,19 +1685,33 @@
     state.sequences.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).forEach(function (seq) {
       var routines = sequenceRoutines(seq);
       var card = el("div", "card routine-card");
-      card.onclick = function (ev) { if (ev.target.closest("button")) return; if (routines.length) openRunSequence(seq.id); };
+      var runnable = routines.length > 0;
+      var runPlan = function () { if (runnable) openRunSequence(seq.id); };
+      card.onclick = function (ev) { if (ev.target.closest("button")) return; runPlan(); };
+      if (runnable) {
+        card.setAttribute("role", "button");
+        card.setAttribute("tabindex", "0");
+        card.setAttribute("aria-label", "Run plan " + (seq.name || "Untitled plan"));
+        card.onkeydown = function (ev) {
+          if (ev.target.closest("button")) return;
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); runPlan(); }
+        };
+      }
       card.appendChild(el("h3", null, seq.name || "Untitled plan"));
       card.appendChild(el("div", "desc", routines.map(function (r) { return r.name || "Untitled"; }).join("  →  ") || "No routines yet"));
       var meta = el("div", "meta");
-      meta.innerHTML = "<span><b>" + fmtTime(sequenceDuration(seq)) + "</b> total</span><span><b>" +
+      meta.innerHTML = "<span class='lead'>" + fmtTime(sequenceDuration(seq)) + "</span><span>total</span><span><b>" +
         routines.length + "</b> routine" + (routines.length === 1 ? "" : "s") + "</span>";
       card.appendChild(meta);
       var row = el("div", "row");
-      var runBtn = el("button", "gold small", "▶ Start"); runBtn.disabled = routines.length === 0; runBtn.onclick = function () { openRunSequence(seq.id); };
-      var editBtn = el("button", "small", "Edit"); editBtn.onclick = function () { showPlanEditor(seq.id); };
-      var dupBtn = el("button", "small ghost", "Duplicate"); dupBtn.onclick = function () { duplicatePlan(seq.id); };
-      var delBtn = el("button", "small danger", "Delete"); delBtn.onclick = function () { deletePlan(seq.id); };
-      [runBtn, editBtn, dupBtn, delBtn].forEach(function (b) { row.appendChild(b); });
+      var runBtn = el("button", "gold small", "▶ Start"); runBtn.disabled = !runnable; runBtn.onclick = function () { openRunSequence(seq.id); };
+      row.appendChild(runBtn);
+      row.appendChild(el("div", "spacer"));
+      row.appendChild(kebabMenu([
+        { label: "Edit", fn: function () { showPlanEditor(seq.id); } },
+        { label: "Duplicate", fn: function () { duplicatePlan(seq.id); } },
+        { label: "Delete", danger: true, fn: function () { deletePlan(seq.id); } }
+      ]));
       card.appendChild(row); grid.appendChild(card);
     });
     list.appendChild(grid);
@@ -1782,7 +1918,10 @@
     var overlay = $("run-overlay");
     overlay.className = "run-overlay is-" + st.kind;
     var stage = $("run-stage"); stage.className = "run-stage t-" + st.kind;
-    $("run-live").classList.remove("hidden");
+    var live = $("run-live");
+    live.classList.remove("hidden");
+    // Retrigger the per-step reveal animation (remove → reflow → add).
+    live.classList.remove("step-in"); void live.offsetWidth; live.classList.add("step-in");
     $("run-done").classList.add("hidden");
 
     // In a plan, prefix the block label with the current routine name.
@@ -1819,8 +1958,10 @@
     timeEl.textContent = fmtTime(Math.ceil(run.remaining));
     timeEl.classList.toggle("warn", run.remaining <= 5 && run.running);
     var dur = st.duration || 0;
-    var pct = dur > 0 ? (1 - run.remaining / dur) * 100 : 100;
-    $("run-progress-bar").style.width = Math.min(100, Math.max(0, pct)) + "%";
+    // Deplete the dial: visible arc = remaining fraction of the interval (full → empty).
+    var frac = dur > 0 ? Math.max(0, Math.min(1, run.remaining / dur)) : 1;
+    var CIRC = 276.46; // 2π·44, the ring radius in the SVG viewBox
+    $("run-ring-fill").style.strokeDashoffset = (CIRC * (1 - frac)).toFixed(2);
     var elapsed = run.elapsedBefore + ((st.duration || 0) - run.remaining);
     $("run-elapsed").textContent = fmtTime(elapsed);
     $("run-remaining").textContent = fmtTime(run.total - elapsed);
@@ -1829,8 +1970,13 @@
   function setPlayLabel() {
     var btn = $("btn-run-play");
     if (run.index >= run.steps.length) { btn.textContent = "↺ Restart"; btn.className = "gold big"; return; }
-    btn.textContent = run.running ? "⏸ Pause" : "▶ Start";
-    btn.className = (run.running ? "" : "gold") + " big";
+    if (run.running) { btn.textContent = "⏸ Pause"; btn.className = "big"; return; }
+    // Paused mid-interval → "Resume" (reassures the instructor it won't restart); only a
+    // brand-new, untouched run shows "Start".
+    var st = curStep();
+    var started = run.index > 0 || run.elapsedBefore > 0 || (st && run.remaining < (st.duration || 0));
+    btn.textContent = started ? "▶ Resume" : "▶ Start";
+    btn.className = "gold big";
   }
   function announceText(st) {
     if (!st) return "";
@@ -2003,7 +2149,7 @@
 
   function exportPDF() {
     var r = findRoutine(exportId);
-    var studio = state.settings.studioName || "Tempo";
+    var studio = state.settings.studioName || "Echelon";
     var html = "";
     if (state.settings.logo) html += "<img src='" + state.settings.logo + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
     html += "<h1>" + escapeHtml(r.name || "Untitled routine") + "</h1>";
@@ -2034,7 +2180,7 @@
       });
       html += "</tbody></table>";
     });
-    html += "<p class='ps-foot'>Total " + fmtTime(routineDuration(r)) + " · Generated by Tempo · " + new Date().toLocaleString() + "</p>";
+    html += "<p class='ps-foot'>Total " + fmtTime(routineDuration(r)) + " · Generated by " + escapeHtml(studio) + " · " + new Date().toLocaleString() + "</p>";
     $("print-area").innerHTML = html;
     closeExport();
     setTimeout(function () { window.print(); }, 50);
@@ -2090,7 +2236,7 @@
   }
 
   function buildText(r) {
-    var studio = state.settings.studioName || "Tempo";
+    var studio = state.settings.studioName || "Echelon";
     var out = [];
     out.push((r.name || "Untitled routine").toUpperCase());
     out.push(studio + (r.description ? " — " + r.description : ""));
@@ -2201,7 +2347,7 @@
     } else if (name) {
       logo.textContent = name;
     } else {
-      logo.innerHTML = 'Temp<span class="accent">o</span>';
+      logo.innerHTML = 'Echel<span class="accent">o</span>n';
     }
     $("studio-label").textContent = "";
     var root = document.documentElement, acc = state.settings.accent;
@@ -2235,8 +2381,8 @@
     save(); applyTheme(); updateBrand();
     toast(state.settings.theme === "light" ? "Light theme" : "Dark theme");
   }
-  function backup() {                   // download the entire state as tempo-backup.json
-    downloadFile("tempo-backup.json", JSON.stringify(state, null, 2), "application/json");
+  function backup() {                   // download the entire state as echelon-backup.json
+    downloadFile("echelon-backup.json", JSON.stringify(state, null, 2), "application/json");
     toast("Backup downloaded");
   }
   // Load a backup file: validate + normalize it, confirm with the user, stash the
@@ -2250,7 +2396,7 @@
         var parsed = JSON.parse(reader.result);
         if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.routines)) throw new Error("bad");
         clean = normalizeState(parsed);
-      } catch (e) { toast("That file is not a valid Tempo backup"); return; }
+      } catch (e) { toast("That file isn't a valid Echelon backup"); return; }
       if (!confirm("Restore will REPLACE your current " + state.routines.length +
         " routine(s) with " + clean.routines.length + " from the backup. Continue?")) return;
       var snapshotted = false;
@@ -2284,6 +2430,9 @@
   //   the build* functions, not here.)
   // ===========================================================================
   $("btn-new").onclick = createRoutine;
+  // Any click that isn't on an open kebab dismisses it (the kebab button stops its
+  // own propagation while opening, so this won't immediately re-close it).
+  document.addEventListener("click", closeKebabs);
   $("btn-back").onclick = function () {
     saveBuilder(false);
     var r = findRoutine(currentEditId);
