@@ -38,14 +38,16 @@ Every exercise also always has a **Name**, a **Time** (work duration, minutes : 
 ### Build a routine
 - Click **+ New Routine**, name it, and (optionally) add a description and **tags**.
 - Each block has a **Class format** picker in its header — set it and the block's exercise columns follow. Use **+ Add exercise** and **+ Add block** (new blocks copy the previous block's format).
+- Add an optional **coaching note** to any exercise — click the **✎** button on its row and type a cue (e.g. "drive through the heel"). It shows on the run screen.
 - Reorder with **↑ ↓**, duplicate with **⧉**, delete with **✕** (blocks and exercises both).
 - Per-block and total times update live. Everything **autosaves** as you type.
 
 ### Run it live (tap-to-run)
 - **Tap a routine card** (or its **▶ Start**) to launch the immersive timer.
-- It shows the current exercise, its metrics for the format (e.g. cadence & resistance, highlighted so you can call them out), a big countdown, the block name, what's next, and overall elapsed/remaining.
-- Rest intervals run as their own (teal) steps.
-- Controls: **Start/Pause**, **Skip**, **Prev**, **Restart**, **Exit**. Keys: **Space**, **←**, **→**, **Esc**.
+- It shows the current exercise, its metrics for the format (e.g. cadence & resistance, highlighted so you can call them out) as a depleting **ring timer**, its coaching note, the block name, what's next, and overall elapsed/remaining.
+- **On a big screen (laptop/TV in landscape)** it becomes a **class dashboard**: the timer on the left and the full **running order** on the right — every block and exercise (and, in a plan, every routine), with the current step highlighted so the room can see what's now and what's coming. Phones keep the full-screen timer.
+- Rest intervals run as their own (amber) steps.
+- Controls: **Start/Pause**, **Back**, **Skip**, **Restart**, **Exit**. Keys: **Space**, **←**, **→**, **Esc**.
 - Turn on **Auto-start next exercise** in Settings for a continuous, hands-free run.
 
 ### Exercise catalog (reusable moves)

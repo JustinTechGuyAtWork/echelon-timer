@@ -33,7 +33,7 @@
                      logoCustom, lastDiscipline },
         routines:  [ { id, name, description, tags:[], discipline, createdAt, updatedAt,
                        blocks:[ { id, name, discipline, exercises:[
-                         { id, name, duration, rest, metrics:{} } ] } ] } ],
+                         { id, name, duration, rest, metrics:{}, note } ] } ] } ],
         catalog:   [ exercise-shaped templates (each with its own `discipline`) ],
         sequences: [ { id, name, routineIds:[] } ]   // "class plans"
       }
@@ -312,6 +312,10 @@
   .dur-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   .dur-input span { color: var(--muted); font-size: 0.8rem; }
   .ex-row input.spring { text-align: center; }
+  /* Optional coaching-note row: spans the full width on its own grid line. */
+  .ex-row > .cell.note-cell { grid-column: 1 / -1; margin-top: 2px; }
+  .ex-row > .cell.note-cell input { width: 100%; font-size: 0.9rem; }
+  .ex-actions button.has-note { color: var(--accent-text); border-color: var(--gold-dim); }
   .ex-actions { display: flex; gap: 3px; justify-content: flex-end; }
   .ex-actions button { padding: 4px 7px; font-size: 0.8rem; }
   .block-add { padding: 10px 12px; }
@@ -332,6 +336,9 @@
     background: radial-gradient(900px 620px at 50% -2%, #0a3a4a 0%, #04161e 72%); }
   .run-overlay.is-rest { background: radial-gradient(900px 620px at 50% -2%, #34280c 0%, #04161e 72%); }
   .run-overlay.done { background: radial-gradient(900px 620px at 50% -2%, #0a3a44 0%, #04161e 72%); }
+  /* Left column holds the whole timer; on phones/portrait it IS the view. */
+  .run-col { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
+  .run-order { display: none; }   /* the running-order panel only appears on large landscape (media query) */
   .run-top { display: flex; align-items: center; gap: 12px; }
   .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; }
   .run-top .run-mode { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-text); background: var(--gold-soft); padding: 4px 10px; border-radius: 999px; }
@@ -360,6 +367,10 @@
     font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
   .run-time.warn { color: var(--gold); animation: tick 1s ease-in-out infinite; }
   .is-rest .run-time.warn { color: var(--rest); }
+  /* Coaching note for the current exercise (empty for rest steps). */
+  .run-note { color: color-mix(in srgb, var(--text) 82%, transparent); font-style: italic; font-size: 1.05rem;
+    max-width: 34ch; margin-top: 12px; line-height: 1.35; }
+  .run-note:empty { display: none; }
   .run-next { color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 14px; font-size: 1.12rem; min-height: 1.3em; }
   .run-next b { color: var(--text); }
   .run-overall { display: flex; gap: 26px; justify-content: center; color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 4px; font-size: 1.04rem; font-variant-numeric: tabular-nums; }
@@ -373,6 +384,35 @@
   .run-controls .big { font-size: 1.1rem; padding: 14px 30px; }
   .run-done-msg { text-align: center; }
   .run-done-msg h2 { font-size: 2.4rem; margin: 0 0 6px; }
+
+  /* Running-order panel (large landscape only). A scrollable list of the class's steps,
+     grouped by routine/block, with the current step highlighted and auto-scrolled into view. */
+  .run-order { width: 360px; flex-shrink: 0; overflow-y: auto; padding-right: 4px;
+    border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent); padding-left: 22px; }
+  .run-order .ro-title { font-family: var(--font-display); text-transform: uppercase; letter-spacing: var(--track-label);
+    font-size: .95rem; color: color-mix(in srgb, var(--text) 80%, transparent); position: sticky; top: 0;
+    background: linear-gradient(var(--bg), rgba(4,22,30,0)); padding: 2px 0 8px; }
+  .run-order .ro-routine { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .04em;
+    font-size: .82rem; color: var(--accent-text); margin: 14px 0 4px; }
+  .run-order .ro-block { text-transform: uppercase; letter-spacing: var(--track-label); font-size: .72rem;
+    color: color-mix(in srgb, var(--text) 55%, transparent); margin: 12px 0 4px; }
+  .run-order .ro-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: 8px;
+    color: color-mix(in srgb, var(--text) 78%, transparent); }
+  .run-order .ro-row .ro-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .run-order .ro-row .ro-dur { font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--text) 55%, transparent); flex-shrink: 0; }
+  .run-order .ro-row.ro-rest { font-size: .85rem; color: color-mix(in srgb, var(--text) 45%, transparent); padding: 4px 10px; }
+  .run-order .ro-row.done { opacity: .42; }
+  .run-order .ro-row.done .ro-name { text-decoration: line-through; }
+  .run-order .ro-row.current { background: var(--gold-soft); color: var(--text); box-shadow: inset 3px 0 0 var(--gold); font-weight: 600; }
+  .is-rest .run-order .ro-row.current { background: var(--rest-soft); box-shadow: inset 3px 0 0 var(--rest); }
+  .run-order .ro-row .ro-note { color: var(--accent-text); flex-shrink: 0; font-style: normal; }
+
+  /* The two-column "class dashboard" layout kicks in on large landscape screens. */
+  @media (min-width: 980px) {
+    .run-overlay { flex-direction: row; gap: 28px; align-items: stretch; }
+    .run-col { min-width: 0; }
+    .run-order { display: flex; flex-direction: column; }
+  }
 
   /* ---------- Modal ---------- */
   .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -576,41 +616,49 @@
 
 <!-- ===== Run Overlay ===== -->
 <div id="run-overlay" class="run-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="run-routine">
-  <div class="run-top">
-    <span class="run-routine" id="run-routine"></span>
-    <span class="run-mode" id="run-mode-label">Class</span>
-    <span class="muted" id="run-position"></span>
-    <button class="ghost small" id="btn-run-exit" aria-label="Exit run">✕ Exit</button>
-  </div>
-  <div class="run-block-label" id="run-block-label"></div>
-
-  <div class="run-stage" id="run-stage">
-    <div id="run-live">
-      <span class="run-type-pill" id="run-type">Exercise</span>
-      <div class="run-ex-name" id="run-ex-name">—</div>
-      <div class="run-spring" id="run-spring"></div>
-      <div class="run-dial">
-        <svg class="run-ring" viewBox="0 0 100 100" aria-hidden="true">
-          <circle class="run-ring-track" cx="50" cy="50" r="44"></circle>
-          <circle class="run-ring-fill" id="run-ring-fill" cx="50" cy="50" r="44"></circle>
-        </svg>
-        <div class="run-time" id="run-time">0:00</div>
-      </div>
-      <div class="run-next" id="run-next"></div>
-      <div class="run-overall">
-        <span>Elapsed <b id="run-elapsed">0:00</b></span>
-        <span>Remaining <b id="run-remaining">0:00</b></span>
-      </div>
+  <!-- Left column: the timer itself. On large landscape screens the running-order
+       panel (below) sits to its right; on phones/portrait this column is the whole view. -->
+  <div class="run-col">
+    <div class="run-top">
+      <span class="run-routine" id="run-routine"></span>
+      <span class="run-mode" id="run-mode-label">Class</span>
+      <span class="muted" id="run-position"></span>
+      <button class="ghost small" id="btn-run-exit" aria-label="Exit run">✕ Exit</button>
     </div>
-    <div id="run-done" class="run-done-msg hidden"></div>
+    <div class="run-block-label" id="run-block-label"></div>
+
+    <div class="run-stage" id="run-stage">
+      <div id="run-live">
+        <span class="run-type-pill" id="run-type">Exercise</span>
+        <div class="run-ex-name" id="run-ex-name">—</div>
+        <div class="run-spring" id="run-spring"></div>
+        <div class="run-dial">
+          <svg class="run-ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="run-ring-track" cx="50" cy="50" r="44"></circle>
+            <circle class="run-ring-fill" id="run-ring-fill" cx="50" cy="50" r="44"></circle>
+          </svg>
+          <div class="run-time" id="run-time">0:00</div>
+        </div>
+        <div class="run-note" id="run-note"></div>
+        <div class="run-next" id="run-next"></div>
+        <div class="run-overall">
+          <span>Elapsed <b id="run-elapsed">0:00</b></span>
+          <span>Remaining <b id="run-remaining">0:00</b></span>
+        </div>
+      </div>
+      <div id="run-done" class="run-done-msg hidden"></div>
+    </div>
+
+    <div class="run-controls">
+      <button id="btn-run-prev">⏮ Back</button>
+      <button class="gold big" id="btn-run-play">▶ Start</button>
+      <button id="btn-run-next">⏭ Skip</button>
+      <button class="ghost" id="btn-run-restart">↺ Restart</button>
+    </div>
   </div>
 
-  <div class="run-controls">
-    <button id="btn-run-prev">⏮ Back</button>
-    <button class="gold big" id="btn-run-play">▶ Start</button>
-    <button id="btn-run-next">⏭ Skip</button>
-    <button class="ghost" id="btn-run-restart">↺ Restart</button>
-  </div>
+  <!-- Right column: the running order. Shown only on large landscape screens (CSS). -->
+  <aside class="run-order" id="run-order" aria-label="Running order"></aside>
 </div>
 
 <!-- ===== Settings Modal ===== -->
@@ -890,6 +938,7 @@
     });
     e.duration = num(e.duration);
     e.rest = num(e.rest);
+    e.note = typeof e.note === "string" ? e.note : "";   // optional coaching cue (run screen)
     return e;
   }
   // Read/write a single metric value on an exercise/move.
@@ -1174,7 +1223,7 @@
   }
   // A block starts with 1 exercise and its own class format (defaults to the last format used).
   function newBlock(name, disc) { return { id: uid(), name: name || "", discipline: disciplineKey({ discipline: disc || state.settings.lastDiscipline }), exercises: [ newExercise() ] }; }
-  function newExercise() { return { id: uid(), name: "", metrics: {}, duration: 45, rest: 0 }; } // default 45s work, no metrics yet
+  function newExercise() { return { id: uid(), name: "", metrics: {}, duration: 45, rest: 0, note: "" }; } // default 45s work, no metrics/note yet
   function findRoutine(id) {            // look up a routine object by its id
     for (var i = 0; i < state.routines.length; i++) if (state.routines[i].id === id) return state.routines[i];
     return null;
@@ -1194,8 +1243,10 @@
       if (b.exercises.length === 0) return true;
       if (b.exercises.length === 1) {
         var e = b.exercises[0];
-        // "Untouched" = matches the freshly-created defaults (name blank, no metrics, default time, no rest).
-        return !(e.name || "").trim() && !exerciseHasMetrics(e) && (e.duration || 0) === 45 && !(e.rest || 0);
+        // "Untouched" = blank name + still at the freshly-created defaults. Defer the
+        // default test to exerciseIsDefault (which also covers the note) so the two
+        // checks can't drift apart.
+        return !(e.name || "").trim() && exerciseIsDefault(e);
       }
     }
     return false;
@@ -1297,6 +1348,14 @@
     rest.oninput = function () { var v = parseInt(rest.value, 10); if (isNaN(v) || v < 0) v = 0; obj.rest = v; onChange(); };
     return rest;
   }
+  // The optional coaching-note text field, bound to obj.note (shown on the run screen).
+  function noteNode(obj, onChange) {
+    var inp = document.createElement("input");
+    inp.className = "note-input"; inp.value = obj.note || "";
+    inp.placeholder = "Coaching cue shown on the run screen"; inp.setAttribute("aria-label", "Exercise note");
+    inp.oninput = function () { obj.note = inp.value; onChange(); };
+    return inp;
+  }
   // Wrap a control in a .cell (carries the column label shown on narrow screens).
   function fieldCell(node, label, cls) {
     var c = el("div", "cell" + (cls ? " " + cls : ""));
@@ -1395,7 +1454,18 @@
     row.appendChild(fieldCell(durNode(ex, onTime), "Time"));
     row.appendChild(fieldCell(restNode(ex, onTime), "Rest"));
 
+    // Optional coaching note: a full-width input under the row, collapsed unless it
+    // already has text. The ✎ button in the actions toggles it.
+    var noteCell = fieldCell(noteNode(ex, onEdit), "Note", "note-cell");
+    if (!(ex.note || "").trim()) noteCell.classList.add("hidden");
+
     var actions = el("div", "ex-actions");
+    var noteBtn = el("button", "ghost" + ((ex.note || "").trim() ? " has-note" : ""), "✎");
+    noteBtn.title = "Coaching note"; noteBtn.setAttribute("aria-label", "Toggle coaching note");
+    noteBtn.onclick = function () {
+      noteCell.classList.toggle("hidden");
+      if (!noteCell.classList.contains("hidden")) { var inp = noteCell.querySelector("input"); if (inp) inp.focus(); }
+    };
     var up = el("button", "ghost", "↑"); up.title = "Move up"; up.setAttribute("aria-label", "Move exercise up");
     up.disabled = ei === 0; up.onclick = function () { moveExercise(block.id, ex.id, -1); };
     var down = el("button", "ghost", "↓"); down.title = "Move down"; down.setAttribute("aria-label", "Move exercise down");
@@ -1404,8 +1474,9 @@
     dup.onclick = function () { duplicateExercise(block.id, ex.id); };
     var del = el("button", "danger", "✕"); del.title = "Delete"; del.setAttribute("aria-label", "Delete exercise");
     del.onclick = function () { deleteExercise(block.id, ex.id); };
-    [up, down, dup, del].forEach(function (b) { actions.appendChild(b); });
+    [noteBtn, up, down, dup, del].forEach(function (b) { actions.appendChild(b); });
     row.appendChild(fieldCell(actions, "", "actions-cell"));
+    row.appendChild(noteCell);   // spans full width on its own grid line (see CSS)
     return row;
   }
 
@@ -1552,12 +1623,12 @@
   // A fresh exercise (only a name typed) can be auto-filled from a catalog move
   // without clobbering anything the user already set.
   function exerciseIsDefault(ex) {
-    return !exerciseHasMetrics(ex) && (ex.duration || 0) === 45 && !(ex.rest || 0);
+    return !exerciseHasMetrics(ex) && (ex.duration || 0) === 45 && !(ex.rest || 0) && !(ex.note || "").trim();
   }
-  // Copy a catalog move's metrics + timing onto an exercise (deep-copies metrics).
+  // Copy a catalog move's metrics + timing (+ note) onto an exercise (deep-copies metrics).
   function applyMoveTemplate(ex, m) {
     ex.metrics = JSON.parse(JSON.stringify(m.metrics || {}));
-    ex.duration = m.duration || 0; ex.rest = m.rest || 0; markDirty();
+    ex.duration = m.duration || 0; ex.rest = m.rest || 0; ex.note = m.note || ""; markDirty();
   }
 
   function renderCatalog() {
@@ -1640,7 +1711,7 @@
         b.exercises.forEach(function (e) {
           var n = (e.name || "").trim(); if (!n || existing[key(disc, n)]) return;
           existing[key(disc, n)] = true;
-          var mv = normalizeExercise({ name: n, metrics: JSON.parse(JSON.stringify(e.metrics || {})), duration: e.duration, rest: e.rest });
+          var mv = normalizeExercise({ name: n, metrics: JSON.parse(JSON.stringify(e.metrics || {})), duration: e.duration, rest: e.rest, note: e.note });
           mv.discipline = disc;
           state.catalog.push(mv); added++;
         });
@@ -1873,7 +1944,7 @@
         // Always emit a work step so the exercise (name + metrics) is shown, even if
         // its work time is 0 (e.g. a reps-only move). Zero-duration steps are passed
         // through by the timer's auto-advance.
-        steps.push({ kind: "work", block: b.name, name: ex.name, meta: stepMeta(ex, fields), duration: ex.duration || 0 });
+        steps.push({ kind: "work", block: b.name, name: ex.name, meta: stepMeta(ex, fields), duration: ex.duration || 0, note: ex.note || "" });
         if (ex.rest > 0) {
           steps.push({ kind: "rest", block: b.name, name: "Rest", meta: [], duration: ex.rest });
         }
@@ -1935,6 +2006,9 @@
     });
     $("run-spring").innerHTML = sp.join("");
 
+    // Coaching note for the current exercise (rest steps carry none → cleared → CSS hides it).
+    $("run-note").textContent = st.note || "";
+
     $("run-position").textContent = "Step " + (run.index + 1) + " of " + run.steps.length;
 
     // Preview the next step the timer will actually land on — skip past any
@@ -1948,7 +2022,36 @@
       ? "Next: <b>" + escapeHtml(next.name || (next.kind === "rest" ? "Rest" : "(unnamed)")) + "</b>" +
         nextHint + " · " + fmtTime(next.duration || 0)
       : "Last step";
+    buildRunOrder();
     updateRunTime();
+  }
+
+  // Build the running-order panel (large-landscape "class dashboard"): the full step
+  // list grouped by routine (plans) and block, with the current step highlighted and
+  // scrolled into view, completed steps dimmed. It's a live view of run.steps.
+  function buildRunOrder() {
+    var panel = $("run-order"); if (!panel) return;
+    panel.innerHTML = "";
+    panel.appendChild(el("div", "ro-title", "Running order"));
+    var lastRoutine = null, lastBlock = null, currentRow = null;
+    run.steps.forEach(function (st, i) {
+      if (st.routine && st.routine !== lastRoutine) {
+        lastRoutine = st.routine; lastBlock = null;
+        panel.appendChild(el("div", "ro-routine", st.routine));
+      }
+      var blk = st.block || "";
+      if (blk !== lastBlock) { lastBlock = blk; if (blk) panel.appendChild(el("div", "ro-block", blk)); }
+      var cls = "ro-row" + (st.kind === "rest" ? " ro-rest" : "") +
+        (i < run.index ? " done" : "") + (i === run.index ? " current" : "");
+      var row = el("div", cls);
+      row.appendChild(el("div", "ro-name", st.name || (st.kind === "rest" ? "Rest" : "(unnamed)")));
+      if ((st.note || "").trim()) { var nt = el("span", "ro-note", "✎"); nt.title = st.note; row.appendChild(nt); }
+      row.appendChild(el("div", "ro-dur", fmtTime(st.duration || 0)));
+      panel.appendChild(row);
+      if (i === run.index) currentRow = row;
+    });
+    // Keep the current step in view (only when the panel is actually visible).
+    if (currentRow && panel.offsetParent !== null) currentRow.scrollIntoView({ block: "center", behavior: "auto" });
   }
 
   function updateRunTime() {
@@ -2073,6 +2176,7 @@
     var d = $("run-done"); d.classList.remove("hidden");
     d.innerHTML = "<h2>✓ Complete</h2><p class='muted'>" +
       escapeHtml(run.title || "") + " · total " + fmtTime(run.total) + "</p>";
+    buildRunOrder();   // refresh the panel so every step shows as done
     setPlayLabel();
   }
 

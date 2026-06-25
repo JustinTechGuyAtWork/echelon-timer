@@ -43,7 +43,11 @@ Open it and you'll find, top to bottom:
    cards) vs `--shadow-sm` (contained sections). The live timer's countdown is an SVG
    **arc-ring** (`#run-ring-fill`, a `<circle>` r=44, circumference 276.46) that
    `updateRunTime` depletes via `stroke-dashoffset`. Cards' "⋯" overflow menus come
-   from `kebabMenu()` / `closeKebabs()`.
+   from `kebabMenu()` / `closeKebabs()`. On large landscape screens (`@media min-width:980px`)
+   the run overlay becomes a two-column "class dashboard": the timer (`.run-col`) plus a
+   **running-order panel** (`#run-order`, built by `buildRunOrder()` from `run.steps`).
+   Each exercise can carry an optional `note` (coaching cue) shown under the dial (`#run-note`)
+   and flagged with ✎ in the panel and the builder.
 3. **`<body>`** — the markup. The UI is several full-screen **views** (library,
    builder, catalog, plans, plan editor) plus **overlays** (run timer, settings &
    export dialogs). Only one view is visible at a time (others have `.hidden`).
