@@ -368,7 +368,9 @@
   .run-ring-fill { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round;
     stroke-dasharray: 276.46; stroke-dashoffset: 0; transition: stroke-dashoffset .25s linear; }
   .is-rest .run-ring-fill { stroke: var(--rest); }
-  .run-time { font-family: var(--font-display); font-size: clamp(3.2rem, 15vw, 7.4rem); font-weight: 600;
+  /* Cap by height (23vh) too so on short/landscape screens the number stays inside the
+     dial ring (the ring is height-capped at 44vh; without this the 15vw number overflows it). */
+  .run-time { font-family: var(--font-display); font-size: min(clamp(3.2rem, 15vw, 7.4rem), 23vh); font-weight: 600;
     font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
   .run-time.warn { color: var(--gold); animation: tick 1s ease-in-out infinite; }
   .is-rest .run-time.warn { color: var(--rest); }
@@ -490,6 +492,27 @@
     .block-head .block-actions { gap: 8px; }
     .ex-row input, .ex-row select, .ex-row .dur-input input { min-height: 44px; }
     .block-head select.block-format { min-height: 44px; }
+  }
+  /* Short landscape (phones turned sideways): the tall single-column timer doesn't fit,
+     so lay the run screen out horizontally — dial on the left, text on the right —
+     keeping the controls on screen. (Doesn't affect tablets/desktops, which are taller.) */
+  @media (max-height: 520px) and (orientation: landscape) {
+    .run-overlay { padding-top: calc(8px + env(safe-area-inset-top)); padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+    .run-block-label { margin-top: 2px; }
+    #run-live {
+      display: grid; width: auto; column-gap: 26px; row-gap: 1px; align-items: center; justify-items: start;
+      grid-template-columns: auto minmax(0, 1fr);
+      grid-template-areas: "dial type" "dial name" "dial metrics" "dial note" "dial next" "dial overall";
+    }
+    .run-dial { grid-area: dial; margin: 0; align-self: center; }
+    .run-type-pill { grid-area: type; }
+    .run-ex-name { grid-area: name; text-align: left; font-size: clamp(1.6rem, 5vh, 2.8rem); }
+    .run-spring { grid-area: metrics; justify-content: flex-start; }
+    .run-note { grid-area: note; margin-top: 4px; max-width: 40ch; }
+    .run-next { grid-area: next; margin-top: 6px; }
+    .run-overall { grid-area: overall; justify-content: flex-start; margin-top: 2px; }
+    .run-controls { padding: 8px 0 2px; }
+    .run-controls button { min-height: 40px; }
   }
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
@@ -846,7 +869,7 @@
   // The settings every NEW install starts with. (Existing installs keep their own
   // saved settings; missing fields get filled in by normalizeState below.)
   function defaultSettings() {
-    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: false, leadIn: 5, accent: "", logo: ECHELON_LOGO, logoCustom: false, lastDiscipline: "lagree" };
+    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: true, autostartMigrated: true, leadIn: 5, accent: "", logo: ECHELON_LOGO, logoCustom: false, lastDiscipline: "lagree" };
   }
   // Read the saved state from localStorage at startup. If nothing is saved (or it's
   // unreadable), start fresh. Whatever we load is run through normalizeState first.
@@ -872,6 +895,10 @@
     if (parsed.settings.mode !== "personal") parsed.settings.mode = "class";
     if (parsed.settings.theme !== "light") parsed.settings.theme = "dark";
     parsed.settings.beeps = parsed.settings.beeps !== false;
+    // Auto-advance is now the default (a class should flow continuously). One-time migration:
+    // existing installs predating this flip get switched on once; after that the user's own
+    // choice (on or off) is preserved via the migrated flag.
+    if (parsed.settings.autostartMigrated !== true) { parsed.settings.autostart = true; parsed.settings.autostartMigrated = true; }
     parsed.settings.autostart = parsed.settings.autostart === true;
     if (typeof parsed.settings.accent !== "string") parsed.settings.accent = "";
     if (!DISCIPLINES[parsed.settings.lastDiscipline]) parsed.settings.lastDiscipline = "lagree"; // default format for new routines
