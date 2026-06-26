@@ -347,7 +347,11 @@
   .run-top .run-mode { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-text); background: var(--gold-soft); padding: 4px 10px; border-radius: 999px; }
   .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: .82rem; margin-top: 6px; }
   .is-rest .run-block-label { color: var(--rest); }
-  .run-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
+  /* min-height:0 lets the stage shrink inside the flex column so the controls below it
+     can never be pushed off-screen; overflow-y:auto means genuinely-too-tall content
+     (e.g. a long note on a short screen) scrolls within the stage instead of shoving
+     the controls out of view. */
+  .run-stage { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
   #run-live { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
   /* Phase label: a tracked uppercase signpost (not a pill — pills are for interactive chips) */
   .run-type-pill { text-transform: uppercase; letter-spacing: var(--track-pill); font-size: .82rem; font-weight: 700; color: var(--accent-text); }
@@ -370,7 +374,7 @@
   .is-rest .run-ring-fill { stroke: var(--rest); }
   /* Cap by height (23vh) too so on short/landscape screens the number stays inside the
      dial ring (the ring is height-capped at 44vh; without this the 15vw number overflows it). */
-  .run-time { font-family: var(--font-display); font-size: min(clamp(3.2rem, 15vw, 7.4rem), 23vh); font-weight: 600;
+  .run-time { font-family: var(--font-display); font-size: min(clamp(3.2rem, 15vw, 7.4rem), 20vh); font-weight: 600;
     font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
   .run-time.warn { color: var(--gold); animation: tick 1s ease-in-out infinite; }
   .is-rest .run-time.warn { color: var(--rest); }
@@ -433,6 +437,9 @@
   .tips li { margin-bottom: 7px; }
   .tips b { color: var(--text); font-weight: 600; }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+  /* Stacked export options are a list, so left-align their icon+label (like the kebab menu)
+     rather than centering it (the base button rule centers content). */
+  #btn-exp-pdf, #btn-exp-csv, #btn-exp-txt, #btn-exp-txt-file { justify-content: flex-start; }
   .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .toggle-row label { margin: 0; color: var(--text); }
   .toggle-row input { width: auto; }
@@ -2090,7 +2097,7 @@
     var st = curStep();
     var overlay = $("run-overlay");
     overlay.className = "run-overlay is-" + st.kind;
-    var stage = $("run-stage"); stage.className = "run-stage t-" + st.kind;
+    var stage = $("run-stage"); stage.className = "run-stage";   // work/rest styling hangs off .run-overlay.is-*, not here
     var live = $("run-live");
     live.classList.remove("hidden");
     // Retrigger the per-step reveal animation (remove → reflow → add).
@@ -2243,6 +2250,10 @@
   // End the lead-in and begin the first exercise (shared by countdown-reaching-0 and Skip).
   function endLeadIn() {
     run.lead = 0;
+    // The lead-in drained the ring to empty; the first work step starts full. Snap the
+    // ring back to full WITHOUT animating, so it doesn't visibly sweep backwards at "go".
+    var ring = $("run-ring-fill");
+    if (ring) { ring.style.transition = "none"; ring.style.strokeDashoffset = "0"; void ring.offsetWidth; ring.style.transition = ""; }
     beep(1046, 0.25);
     renderRun(); announce(announceText(curStep()));
     if (run.running) run.lastTick = Date.now();
@@ -2819,6 +2830,7 @@
   updateBrand();
   updateModeUI();
   updateMoveDatalist();
+  save();           // commit any load-time normalization/migration (e.g. autostart default) right away
   showLibrary();
 })();
 </script>
