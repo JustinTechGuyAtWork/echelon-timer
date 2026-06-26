@@ -366,15 +366,17 @@
      interval runs (teal for work, amber for rest); the numerals sit inside it. */
   /* Size by width AND cap by height (44vh) so on short landscape screens (e.g. a
      1366×768 laptop) the dial never grows tall enough to push the controls off-screen. */
-  .run-dial { position: relative; width: min(clamp(260px, 62vw, 460px), 44vh); aspect-ratio: 1; display: grid; place-items: center; margin: 4px 0; }
+  /* --dial is the dial diameter; the countdown number is sized from it (below) so the
+     digits always keep a clear margin inside the ring at every screen size/orientation. */
+  .run-dial { --dial: min(clamp(260px, 62vw, 460px), 44vh); position: relative; width: var(--dial); aspect-ratio: 1; display: grid; place-items: center; margin: 4px 0; }
   .run-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
   .run-ring-track { fill: none; stroke: var(--panel-2); stroke-width: 3.5; }
   .run-ring-fill { fill: none; stroke: var(--gold); stroke-width: 3.5; stroke-linecap: round;
     stroke-dasharray: 276.46; stroke-dashoffset: 0; transition: stroke-dashoffset .25s linear; }
   .is-rest .run-ring-fill { stroke: var(--rest); }
-  /* Cap by height (23vh) too so on short/landscape screens the number stays inside the
-     dial ring (the ring is height-capped at 44vh; without this the 15vw number overflows it). */
-  .run-time { font-family: var(--font-display); font-size: min(clamp(3.2rem, 15vw, 7.4rem), 20vh); font-weight: 600;
+  /* Size the number from the dial diameter (not the viewport) so it always sits cleanly
+     inside the ring with margin — at ~0.33× the dial even a 5-char "10:00" clears the ring. */
+  .run-time { font-family: var(--font-display); font-size: calc(var(--dial, 320px) * 0.33); font-weight: 600;
     font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
   .run-time.warn { color: var(--gold); animation: tick 1s ease-in-out infinite; }
   .is-rest .run-time.warn { color: var(--rest); }
