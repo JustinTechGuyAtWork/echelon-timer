@@ -651,7 +651,8 @@
 
   <!-- ===== Class Plans (sequences) ===== -->
   <section id="view-plans" class="hidden">
-    <div class="lib-head">
+    <div class="builder-top">
+      <button class="ghost" id="btn-plans-back" data-ic="arrowLeft">Back</button>
       <h1>Class Plans</h1>
       <button class="gold" id="btn-new-plan" data-ic="plus">New Plan</button>
     </div>
@@ -3009,6 +3010,7 @@
   brandLogo.onclick = function () { leaveCurrentEditor(); showLibrary(); };
   brandLogo.onkeydown = function (e) { if (e.key === "Enter" || e.code === "Space") { e.preventDefault(); brandLogo.click(); } };
   $("btn-new-plan").onclick = createPlan;
+  $("btn-plans-back").onclick = showLibrary;   // back to the routine library from the Plans list
   $("btn-plan-back").onclick = function () { leaveCurrentEditor(); showPlans(); };  // saves, prunes (w/ cloud cleanup), drains deferred sync
   $("btn-save-plan").onclick = function () { savePlan(true); };
   $("btn-add-plan-routine").onclick = addPlanRoutine;
