@@ -816,7 +816,8 @@
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut,
            onAuthStateChanged, setPersistence, browserLocalPersistence }
     from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+           collection, doc, getDoc, setDoc, deleteDoc, onSnapshot, writeBatch, serverTimestamp }
     from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
   // ---- Echelon Firebase config (public, not a secret) + company domain ----
@@ -842,12 +843,58 @@
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ hd: COMPANY_DOMAIN }); // hints (does not enforce) the domain in the chooser
 
+  // Normalize a snapshot's changes into plain objects the app can merge.
+  // serverMs is the authoritative server write time (null until the server acks).
+  function mapChanges(snap) {
+    return snap.docChanges().map(function (c) {
+      var d = c.doc.data() || {};
+      var sm = (d.serverUpdatedAt && d.serverUpdatedAt.toMillis) ? d.serverUpdatedAt.toMillis() : null;
+      return { type: c.type, id: c.doc.id, data: d, hasPendingWrites: c.doc.metadata.hasPendingWrites, serverMs: sm };
+    });
+  }
+  function subUser(uid, onChanges) {
+    var unsubs = ["routines", "plans", "catalog"].map(function (name) {
+      return onSnapshot(collection(db, "users", uid, name), { includeMetadataChanges: true }, function (snap) {
+        onChanges(name, mapChanges(snap));
+      });
+    });
+    return function () { unsubs.forEach(function (u) { try { u(); } catch (e) {} }); };
+  }
+  function subUserDoc(uid, onDoc) {
+    return onSnapshot(doc(db, "users", uid), { includeMetadataChanges: true }, function (snap) {
+      onDoc(snap.exists() ? snap.data() : null, snap.metadata.hasPendingWrites);
+    });
+  }
+  async function bulkUpload(uid, perColl, userPatch) {
+    var ops = [];
+    ["routines", "plans", "catalog"].forEach(function (name) {
+      (perColl[name] || []).forEach(function (item) {
+        ops.push([name, item.id, Object.assign({}, item, { serverUpdatedAt: serverTimestamp() })]);
+      });
+    });
+    var CH = 450;
+    if (!ops.length) { await setDoc(doc(db, "users", uid), Object.assign({}, userPatch), { merge: true }); return; }
+    for (var i = 0; i < ops.length; i += CH) {
+      var batch = writeBatch(db);
+      ops.slice(i, i + CH).forEach(function (op) { batch.set(doc(db, "users", uid, op[0], op[1]), op[2]); });
+      if (i + CH >= ops.length) { batch.set(doc(db, "users", uid), Object.assign({}, userPatch), { merge: true }); }
+      await batch.commit();   // resolves on server ack (offline: resolves on reconnect)
+    }
+  }
+
   window.EchelonSync = {
     auth, db, domain: COMPANY_DOMAIN,
     signIn:  () => signInWithPopup(auth, provider),
     signOut: () => signOut(auth),
     onAuthChange: (cb) => onAuthStateChanged(auth, (u) =>
       cb(u ? { uid: u.uid, email: u.email, displayName: u.displayName, emailVerified: u.emailVerified } : null)),
+    subscribeUser:    subUser,
+    subscribeUserDoc: subUserDoc,
+    pushItem:    (uid, coll, id, data) => setDoc(doc(db, "users", uid, coll, id), Object.assign({}, data, { serverUpdatedAt: serverTimestamp() })),
+    deleteItem:  (uid, coll, id) => deleteDoc(doc(db, "users", uid, coll, id)),
+    setUserDoc:  (uid, data) => setDoc(doc(db, "users", uid), data, { merge: true }),
+    getUserDocOnce: (uid) => getDoc(doc(db, "users", uid)).then((s) => s.exists() ? s.data() : null),
+    bulkUpload:  bulkUpload,
   };
   window.dispatchEvent(new Event("echelon-sync-ready"));
 </script>
@@ -998,10 +1045,12 @@
     parsed.settings.autostart = parsed.settings.autostart === true;
     if (!DISCIPLINES[parsed.settings.lastDiscipline]) parsed.settings.lastDiscipline = "cycle"; // default format for new routines/blocks
     if ([0, 3, 5, 10].indexOf(parsed.settings.leadIn) < 0) parsed.settings.leadIn = 5; // get-ready countdown seconds
+    if (typeof parsed.settings.updatedAt !== "number") parsed.settings.updatedAt = Date.now(); // cloud last-write-wins
     if (!Array.isArray(parsed.catalog)) parsed.catalog = [];
     parsed.catalog = parsed.catalog
       .filter(function (m) { return m && typeof m === "object"; })
-      .map(function (m) { m = normalizeExercise(m); m.discipline = DISCIPLINES[m.discipline] ? m.discipline : "lagree"; return m; });
+      .map(function (m) { m = normalizeExercise(m); m.discipline = DISCIPLINES[m.discipline] ? m.discipline : "lagree";
+        if (typeof m.updatedAt !== "number") m.updatedAt = m.createdAt || Date.now(); return m; });
     if (!Array.isArray(parsed.routines)) parsed.routines = [];
     parsed.routines = parsed.routines
       .filter(function (r) { return r && typeof r === "object"; })
@@ -1009,6 +1058,9 @@
         r.id = r.id || uid();
         if (typeof r.createdAt !== "number") r.createdAt = Date.now();
         if (typeof r.updatedAt !== "number") r.updatedAt = Date.now();
+        if (!r.scope) r.scope = "mine";                          // cloud sync: Team vs Mine (Phase 3+); never overwrite existing
+        if (typeof r.ownerEmail !== "string") r.ownerEmail = ""; // claimed on first sign-in (migration)
+        if (typeof r.ownerName !== "string") r.ownerName = "";
         // Routine-level format is now just the default for new blocks; the
         // authoritative class format lives on each block (b.discipline) so one
         // routine can mix formats (e.g. a Cycle block then a Strength block).
@@ -1039,6 +1091,11 @@
         s.id = s.id || uid();
         s.name = typeof s.name === "string" ? s.name : "";
         s.routineIds = Array.isArray(s.routineIds) ? s.routineIds.filter(function (x) { return typeof x === "string"; }) : [];
+        if (typeof s.createdAt !== "number") s.createdAt = Date.now();
+        if (typeof s.updatedAt !== "number") s.updatedAt = Date.now();
+        if (!s.scope) s.scope = "mine";
+        if (typeof s.ownerEmail !== "string") s.ownerEmail = "";
+        if (typeof s.ownerName !== "string") s.ownerName = "";
         return s;
       });
     return parsed;
@@ -1464,16 +1521,21 @@
     copy.id = uid(); copy.name = (src.name || "Untitled routine") + " (copy)";
     copy.createdAt = Date.now(); copy.updatedAt = Date.now();
     copy.blocks.forEach(function (b) { b.id = uid(); b.exercises.forEach(function (e) { e.id = uid(); }); });
-    state.routines.push(copy); save(); renderLibrary(); toast("Routine duplicated");
+    delete copy._syncedAt;                          // fresh item — no cloud sync state yet
+    state.routines.push(copy); save(); enqueueSync("routines", copy.id); renderLibrary(); toast("Routine duplicated");
   }
   function deleteRoutine(id) {
     var r = findRoutine(id); if (!r) return;
     if (!confirm('Delete "' + (r.name || "Untitled routine") + '"? This cannot be undone.')) return;
+    addTombstone(id, r._syncedAt);                               // cloud sync: keep it deleted across devices
+    if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, "routines", id).catch(function () {});
     state.routines = state.routines.filter(function (x) { return x.id !== id; });
     // Remove this routine from any class plan that listed it, so plans don't keep a dead
     // id (which would show as a phantom empty picker row). Blank rows ("") are left alone.
     (state.sequences || []).forEach(function (s) {
+      var before = (s.routineIds || []).length;
       s.routineIds = (s.routineIds || []).filter(function (rid) { return rid !== id; });
+      if (s.routineIds.length !== before) { s.updatedAt = Date.now(); enqueueSync("plans", s.id); }  // plan changed → sync it
     });
     save(); renderLibrary(); toast("Routine deleted");
   }
@@ -1789,6 +1851,7 @@
     if (r) r.updatedAt = Date.now();
     clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(autoSave, 500);
+    enqueueSync("routines", currentEditId);   // cloud sync (no-op when signed out)
   }
   function parseTags(str) {            // "a, b ,c" -> ["a","b","c"] (trim + drop blanks)
     return str.split(",").map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
@@ -1801,7 +1864,7 @@
     r.description = $("routine-desc").value.trim();
     r.tags = parseTags($("routine-tags").value);
     r.updatedAt = Date.now();
-    clearTimeout(autosaveTimer); save();
+    clearTimeout(autosaveTimer); save(); enqueueSync("routines", r.id);
     if (showMsg) toast("Routine saved");
     $("builder-title").textContent = r.name || "New Routine";
   }
@@ -1814,6 +1877,29 @@
   //   shape as an exercise.
   // ===========================================================================
   function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(autoSave, 500); } // debounced save for catalog/plan edits
+  function markCatalogDirty(m) { if (m) m.updatedAt = Date.now(); scheduleSave(); if (m) enqueueSync("catalog", m.id); }  // stamp a Move + autosave + cloud sync
+
+  // --- Deletion tombstones (cloud sync) -------------------------------------
+  // When you delete an item it must STAY deleted across devices. A tombstone
+  // records the id + when it was deleted; the cloud merge suppresses a deleted
+  // id unless the cloud has a strictly-newer write (a legit re-create). GC'd at 30d.
+  var TOMB_KEY = "tempo.tombstones.v1";
+  function tombstones() { try { return JSON.parse(localStorage.getItem(TOMB_KEY)) || {}; } catch (e) { return {}; } }
+  function saveTombstones(t) { try { localStorage.setItem(TOMB_KEY, JSON.stringify(t)); } catch (e) {} }
+  // Each tombstone stores { srv: last-known server write time (ms), at: local wall-clock for GC }.
+  // Comparing server-time to server-time avoids clock-skew false suppress/resurrect.
+  function addTombstone(id, serverMs) { var t = tombstones(); t[id] = { srv: serverMs || 0, at: Date.now() }; saveTombstones(t); }
+  function tombSrv(v) { return (v && typeof v === "object") ? (v.srv || 0) : 0; }   // tolerate any legacy number-format entry
+  function tombAt(v)  { return (v && typeof v === "object") ? (v.at  || 0) : (typeof v === "number" ? v : 0); }
+  function isTombstoned(id, cloudServerMs) {                 // true => suppress this cloud doc
+    var t = tombstones(); if (!(id in t)) return false;
+    return !(cloudServerMs && cloudServerMs > tombSrv(t[id]));  // a strictly-newer cloud write un-suppresses
+  }
+  function gcTombstones() {
+    var t = tombstones(), cut = Date.now() - 30 * 24 * 3600 * 1000, changed = false;
+    for (var k in t) { if (tombAt(t[k]) < cut) { delete t[k]; changed = true; } }
+    if (changed) saveTombstones(t);
+  }
 
   var catalogDiscipline = "cycle";    // which format's moves the ☰ Moves screen shows/adds
   // Rebuild the <datalist> the builder's exercise-name input reads. If a format is
@@ -1880,12 +1966,12 @@
   function buildMoveRow(m, fields, cols) {
     var row = el("div", "ex-row"); row.dataset.id = m.id;
     row.style.setProperty("--ex-cols", cols);
-    var onEdit = function () { scheduleSave(); };
+    var onEdit = function () { markCatalogDirty(m); };          // stamp updatedAt + autosave + cloud sync
     row.appendChild(fieldCell(el("div", "idx", "•"), "", "idx-cell"));
 
     var name = document.createElement("input");
     name.value = m.name; name.placeholder = "Move name"; name.setAttribute("aria-label", "Move name");
-    name.oninput = function () { m.name = name.value; updateMoveDatalist(); scheduleSave(); };
+    name.oninput = function () { m.name = name.value; updateMoveDatalist(); markCatalogDirty(m); };
     row.appendChild(fieldCell(name, "Move", "name-cell"));
 
     fields.forEach(function (f) { row.appendChild(fieldCell(metricNode(m, f, onEdit), f.label)); });
@@ -1904,7 +1990,7 @@
     var m = normalizeExercise({ name: "", metrics: {}, duration: 45, rest: 0 });
     m.discipline = catalogDiscipline;   // new moves belong to the format currently shown
     state.catalog.push(m);
-    save(); renderCatalog();
+    save(); enqueueSync("catalog", m.id); renderCatalog();
     var rows = $("move-rows").querySelectorAll(".ex-row");
     var last = rows[rows.length - 1];
     if (last) { var inp = last.querySelectorAll("input")[0]; if (inp) inp.focus(); }
@@ -1913,6 +1999,8 @@
     var m = state.catalog.filter(function (x) { return x.id === id; })[0];
     var hasData = m && ((m.name || "").trim() || exerciseHasMetrics(m));
     if (hasData && !confirm('Delete move "' + (m.name || "(unnamed)") + '" from the catalog?')) return;
+    addTombstone(id, m && m._syncedAt);
+    if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, "catalog", id).catch(function () {});
     state.catalog = state.catalog.filter(function (x) { return x.id !== id; });
     save(); renderCatalog();
   }
@@ -1932,7 +2020,7 @@
           existing[key(disc, n)] = true;
           var mv = normalizeExercise({ name: n, metrics: JSON.parse(JSON.stringify(e.metrics || {})), duration: e.duration, rest: e.rest, note: e.note });
           mv.discipline = disc;
-          state.catalog.push(mv); added++;
+          state.catalog.push(mv); enqueueSync("catalog", mv.id); added++;
         });
       });
     });
@@ -2014,11 +2102,14 @@
     var src = findSequence(id); if (!src) return;
     var copy = JSON.parse(JSON.stringify(src)); copy.id = uid(); copy.name = (src.name || "Untitled plan") + " (copy)";
     copy.createdAt = Date.now(); copy.updatedAt = Date.now();
-    state.sequences.push(copy); save(); renderPlans(); toast("Plan duplicated");
+    delete copy._syncedAt;                          // fresh item — no cloud sync state yet
+    state.sequences.push(copy); save(); enqueueSync("plans", copy.id); renderPlans(); toast("Plan duplicated");
   }
   function deletePlan(id) {
     var seq = findSequence(id); if (!seq) return;
     if (!confirm('Delete "' + (seq.name || "Untitled plan") + '"? This cannot be undone.')) return;
+    addTombstone(id, seq._syncedAt);
+    if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, "plans", id).catch(function () {});
     state.sequences = state.sequences.filter(function (x) { return x.id !== id; });
     save(); renderPlans(); toast("Plan deleted");
   }
@@ -2100,11 +2191,12 @@
   function markPlanDirty() {
     var seq = findSequence(currentPlanId); if (seq) seq.updatedAt = Date.now();
     clearTimeout(autosaveTimer); autosaveTimer = setTimeout(autoSave, 500);
+    enqueueSync("plans", currentPlanId);   // cloud sync
   }
   function savePlan(showMsg) {
     var seq = findSequence(currentPlanId); if (!seq) return;
     seq.name = $("plan-name").value.trim(); seq.updatedAt = Date.now();
-    clearTimeout(autosaveTimer); save();
+    clearTimeout(autosaveTimer); save(); enqueueSync("plans", seq.id);
     if (showMsg) toast("Plan saved");
     $("plan-title").textContent = seq.name || "New Plan";
   }
@@ -2716,7 +2808,8 @@
     state.settings.beeps = $("set-beeps").checked;
     state.settings.autostart = $("set-autostart").checked;
     var li = parseInt($("set-leadin").value, 10); state.settings.leadIn = [0, 3, 5, 10].indexOf(li) >= 0 ? li : 5;
-    save(); closeSettings(); toast("Settings saved");
+    state.settings.updatedAt = Date.now();
+    save(); pushSettings(); closeSettings(); toast("Settings saved");
   }
   // Paint the (fixed Echelon) brand: the icon + studio-name lockup in the top bar.
   function updateBrand() {
@@ -2736,7 +2829,8 @@
   }
   function toggleTheme() {
     state.settings.theme = (state.settings.theme === "light") ? "dark" : "light";
-    save(); applyTheme(); updateBrand();
+    state.settings.updatedAt = Date.now();
+    save(); pushSettings(); applyTheme(); updateBrand();
     toast(state.settings.theme === "light" ? "Light theme" : "Dark theme");
   }
   function backup() {                   // download the entire state as echelon-backup.json
@@ -2760,11 +2854,18 @@
       } catch (e) { toast("That file isn't a valid Echelon backup"); return; }
       if (!confirm("Restore will REPLACE your current " + state.routines.length +
         " routine(s) with " + clean.routines.length + " from the backup. Continue?")) return;
+      // Remember the current ids so we can delete-from-cloud anything the restore drops.
+      var oldIds = { routines: state.routines.map(function (x) { return x.id; }),
+                     plans: state.sequences.map(function (x) { return x.id; }),
+                     catalog: state.catalog.map(function (x) { return x.id; }) };
       var snapshotted = false;
       try { localStorage.setItem(STORE_KEY + ".prerestore", JSON.stringify(state)); snapshotted = true; } catch (e) {}
+      // Restored items are fresh for sync — drop any stale _syncedAt cursor carried in the file.
+      [clean.routines, clean.sequences, clean.catalog].forEach(function (list) { (list || []).forEach(function (x) { delete x._syncedAt; }); });
       state = clean;
       var ok = save();
-      updateBrand(); closeSettings(); showLibrary();
+      reconcileRestoreToCloud(oldIds);     // when signed in: push restored items + delete dropped ones from the cloud
+      updateBrand(); applyTheme(); closeSettings(); showLibrary();
       if (!ok) { toast("Restore loaded but couldn't be saved — storage may be full"); return; }
       toast(snapshotted ? "Backup restored — undo available in Settings" : "Backup restored");
     };
@@ -2776,9 +2877,15 @@
     if (!prev) { toast("Nothing to undo"); return; }
     if (!confirm("Undo the last restore and bring back your previous routines?")) return;
     try {
-      state = normalizeState(JSON.parse(prev)); save();
+      var oldIds = { routines: state.routines.map(function (x) { return x.id; }),
+                     plans: state.sequences.map(function (x) { return x.id; }),
+                     catalog: state.catalog.map(function (x) { return x.id; }) };
+      state = normalizeState(JSON.parse(prev));
+      [state.routines, state.sequences, state.catalog].forEach(function (list) { (list || []).forEach(function (x) { delete x._syncedAt; }); });
+      save();
       localStorage.removeItem(STORE_KEY + ".prerestore");
-      updateBrand(); closeSettings(); showLibrary();
+      reconcileRestoreToCloud(oldIds);   // make the cloud follow the undo too (when signed in)
+      updateBrand(); applyTheme(); closeSettings(); showLibrary();
       toast("Previous routines restored");
     } catch (e) { toast("Could not undo restore"); }
   }
@@ -2830,7 +2937,7 @@
         });
       });
       if (!exercises.length) exercises.push({ id: uid(), name: "", metrics: {}, duration: 45, rest: 0, note: "" });
-      state.routines.push({
+      var rImp = {
         id: uid(),
         name: (c.name || "").toString().trim() || "Imported class",
         description: (c.description || "").toString().trim(),
@@ -2839,7 +2946,8 @@
         createdAt: (typeof c.createdAt === "number") ? c.createdAt : Date.now(),
         updatedAt: (typeof c.updatedAt === "number") ? c.updatedAt : Date.now(),
         blocks: [{ id: uid(), name: "Imported", discipline: "cycle", exercises: exercises }]
-      });
+      };
+      state.routines.push(rImp); enqueueSync("routines", rImp.id);
       added++;
     });
     save(); closeSettings(); renderLibrary();
@@ -2857,12 +2965,7 @@
   // Any click that isn't on an open kebab dismisses it (the kebab button stops its
   // own propagation while opening, so this won't immediately re-close it).
   document.addEventListener("click", closeKebabs);
-  $("btn-back").onclick = function () {
-    saveBuilder(false);
-    var r = findRoutine(currentEditId);
-    if (r && routineIsEmpty(r)) { state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); save(); }
-    showLibrary();
-  };
+  $("btn-back").onclick = function () { leaveCurrentEditor(); showLibrary(); };  // leaveCurrentEditor saves, prunes (w/ cloud cleanup), and drains deferred sync updates
   $("btn-save").onclick = function () { saveBuilder(true); };
   $("btn-add-block").onclick = addBlock;
   $("routine-name").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.name = $("routine-name").value; markDirty(); } };
@@ -2878,13 +2981,22 @@
     if (!$("view-builder").classList.contains("hidden")) {
       saveBuilder(false);
       var r = findRoutine(currentEditId);
-      if (r && routineIsEmpty(r)) { state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); }
+      if (r && routineIsEmpty(r)) { syncDiscard("routines", r.id); state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); }
     } else if (!$("view-plan-editor").classList.contains("hidden")) {
       savePlan(false);
       var s = findSequence(currentPlanId);
-      if (s && planIsEmpty(s)) { state.sequences = state.sequences.filter(function (x) { return x.id !== s.id; }); }
+      if (s && planIsEmpty(s)) { syncDiscard("plans", s.id); state.sequences = state.sequences.filter(function (x) { return x.id !== s.id; }); }
     }
     clearTimeout(autosaveTimer); save();
+    drainSyncDeferred();   // apply any cloud updates that arrived while this item was open
+  }
+  // An abandoned/pruned draft is removed locally; tombstone + delete any cloud copy so
+  // it can't sync back. (Harmless no-op if it was never pushed.)
+  function syncDiscard(coll, id) {
+    if (!id) return;
+    var it = findSyncItem(coll, id);
+    addTombstone(id, it && it._syncedAt);
+    if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, coll, id).catch(function () {});
   }
   $("btn-moves").onclick = showCatalog;
   $("btn-theme").onclick = toggleTheme;
@@ -2897,12 +3009,7 @@
   brandLogo.onclick = function () { leaveCurrentEditor(); showLibrary(); };
   brandLogo.onkeydown = function (e) { if (e.key === "Enter" || e.code === "Space") { e.preventDefault(); brandLogo.click(); } };
   $("btn-new-plan").onclick = createPlan;
-  $("btn-plan-back").onclick = function () {
-    savePlan(false);
-    var seq = findSequence(currentPlanId);
-    if (seq && planIsEmpty(seq)) { state.sequences = state.sequences.filter(function (x) { return x.id !== seq.id; }); save(); }
-    showPlans();
-  };
+  $("btn-plan-back").onclick = function () { leaveCurrentEditor(); showPlans(); };  // saves, prunes (w/ cloud cleanup), drains deferred sync
   $("btn-save-plan").onclick = function () { savePlan(true); };
   $("btn-add-plan-routine").onclick = addPlanRoutine;
   $("btn-run-plan").onclick = function () { savePlan(false); openRunSequence(currentPlanId); };
@@ -2972,6 +3079,153 @@
   });
 
   // ===========================================================================
+  // Cloud sync (Phase 2 — personal/Mine sync)
+  //   localStorage stays the working store; this mirrors the signed-in user's own
+  //   items to users/{uid}/{routines,plans,catalog} + settings on users/{uid}.
+  //   Cloud->local goes through syncApply(), which mutates state IN PLACE + save()
+  //   and NEVER calls markDirty (echo guard). Local edits enqueue a per-item push.
+  //   Deletes leave tombstones; ordering uses the server timestamp (serverMs).
+  // ===========================================================================
+  var me = null;                 // {uid,email,displayName} when signed in, else null
+  var syncUnsub = [];            // active Firestore listeners (called to detach)
+  var syncDirty = new Set();     // "collection/id" keys pending push (genuine edits only)
+  var syncPushTimer = null;
+  var syncDeferred = [];         // cloud updates for the open editor, applied on close
+
+  function syncArr(coll) { return coll === "routines" ? state.routines : coll === "plans" ? state.sequences : coll === "catalog" ? state.catalog : null; }
+  function stripMeta(item) { var c = {}; for (var k in item) { if (k !== "_syncedAt") c[k] = item[k]; } return c; }
+  function findSyncItem(coll, id) { var a = syncArr(coll); if (a) for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
+
+  // Merge a batch of cloud changes for one collection into local state, in place.
+  function syncApply(coll, changes) {
+    var arr = syncArr(coll); if (!arr) return;
+    // Only defer an incoming change if its editor is ACTUALLY OPEN — otherwise a stale
+    // currentEditId would wrongly park updates while you're back in the library.
+    var openId = (coll === "routines" && !$("view-builder").classList.contains("hidden")) ? currentEditId
+               : (coll === "plans" && !$("view-plan-editor").classList.contains("hidden")) ? currentPlanId
+               : null;
+    var touched = false;
+    changes.forEach(function (c) {
+      if (c.hasPendingWrites) return;                          // our own un-acked write — ignore (echo guard)
+      var idx = -1; for (var i = 0; i < arr.length; i++) { if (arr[i].id === c.id) { idx = i; break; } }
+      if (c.type === "removed") {
+        if (idx >= 0) { arr.splice(idx, 1); touched = true; }
+        addTombstone(c.id, c.serverMs);                        // remember it's gone so a stale re-add can't resurrect it
+        return;
+      }
+      if (isTombstoned(c.id, c.serverMs)) return;              // locally deleted & the cloud copy isn't newer
+      var incoming = stripMeta(c.data); incoming._syncedAt = c.serverMs || 0;
+      if (idx < 0) { arr.push(incoming); touched = true; return; }
+      var local = arr[idx];
+      var newer = c.serverMs ? (c.serverMs > (local._syncedAt || 0)) : ((incoming.updatedAt || 0) > (local.updatedAt || 0));
+      if (!newer) return;
+      if (openId && openId === c.id) { syncDeferred.push({ coll: coll, item: incoming }); return; }  // you're editing it — apply on close
+      arr[idx] = incoming; touched = true;
+    });
+    if (touched) { save(); rerenderAfterSync(coll); }          // keep localStorage in step; NEVER markDirty (would echo)
+  }
+  function rerenderAfterSync(coll) {
+    if (!$("view-library").classList.contains("hidden") && (coll === "routines" || coll === "plans")) renderLibrary();
+    else if (!$("view-catalog").classList.contains("hidden") && coll === "catalog") renderCatalog();
+  }
+  function applySettingsDoc(data, hasPending) {
+    if (!data || hasPending || !data.settings) return;
+    if ((data.settings.updatedAt || 0) > (state.settings.updatedAt || 0)) {
+      state.settings = data.settings; save(); applyTheme(); updateBrand();
+    }
+  }
+  function drainSyncDeferred() {                               // apply queued cloud updates once the editor closes
+    if (!syncDeferred.length) return;
+    syncDeferred.forEach(function (d) {
+      var arr = syncArr(d.coll); if (!arr) return;
+      for (var i = 0; i < arr.length; i++) {
+        if (arr[i].id === d.item.id) {
+          // Apply only if the cloud copy is still newer than what's now local — so a
+          // user's in-progress edits (which bumped local updatedAt) aren't clobbered.
+          if ((d.item.updatedAt || 0) > (arr[i].updatedAt || 0)) arr[i] = d.item;
+          break;
+        }
+      }
+    });
+    syncDeferred = []; save(); renderLibrary();
+  }
+
+  // push (local edit -> cloud): a dirty-id set drained by its own debounce. Only
+  // genuine user edits enqueue here — syncApply never does (that would loop).
+  function enqueueSync(coll, id) { if (me && id) { syncDirty.add(coll + "/" + id); scheduleSyncPush(); } }
+  function scheduleSyncPush() { clearTimeout(syncPushTimer); syncPushTimer = setTimeout(flushSyncPush, 800); }
+  function flushSyncPush() {
+    if (!me || !window.EchelonSync) return;
+    syncDirty.forEach(function (key) {
+      var i = key.indexOf("/"), coll = key.slice(0, i), id = key.slice(i + 1);
+      var item = findSyncItem(coll, id);
+      if (item) window.EchelonSync.pushItem(me.uid, coll, id, stripMeta(item)).catch(function () {});
+    });
+    syncDirty.clear();
+  }
+  function pushSettings() {
+    if (me && window.EchelonSync) window.EchelonSync.setUserDoc(me.uid, { settings: state.settings, email: me.email, displayName: me.displayName }).catch(function () {});
+  }
+
+  // migration: one-time upload of existing local data; a cloud-primary flag prevents
+  // a second device (or a re-run) re-uploading and duplicating.
+  var migrating = false;
+  async function migrateToCloud(user) {
+    if (migrating) return;                                      // a previous run is still in flight
+    migrating = true;
+    function claim(list) { (list || []).forEach(function (x) { if (!x.ownerEmail) { x.ownerEmail = user.email; x.ownerName = user.displayName || user.email; } if (!x.scope) x.scope = "mine"; }); }
+    try {
+      var flagKey = "tempo.migrated." + user.uid;
+      if (localStorage.getItem(flagKey)) return;               // already done on this device
+      var cloud = null;
+      try { cloud = await window.EchelonSync.getUserDocOnce(user.uid); } catch (e) { return; } // offline/err: retry next launch
+      if (cloud && cloud.migrationComplete) {
+        // Cloud already holds this user's library (migrated on another device). Don't re-bulk-upload,
+        // but push any items THIS device created before signing in so they aren't stranded local-only.
+        claim(state.routines); claim(state.sequences); save();
+        state.routines.forEach(function (r) { enqueueSync("routines", r.id); });
+        state.sequences.forEach(function (s) { enqueueSync("plans", s.id); });
+        state.catalog.forEach(function (m) { enqueueSync("catalog", m.id); });
+        try { localStorage.setItem(flagKey, "1"); } catch (e) {}
+        return;
+      }
+      claim(state.routines); claim(state.sequences); save();
+      var perColl = { routines: state.routines.map(stripMeta), plans: state.sequences.map(stripMeta), catalog: state.catalog.map(stripMeta) };
+      var patch = { email: user.email, displayName: user.displayName || user.email, settings: state.settings, migrationComplete: true };
+      try { await window.EchelonSync.bulkUpload(user.uid, perColl, patch); } catch (e) { return; } // offline: leave flag unset, retry
+      try { localStorage.setItem(flagKey, "1"); } catch (e) {} // only after the server ack
+    } finally { migrating = false; }
+  }
+
+  function startSync(user) {
+    stopSync();
+    syncUnsub.push(window.EchelonSync.subscribeUser(user.uid, syncApply));
+    syncUnsub.push(window.EchelonSync.subscribeUserDoc(user.uid, applySettingsDoc));
+  }
+  function stopSync() {
+    syncUnsub.forEach(function (u) { try { u(); } catch (e) {} }); syncUnsub = [];
+    clearTimeout(syncPushTimer); syncDirty.clear();
+  }
+  function resetLocalForNewUser() {                            // a different account signed in on this device
+    state.routines = []; state.sequences = []; state.catalog = []; state.settings = defaultSettings();
+    try { localStorage.removeItem(TOMB_KEY); } catch (e) {}
+    save();
+  }
+  // After a "Restore from file" while signed in, make the cloud follow the restored local
+  // state: push every restored item (so it wins + reaches other devices) and delete from the
+  // cloud anything the restore dropped (so it can't sync back). No-op when signed out.
+  function reconcileRestoreToCloud(oldIds) {
+    if (!me || !window.EchelonSync) return;
+    function pushAll(list, coll) { (list || []).forEach(function (x) { x.updatedAt = Date.now(); enqueueSync(coll, x.id); }); }
+    pushAll(state.routines, "routines"); pushAll(state.sequences, "plans"); pushAll(state.catalog, "catalog"); pushSettings();
+    function idSet(list) { var s = {}; (list || []).forEach(function (x) { s[x.id] = 1; }); return s; }
+    var nr = idSet(state.routines), np = idSet(state.sequences), nc = idSet(state.catalog);
+    (oldIds.routines || []).forEach(function (id) { if (!nr[id]) syncDiscard("routines", id); });
+    (oldIds.plans || []).forEach(function (id) { if (!np[id]) syncDiscard("plans", id); });
+    (oldIds.catalog || []).forEach(function (id) { if (!nc[id]) syncDiscard("catalog", id); });
+  }
+
+  // ===========================================================================
   // Auth gate — require company Google sign-in; offline-launch from a cached identity.
   //   The app shell starts hidden (body.signed-out in markup). A returning device
   //   with a cached identity shows the app immediately (even offline / before the
@@ -3002,20 +3256,32 @@
   };
   $("btn-signout").onclick = function () {
     if (!confirm("Sign out of Echelon on this device? Your routines stay on this device.")) return;
+    flushSyncPush();                  // push any queued edits while the identity is still valid
+    stopSync(); me = null;
     setCachedIdentity(null);
     if (window.EchelonSync) window.EchelonSync.signOut();
     closeSettings(); showSignIn("");
   };
   function startAuthGate() {
-    window.EchelonSync.onAuthChange(function (user) {
+    window.EchelonSync.onAuthChange(async function (user) {
       if (user && user.emailVerified && emailDomain(user.email) === window.EchelonSync.domain) {
+        var prev = cachedIdentity();
+        if (prev && prev.uid && prev.uid !== user.uid) {       // a different account on this device
+          flushSyncPush();                                     // flush the OUTGOING user's queued edits first (identity still valid)
+          stopSync();                                          // then tear down (stopSync would otherwise discard them)
+          resetLocalForNewUser();                              // clear local before syncing as the new user
+        }
         setCachedIdentity({ uid: user.uid, email: user.email, displayName: user.displayName || user.email });
+        me = { uid: user.uid, email: user.email, displayName: user.displayName || user.email };
         updateAccountUI(user); showApp();
-      } else if (user) {                       // signed in but wrong domain / unverified
-        window.EchelonSync.signOut(); setCachedIdentity(null);
+        gcTombstones();
+        try { await migrateToCloud(me); } catch (e) {}     // one-time upload of existing local data (guarded)
+        startSync(me);                                       // attach listeners + enable per-item push
+      } else if (user) {                                     // signed in but wrong domain / unverified
+        flushSyncPush(); stopSync(); me = null; window.EchelonSync.signOut(); setCachedIdentity(null);
         showSignIn("Please sign in with your company (@" + window.EchelonSync.domain + ") email.");
-      } else {                                 // signed out / never signed in
-        setCachedIdentity(null); showSignIn("");
+      } else {                                               // signed out / never signed in
+        flushSyncPush(); stopSync(); me = null; setCachedIdentity(null); showSignIn("");
       }
     });
   }
