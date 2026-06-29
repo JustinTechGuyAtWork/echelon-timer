@@ -378,7 +378,10 @@
      inside the ring with margin — at ~0.33× the dial even a 5-char "10:00" clears the ring. */
   .run-time { font-family: var(--font-display); font-size: calc(var(--dial, 320px) * 0.33); font-weight: 600;
     font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
-  .run-time.warn { color: var(--gold); animation: tick 1s ease-in-out infinite; }
+  /* Final-seconds cue: color + bold reads in any theme and survives reduced-motion /
+     a paused clock; the scale pulse is layered on only while actively counting. */
+  .run-time.warn { color: var(--gold); font-weight: 800; }
+  .run-time.warn-anim { animation: tick 1s ease-in-out infinite; }
   .is-rest .run-time.warn { color: var(--rest); }
   /* Coaching note for the current exercise (empty for rest steps). */
   .run-note { color: color-mix(in srgb, var(--text) 82%, transparent); font-style: italic; font-size: 1.05rem;
@@ -450,6 +453,10 @@
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 12px 20px;
     border-radius: 10px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 300; }
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  /* Sticky banner shown when a save actually fails (storage full) — unlike the toast,
+     it stays put so the user can't keep editing unaware that changes aren't persisting. */
+  #save-warning { position: fixed; top: 0; left: 0; right: 0; z-index: 320; background: #7f1d1d; color: #fff;
+    text-align: center; padding: 10px 16px; font-size: 0.92rem; box-shadow: var(--shadow); }
 
   .hidden { display: none !important; }
   .muted { color: var(--muted); }
@@ -458,13 +465,19 @@
   /* ---------- Print ---------- */
   #print-area { display: none; }
   @media print {
+    @page { margin: 14mm; }                        /* deterministic page margins across browsers */
     body { background: #fff; color: #000; }
-    .app, .run-overlay, .modal-back, #toast, header.topbar { display: none !important; }
-    #print-area { display: block !important; color: #000; }
+    .app, .run-overlay, .modal-back, #toast, #save-warning, header.topbar { display: none !important; }
+    /* print-color-adjust keeps the grey header band + teal rest-row shading on paper
+       (browsers strip background colors from print by default). */
+    #print-area { display: block !important; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     #print-area h1 { font-size: 20pt; margin: 0 0 2px; }
     #print-area .ps-sub { color: #444; margin: 0 0 14px; font-size: 11pt; }
-    #print-area h2 { font-size: 13pt; margin: 16px 0 4px; border-bottom: 2px solid #333; padding-bottom: 2px; }
+    #print-area h2 { font-size: 13pt; margin: 16px 0 4px; border-bottom: 2px solid #333; padding-bottom: 2px;
+      page-break-after: avoid; break-after: avoid; }            /* keep a block heading with its table */
     #print-area table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 6px; }
+    /* Don't slice a table or an exercise row across a page break. */
+    #print-area table, #print-area tr, #print-area td { page-break-inside: avoid; break-inside: avoid; }
     #print-area th, #print-area td { border: 1px solid #bbb; padding: 5px 7px; text-align: left; vertical-align: top; }
     #print-area th { background: #f0f0f0; }
     #print-area td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -480,6 +493,9 @@
       padding-right: calc(14px + env(safe-area-inset-right)); }
     header.topbar .spacer { display: none; }
     header.topbar .brand { width: 100%; }
+    /* Collapse Plans/Moves to icon-only on phones (title stays the accessible name),
+       so the control cluster fits one row instead of crowding two. */
+    header.topbar #btn-plans span, header.topbar #btn-moves span { display: none; }
     .ex-head { display: none; }
     .ex-row { grid-template-columns: 1fr 1fr; gap: 12px 10px; padding: 12px; }
     .ex-row > .cell { flex-direction: column; align-items: stretch; gap: 3px; }
@@ -540,8 +556,8 @@
     <button data-mode="class" id="mode-class">Class</button>
     <button data-mode="personal" id="mode-personal">Personal</button>
   </div>
-  <button class="ghost small" id="btn-plans" data-ic="layers" title="Class plans">Plans</button>
-  <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Exercise catalog">Moves</button>
+  <button class="ghost small" id="btn-plans" data-ic="layers" title="Class plans"><span>Plans</span></button>
+  <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Exercise catalog"><span>Moves</span></button>
   <button class="ghost small" id="btn-theme" data-ic="contrast" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
   <button class="ghost small" id="btn-settings" data-ic="settings" title="Settings" aria-label="Settings"></button>
 </header>
@@ -766,6 +782,7 @@
 </div>
 
 <div id="print-area"></div>
+<div id="save-warning" class="hidden" role="alert">Not saving — your browser's storage is full. Download a backup (Settings) and remove old routines to free space.</div>
 <div id="toast"></div>
 <div id="sr-live" class="visually-hidden" aria-live="polite" role="status"></div>
 <datalist id="move-list"></datalist>
@@ -817,7 +834,13 @@
   // ===========================================================================
   var STORE_KEY = "tempo.v1";        // bump this only if you intentionally want a clean slate for everyone
   var idCounter = 0;
-  function uid() { return "id-" + Math.random().toString(36).slice(2, 9) + "-" + (idCounter++); }
+  function uid() {
+    // Prefer a real UUID; fall back to time + randomness + counter. The timestamp makes
+    // ids unique even across sessions (a per-session counter alone resets to 0 each load,
+    // so a restored backup's ids could otherwise rely only on the random chars not colliding).
+    if (window.crypto && crypto.randomUUID) return "id-" + crypto.randomUUID();
+    return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 9) + "-" + (idCounter++);
+  }
 
   // Echelon logo (embedded as a data: URL so the app stays a single offline file).
   // It's the DEFAULT/built-in logo; a user-uploaded logo replaces it (see logoCustom).
@@ -909,13 +932,21 @@
     // choice (on or off) is preserved via the migrated flag.
     if (parsed.settings.autostartMigrated !== true) { parsed.settings.autostart = true; parsed.settings.autostartMigrated = true; }
     parsed.settings.autostart = parsed.settings.autostart === true;
-    if (typeof parsed.settings.accent !== "string") parsed.settings.accent = "";
+    // Accept only a real #rrggbb hex accent; anything else (incl. a crafted backup
+    // injecting CSS) falls back to empty so no untrusted text reaches the stylesheet.
+    parsed.settings.accent = /^#[0-9a-f]{6}$/i.test(parsed.settings.accent || "") ? parsed.settings.accent : "";
     if (!DISCIPLINES[parsed.settings.lastDiscipline]) parsed.settings.lastDiscipline = "lagree"; // default format for new routines
     if ([0, 3, 5, 10].indexOf(parsed.settings.leadIn) < 0) parsed.settings.leadIn = 5; // get-ready countdown seconds
     // Logo: keep an uploaded custom logo; otherwise always use the current built-in
     // icon (this migrates any older built-in logo, e.g. the full wordmark, to the icon).
     parsed.settings.logoCustom = parsed.settings.logoCustom === true;
-    if (!parsed.settings.logoCustom || typeof parsed.settings.logo !== "string" || !parsed.settings.logo) {
+    // A custom logo must be a base64 *image* data-URL. This rejects anything else
+    // (e.g. a tampered backup setting logo to an attribute-breaking / script-bearing
+    // string) back to the built-in icon, so the PDF export can't be weaponized.
+    // (svg+xml is excluded on purpose — an SVG can itself carry script.)
+    var logoOk = parsed.settings.logoCustom && typeof parsed.settings.logo === "string" &&
+      /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(parsed.settings.logo);
+    if (!logoOk) {
       parsed.settings.logo = ECHELON_LOGO;
       parsed.settings.logoCustom = false;
     }
@@ -1005,6 +1036,10 @@
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; }
     catch (e) { toast("Could not save — browser storage may be full."); return false; }
   }
+  // Show/hide the persistent "not saving" banner. Called by the debounced autosave so a
+  // quota failure during editing surfaces a sticky warning, not just a fleeting toast.
+  function setSaveWarning(failed) { var b = $("save-warning"); if (b) b.classList.toggle("hidden", !failed); }
+  function autoSave() { setSaveWarning(!save()); }   // the callback the debounced timers fire
 
   // ===========================================================================
   // Helpers  — small utilities used all over the app.
@@ -1114,17 +1149,37 @@
   // overlay. closeOverlay() reverses all three. This keeps keyboard/AT users
   // inside the dialog while it's open.
   // ---------------------------------------------------------------------------
-  var lastFocus = null;
+  var lastFocus = null, trapHandler = null;
   function bgEls() { return [document.querySelector("header.topbar"), document.querySelector(".app")]; }
+  // The focusable elements inside a container, in tab order (visible ones only).
+  function focusables(container) {
+    return Array.prototype.slice.call(container.querySelectorAll(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    )).filter(function (el) { return el.offsetParent !== null; });
+  }
   function openOverlay(id, focusId) {
     lastFocus = document.activeElement;
     bgEls().forEach(function (e) { if (e) e.setAttribute("inert", ""); });
-    $(id).classList.remove("hidden");
+    var ov = $(id);
+    ov.classList.remove("hidden");
     var f = focusId && $(focusId);
     if (f) { try { f.focus(); } catch (e) {} }
+    // Fallback focus trap for browsers without native `inert` (e.g. older iOS Safari,
+    // which this app targets as an Add-to-Home-Screen PWA): wrap Tab/Shift+Tab at the
+    // first/last focusable so keyboard focus can't escape into the background.
+    trapHandler = function (e) {
+      if (e.key !== "Tab") return;
+      var list = focusables(ov); if (!list.length) return;
+      var first = list[0], last = list[list.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    ov.addEventListener("keydown", trapHandler);
   }
   function closeOverlay(id) {
-    $(id).classList.add("hidden");
+    var ov = $(id);
+    if (trapHandler) { ov.removeEventListener("keydown", trapHandler); trapHandler = null; }
+    ov.classList.add("hidden");
     bgEls().forEach(function (e) { if (e) e.removeAttribute("inert"); });
     if (lastFocus && lastFocus.focus) { try { lastFocus.focus(); } catch (e) {} }
     lastFocus = null;
@@ -1369,6 +1424,11 @@
     var r = findRoutine(id); if (!r) return;
     if (!confirm('Delete "' + (r.name || "Untitled routine") + '"? This cannot be undone.')) return;
     state.routines = state.routines.filter(function (x) { return x.id !== id; });
+    // Remove this routine from any class plan that listed it, so plans don't keep a dead
+    // id (which would show as a phantom empty picker row). Blank rows ("") are left alone.
+    (state.sequences || []).forEach(function (s) {
+      s.routineIds = (s.routineIds || []).filter(function (rid) { return rid !== id; });
+    });
     save(); renderLibrary(); toast("Routine deleted");
   }
 
@@ -1546,6 +1606,9 @@
     var name = document.createElement("input");
     name.value = ex.name; name.placeholder = "Exercise name"; name.setAttribute("aria-label", "Exercise name");
     name.setAttribute("list", "move-list"); // suggest saved catalog moves
+    // Scope the shared suggestion list to THIS block's format when the field is focused,
+    // so every name offered is one that will actually autofill (autofill is format-matched).
+    name.onfocus = function () { updateMoveDatalist(disciplineKey(block)); };
     name.oninput = function () { ex.name = name.value; markDirty(); };
     name.onchange = function () {
       // If the typed/picked name matches a saved move of the SAME format and this
@@ -1613,6 +1676,7 @@
   }
   function deleteBlock(blockId) {
     var r = findRoutine(currentEditId);
+    if (r.blocks.length <= 1) { toast("A routine needs at least one block"); return; }
     var b = findBlock(r, blockId);
     var hasData = b && b.exercises.some(function (e) { return (e.name || "").trim() || exerciseHasMetrics(e); });
     if (hasData && !confirm('Delete block "' + (b.name || "Untitled") + '" and its exercises?')) return;
@@ -1678,7 +1742,7 @@
     var r = findRoutine(currentEditId);
     if (r) r.updatedAt = Date.now();
     clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(save, 500);
+    autosaveTimer = setTimeout(autoSave, 500);
   }
   function parseTags(str) {            // "a, b ,c" -> ["a","b","c"] (trim + drop blanks)
     return str.split(",").map(function (s) { return s.trim(); }).filter(function (s) { return s.length; });
@@ -1703,7 +1767,7 @@
   //   typing a saved name auto-fills the rest. A catalog "move" has the same
   //   shape as an exercise.
   // ===========================================================================
-  function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(save, 500); } // debounced save for catalog/plan edits
+  function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(autoSave, 500); } // debounced save for catalog/plan edits
 
   var catalogDiscipline = "lagree";    // which format's moves the ☰ Moves screen shows/adds
   // Rebuild the <datalist> the builder's exercise-name input reads. If a format is
@@ -1989,7 +2053,7 @@
   }
   function markPlanDirty() {
     var seq = findSequence(currentPlanId); if (seq) seq.updatedAt = Date.now();
-    clearTimeout(autosaveTimer); autosaveTimer = setTimeout(save, 500);
+    clearTimeout(autosaveTimer); autosaveTimer = setTimeout(autoSave, 500);
   }
   function savePlan(showMsg) {
     var seq = findSequence(currentPlanId); if (!seq) return;
@@ -2072,6 +2136,9 @@
     run.elapsedBefore = 0;
     run.remaining = steps[0].duration || 0;
     run.total = steps.reduce(function (s, st) { return s + (st.duration || 0); }, 0);
+    // Nothing to time (e.g. a reps-only routine, every step 0s) → don't open a timer
+    // that would instantly run off the end to the "Complete" screen.
+    if (run.total <= 0) { toast("This routine has no timed exercises"); return; }
     run.running = false;
     run.lead = 0; run.ledIn = false;          // reset the get-ready lead-in for a new run
     $("run-routine").textContent = title;
@@ -2170,7 +2237,8 @@
     var timeEl = $("run-time");
     // Ceil so the countdown shows N..1 each for a full second and only hits 0:00 at the boundary.
     timeEl.textContent = fmtTime(Math.ceil(run.remaining));
-    timeEl.classList.toggle("warn", run.remaining <= 5 && run.running);
+    timeEl.classList.toggle("warn", run.remaining <= 5);
+    timeEl.classList.toggle("warn-anim", run.remaining <= 5 && run.running); // pulse only while actually counting
     var dur = st.duration || 0;
     // Deplete the dial: visible arc = remaining fraction of the interval (full → empty).
     var frac = dur > 0 ? Math.max(0, Math.min(1, run.remaining / dur)) : 1;
@@ -2205,7 +2273,8 @@
   function updateReadyTime() {
     var timeEl = $("run-time");
     timeEl.textContent = String(Math.max(0, Math.ceil(run.lead)));   // whole seconds: 5,4,3…
-    timeEl.classList.toggle("warn", run.lead <= 3 && run.running);
+    timeEl.classList.toggle("warn", run.lead <= 3);
+    timeEl.classList.toggle("warn-anim", run.lead <= 3 && run.running); // pulse only while actually counting
     var frac = run.leadTotal > 0 ? Math.max(0, Math.min(1, run.lead / run.leadTotal)) : 0;
     $("run-ring-fill").style.strokeDashoffset = (276.46 * (1 - frac)).toFixed(2);
     $("run-elapsed").textContent = "0:00";
@@ -2435,7 +2504,7 @@
     var r = findRoutine(exportId);
     var studio = state.settings.studioName || "Echelon";
     var html = "";
-    if (state.settings.logo) html += "<img src='" + state.settings.logo + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
+    if (state.settings.logo) html += "<img src='" + escapeHtml(state.settings.logo) + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
     html += "<h1>" + escapeHtml(r.name || "Untitled routine") + "</h1>";
     html += "<p class='ps-sub'>" + escapeHtml(studio) +
       (r.description ? " — " + escapeHtml(r.description) : "") +
@@ -2680,7 +2749,10 @@
       var clean;
       try {
         var parsed = JSON.parse(reader.result);
-        if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.routines)) throw new Error("bad");
+        if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.routines) ||
+            ("catalog" in parsed && !Array.isArray(parsed.catalog)) ||
+            ("sequences" in parsed && !Array.isArray(parsed.sequences)) ||
+            ("settings" in parsed && (typeof parsed.settings !== "object" || parsed.settings === null || Array.isArray(parsed.settings)))) throw new Error("bad");
         clean = normalizeState(parsed);
       } catch (e) { toast("That file isn't a valid Echelon backup"); return; }
       if (!confirm("Restore will REPLACE your current " + state.routines.length +
@@ -2819,6 +2891,19 @@
   window.addEventListener("beforeunload", function () {
     if (currentEditId && !$("view-builder").classList.contains("hidden")) saveBuilder(false);
     else { clearTimeout(autosaveTimer); save(); } // flush any pending catalog/edit autosave
+  });
+  // visibilitychange is the reliable lifecycle signal on mobile, where a backgrounded
+  // tab is often discarded WITHOUT firing beforeunload. On hide: flush any pending edit
+  // (mirrors beforeunload) so the last keystroke isn't lost. On show: resync the run
+  // clock so a frozen tab (e.g. a locked phone) resumes from where it paused instead of
+  // applying the whole gap as one giant tick (which would desync step vs. elapsed).
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") {
+      if (currentEditId && !$("view-builder").classList.contains("hidden")) saveBuilder(false);
+      else { clearTimeout(autosaveTimer); save(); }
+    } else if (document.visibilityState === "visible") {
+      if (run.running) run.lastTick = Date.now();
+    }
   });
 
   // ===========================================================================
