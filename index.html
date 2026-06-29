@@ -538,9 +538,32 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
   }
+  /* ---------- Auth gate ---------- */
+  #signin-screen { display: none; }
+  body.signed-out #signin-screen { display: flex; position: fixed; inset: 0; z-index: 500;
+    align-items: center; justify-content: center; background: var(--bg); padding: 24px; }
+  body.signed-out header.topbar, body.signed-out .app { display: none !important; }
+  .signin-card { text-align: center; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .signin-card #signin-logo { height: 40px; }
+  .signin-card h1 { font-family: var(--font-display); letter-spacing: -0.5px; }
+  .signin-card p { color: var(--muted); }
+  .signin-error { color: var(--danger); font-size: 0.9rem; }
+  .account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 </style>
 </head>
-<body>
+<body class="signed-out">
+
+<!-- Sign-in gate: shown until a company Google account is signed in (or a cached identity exists). -->
+<div id="signin-screen">
+  <div class="signin-card">
+    <img id="signin-logo" alt="Echelon" />
+    <h1>Echelon</h1>
+    <p>Sign in with your company Google account to continue.</p>
+    <button id="btn-signin" class="gold big">Sign in with Google</button>
+    <p id="signin-error" class="signin-error hidden"></p>
+  </div>
+</div>
 
 <header class="topbar">
   <div class="brand">
@@ -712,6 +735,10 @@
 <div id="settings-modal" class="modal-back hidden" role="dialog" aria-modal="true" aria-labelledby="settings-heading">
   <div class="modal card">
     <h2 id="settings-heading">Settings</h2>
+    <div class="account-row">
+      <span class="muted">Signed in as <b id="account-email">—</b></span>
+      <button id="btn-signout" class="ghost small" data-ic="arrowLeft">Sign out</button>
+    </div>
     <div class="tips">
       <h3>Quick tips</h3>
       <ul>
@@ -782,6 +809,48 @@
 <div id="toast"></div>
 <div id="sr-live" class="visually-hidden" aria-live="polite" role="status"></div>
 <datalist id="move-list"></datalist>
+
+<!-- ===== Firebase bridge (ES module): auth + firestore init, exposed to the app as window.EchelonSync ===== -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut,
+           onAuthStateChanged, setPersistence, browserLocalPersistence }
+    from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+  import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager }
+    from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+  // ---- Echelon Firebase config (public, not a secret) + company domain ----
+  const COMPANY_DOMAIN = "echelonfit.com";
+  const firebaseConfig = {
+    apiKey: "AIzaSyACiUsanvjQOPc7fY3BxyPp_Z0DqNQAl-8",
+    authDomain: "echelon-tempo.firebaseapp.com",
+    projectId: "echelon-tempo",
+    storageBucket: "echelon-tempo.firebasestorage.app",
+    messagingSenderId: "521378088085",
+    appId: "1:521378088085:web:d1761555c6126dcb6dc79c",
+    measurementId: "G-W0827QYJ4T"
+  };
+  // -------------------------------------------------------------------------
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  });
+  try { await setPersistence(auth, browserLocalPersistence); } catch (e) { /* non-fatal */ }
+
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ hd: COMPANY_DOMAIN }); // hints (does not enforce) the domain in the chooser
+
+  window.EchelonSync = {
+    auth, db, domain: COMPANY_DOMAIN,
+    signIn:  () => signInWithPopup(auth, provider),
+    signOut: () => signOut(auth),
+    onAuthChange: (cb) => onAuthStateChanged(auth, (u) =>
+      cb(u ? { uid: u.uid, email: u.email, displayName: u.displayName, emailVerified: u.emailVerified } : null)),
+  };
+  window.dispatchEvent(new Event("echelon-sync-ready"));
+</script>
 
 <script>
 "use strict";
@@ -2903,6 +2972,55 @@
   });
 
   // ===========================================================================
+  // Auth gate — require company Google sign-in; offline-launch from a cached identity.
+  //   The app shell starts hidden (body.signed-out in markup). A returning device
+  //   with a cached identity shows the app immediately (even offline / before the
+  //   Firebase SDK loads); onAuthChange then confirms or denies in the background.
+  //   The company-domain check here is UX — Firestore rules enforce it server-side.
+  // ===========================================================================
+  var AUTH_KEY = "tempo.auth.v1";
+  function cachedIdentity() { try { return JSON.parse(localStorage.getItem(AUTH_KEY)); } catch (e) { return null; } }
+  function setCachedIdentity(id) {
+    try { id ? localStorage.setItem(AUTH_KEY, JSON.stringify(id)) : localStorage.removeItem(AUTH_KEY); } catch (e) {}
+  }
+  function emailDomain(email) { return (email || "").toLowerCase().split("@")[1] || ""; }
+  function showApp() { document.body.classList.remove("signed-out"); }
+  function showSignIn(msg) {
+    document.body.classList.add("signed-out");
+    var e = $("signin-error"); if (e) { e.textContent = msg || ""; e.classList.toggle("hidden", !msg); }
+  }
+  function updateAccountUI(user) {
+    var el = $("account-email"); var id = user || cachedIdentity();
+    if (el) el.textContent = (id && id.email) || "—";
+  }
+  $("btn-signin").onclick = function () {
+    if (!window.EchelonSync) { showSignIn("Connecting… check your internet connection and try again."); return; }
+    showSignIn("");
+    window.EchelonSync.signIn().catch(function (err) {
+      showSignIn(err && /popup|cancel/i.test(err.code || "") ? "" : "Sign-in failed — please try again.");
+    });
+  };
+  $("btn-signout").onclick = function () {
+    if (!confirm("Sign out of Echelon on this device? Your routines stay on this device.")) return;
+    setCachedIdentity(null);
+    if (window.EchelonSync) window.EchelonSync.signOut();
+    closeSettings(); showSignIn("");
+  };
+  function startAuthGate() {
+    window.EchelonSync.onAuthChange(function (user) {
+      if (user && user.emailVerified && emailDomain(user.email) === window.EchelonSync.domain) {
+        setCachedIdentity({ uid: user.uid, email: user.email, displayName: user.displayName || user.email });
+        updateAccountUI(user); showApp();
+      } else if (user) {                       // signed in but wrong domain / unverified
+        window.EchelonSync.signOut(); setCachedIdentity(null);
+        showSignIn("Please sign in with your company (@" + window.EchelonSync.domain + ") email.");
+      } else {                                 // signed out / never signed in
+        setCachedIdentity(null); showSignIn("");
+      }
+    });
+  }
+
+  // ===========================================================================
   // Init  — the actual startup sequence (runs once after everything is defined).
   //   Apply the saved theme, paint the brand (icon + name), prime the
   //   exercise-name autocomplete, then show the library. (`state` was already
@@ -2912,6 +3030,11 @@
   applyTheme();
   updateBrand();
   updateMoveDatalist();
+  updateAccountUI();
+  var siLogo = $("signin-logo"); if (siLogo) siLogo.src = ECHELON_LOGO;
+  if (cachedIdentity()) showApp(); else showSignIn("");        // offline-first gate decision
+  if (window.EchelonSync) startAuthGate();
+  else window.addEventListener("echelon-sync-ready", startAuthGate);
   save();           // commit any load-time normalization/migration (e.g. autostart default) right away
   showLibrary();
 })();
