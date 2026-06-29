@@ -491,7 +491,7 @@
     header.topbar .brand { width: 100%; }
     /* Collapse Plans/Moves to icon-only on phones (title stays the accessible name),
        so the control cluster fits one row instead of crowding two. */
-    header.topbar #btn-plans span, header.topbar #btn-moves span { display: none; }
+    header.topbar #btn-moves span { display: none; }
     .ex-head { display: none; }
     .ex-row { grid-template-columns: 1fr 1fr; gap: 12px 10px; padding: 12px; }
     .ex-row > .cell { flex-direction: column; align-items: stretch; gap: 3px; }
@@ -571,7 +571,6 @@
     <span class="studio" id="studio-label"></span>
   </div>
   <div class="spacer"></div>
-  <button class="ghost small" id="btn-plans" data-ic="layers" title="Class plans"><span>Plans</span></button>
   <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Exercise catalog"><span>Moves</span></button>
   <button class="ghost small" id="btn-theme" data-ic="contrast" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
   <button class="ghost small" id="btn-settings" data-ic="settings" title="Settings" aria-label="Settings"></button>
@@ -649,40 +648,6 @@
     </div>
   </section>
 
-  <!-- ===== Class Plans (sequences) ===== -->
-  <section id="view-plans" class="hidden">
-    <div class="builder-top">
-      <button class="ghost" id="btn-plans-back" data-ic="arrowLeft">Back</button>
-      <h1>Class Plans</h1>
-      <button class="gold" id="btn-new-plan" data-ic="plus">New Plan</button>
-    </div>
-    <p class="hint" style="margin-top:0;">A plan chains several routines into one back-to-back class that runs end to end.</p>
-    <div id="plan-list"></div>
-  </section>
-
-  <!-- ===== Plan editor ===== -->
-  <section id="view-plan-editor" class="hidden">
-    <div class="builder-top">
-      <button class="ghost" id="btn-plan-back" data-ic="arrowLeft">Back</button>
-      <h1 id="plan-title">Edit Plan</h1>
-      <button class="gold" id="btn-run-plan" data-ic="play">Start</button>
-    </div>
-    <div class="card" style="padding:16px;">
-      <label for="plan-name">Plan name</label>
-      <input id="plan-name" placeholder="e.g. Saturday Bootcamp" />
-    </div>
-    <div class="card" style="padding:8px 6px 4px; margin-top:14px;">
-      <div class="ex-head" id="plan-head"></div>
-      <div id="plan-rows"></div>
-      <div class="block-add"><button id="btn-add-plan-routine" data-ic="plus">Add routine</button></div>
-    </div>
-    <div class="builder-foot">
-      <span class="total">Total: <b id="plan-total">0:00</b></span>
-      <span class="muted" id="plan-count"></span>
-      <span class="spacer"></span>
-      <button class="gold" id="btn-save-plan">Save plan</button>
-    </div>
-  </section>
 </div>
 
 <!-- ===== Run Overlay ===== -->
@@ -854,7 +819,7 @@
     });
   }
   function subUser(uid, onChanges) {
-    var unsubs = ["routines", "plans", "catalog"].map(function (name) {
+    var unsubs = ["routines", "catalog"].map(function (name) {
       return onSnapshot(collection(db, "users", uid, name), { includeMetadataChanges: true }, function (snap) {
         onChanges(name, mapChanges(snap));
       });
@@ -868,7 +833,7 @@
   }
   async function bulkUpload(uid, perColl, userPatch) {
     var ops = [];
-    ["routines", "plans", "catalog"].forEach(function (name) {
+    ["routines", "catalog"].forEach(function (name) {
       (perColl[name] || []).forEach(function (item) {
         ops.push([name, item.id, Object.assign({}, item, { serverUpdatedAt: serverTimestamp() })]);
       });
@@ -1085,20 +1050,7 @@
           });
         return r;
       });
-    if (!Array.isArray(parsed.sequences)) parsed.sequences = [];
-    parsed.sequences = parsed.sequences
-      .filter(function (s) { return s && typeof s === "object"; })
-      .map(function (s) {
-        s.id = s.id || uid();
-        s.name = typeof s.name === "string" ? s.name : "";
-        s.routineIds = Array.isArray(s.routineIds) ? s.routineIds.filter(function (x) { return typeof x === "string"; }) : [];
-        if (typeof s.createdAt !== "number") s.createdAt = Date.now();
-        if (typeof s.updatedAt !== "number") s.updatedAt = Date.now();
-        if (!s.scope) s.scope = "mine";
-        if (typeof s.ownerEmail !== "string") s.ownerEmail = "";
-        if (typeof s.ownerName !== "string") s.ownerName = "";
-        return s;
-      });
+    parsed.sequences = [];   // "Class Plans" feature removed — the slot is kept (empty) so the sync/backup plumbing stays valid
     return parsed;
   }
   // Force one exercise (or catalog "move", same shape) into a valid form.
@@ -1302,8 +1254,6 @@
     $("view-builder").classList.add("hidden");
     $("view-library").classList.add("hidden");
     $("view-catalog").classList.add("hidden");
-    $("view-plans").classList.add("hidden");
-    $("view-plan-editor").classList.add("hidden");
   }
   function showLibrary() {
     hideAllViews();
@@ -1321,18 +1271,6 @@
     hideAllViews();
     $("view-catalog").classList.remove("hidden");
     renderCatalog();
-  }
-  function showPlans() {
-    hideAllViews();
-    $("view-plans").classList.remove("hidden");
-    renderPlans();
-  }
-  var currentPlanId = null;
-  function showPlanEditor(id) {
-    currentPlanId = id;
-    hideAllViews();
-    $("view-plan-editor").classList.remove("hidden");
-    renderPlanEditor();
   }
 
   // ===========================================================================
@@ -1531,13 +1469,6 @@
     addTombstone(id, r._syncedAt);                               // cloud sync: keep it deleted across devices
     if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, "routines", id).catch(function () {});
     state.routines = state.routines.filter(function (x) { return x.id !== id; });
-    // Remove this routine from any class plan that listed it, so plans don't keep a dead
-    // id (which would show as a phantom empty picker row). Blank rows ("") are left alone.
-    (state.sequences || []).forEach(function (s) {
-      var before = (s.routineIds || []).length;
-      s.routineIds = (s.routineIds || []).filter(function (rid) { return rid !== id; });
-      if (s.routineIds.length !== before) { s.updatedAt = Date.now(); enqueueSync("plans", s.id); }  // plan changed → sync it
-    });
     save(); renderLibrary(); toast("Routine deleted");
   }
 
@@ -2027,185 +1958,6 @@
     });
     save(); renderCatalog();
     toast(added ? ("Imported " + added + " move" + (added === 1 ? "" : "s")) : "No new moves to import");
-  }
-
-  // ===========================================================================
-  // Class plans (a.k.a. "sequences")  — a plan is just an ordered list of routine
-  //   ids (seq.routineIds). Running a plan plays all its routines back-to-back as
-  //   one timer session. The ☰ Plans screen lists them; the plan editor reorders
-  //   the routine list. Plans store ONLY ids, so they always reflect the latest
-  //   version of each routine (and skip any routine that was since deleted).
-  // ===========================================================================
-  function findSequence(id) {
-    for (var i = 0; i < state.sequences.length; i++) if (state.sequences[i].id === id) return state.sequences[i];
-    return null;
-  }
-  function sequenceRoutines(seq) { return (seq.routineIds || []).map(findRoutine).filter(Boolean); } // ids -> routine objects (drops deleted/blank)
-  function sequenceDuration(seq) { return sequenceRoutines(seq).reduce(function (s, r) { return s + routineDuration(r); }, 0); }
-  // Flatten several routines into one list of timer steps, tagging each step with
-  // its routine name (so the timer can show "Routine · Block"). See buildSteps().
-  function buildStepsForRoutines(routines) {
-    var steps = [];
-    routines.forEach(function (r) {
-      buildSteps(r).forEach(function (st) { st.routine = r.name || "Untitled routine"; steps.push(st); });
-    });
-    return steps;
-  }
-
-  function renderPlans() {
-    var list = $("plan-list"); list.innerHTML = "";
-    if (state.sequences.length === 0) {
-      var empty = el("div", "empty");
-      empty.innerHTML = "<h2>No plans yet</h2><p>Chain routines into one back-to-back class.</p>";
-      var b = iconBtn("plus", "gold", "New Plan"); b.onclick = createPlan; empty.appendChild(b);
-      list.appendChild(empty); return;
-    }
-    var grid = el("div", "routine-grid");
-    state.sequences.slice().sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); }).forEach(function (seq) {
-      var routines = sequenceRoutines(seq);
-      var card = el("div", "card routine-card");
-      var runnable = routines.length > 0;
-      var runPlan = function () { if (runnable) openRunSequence(seq.id); };
-      card.onclick = function (ev) { if (ev.target.closest("button")) return; runPlan(); };
-      if (runnable) {
-        card.setAttribute("role", "button");
-        card.setAttribute("tabindex", "0");
-        card.setAttribute("aria-label", "Run plan " + (seq.name || "Untitled plan"));
-        card.onkeydown = function (ev) {
-          if (ev.target.closest("button")) return;
-          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); runPlan(); }
-        };
-      }
-      card.appendChild(el("h3", null, seq.name || "Untitled plan"));
-      card.appendChild(el("div", "desc", routines.map(function (r) { return r.name || "Untitled"; }).join("  →  ") || "No routines yet"));
-      var meta = el("div", "meta");
-      meta.innerHTML = "<span class='lead'>" + fmtTime(sequenceDuration(seq)) + "</span><span>total</span><span><b>" +
-        routines.length + "</b> routine" + (routines.length === 1 ? "" : "s") + "</span>";
-      card.appendChild(meta);
-      var row = el("div", "row");
-      var runBtn = iconBtn("play", "gold small", "Start"); runBtn.disabled = !runnable; runBtn.onclick = function () { openRunSequence(seq.id); };
-      row.appendChild(runBtn);
-      row.appendChild(el("div", "spacer"));
-      row.appendChild(kebabMenu([
-        { label: "Edit", icon: "pencil", fn: function () { showPlanEditor(seq.id); } },
-        { label: "Duplicate", icon: "copy", fn: function () { duplicatePlan(seq.id); } },
-        { label: "Delete", icon: "trash", danger: true, fn: function () { deletePlan(seq.id); } }
-      ]));
-      card.appendChild(row); grid.appendChild(card);
-    });
-    list.appendChild(grid);
-  }
-  function createPlan() {
-    var seq = { id: uid(), name: "", routineIds: [], createdAt: Date.now(), updatedAt: Date.now() };
-    state.sequences.push(seq); save(); showPlanEditor(seq.id);
-  }
-  function duplicatePlan(id) {
-    var src = findSequence(id); if (!src) return;
-    var copy = JSON.parse(JSON.stringify(src)); copy.id = uid(); copy.name = (src.name || "Untitled plan") + " (copy)";
-    copy.createdAt = Date.now(); copy.updatedAt = Date.now();
-    delete copy._syncedAt;                          // fresh item — no cloud sync state yet
-    state.sequences.push(copy); save(); enqueueSync("plans", copy.id); renderPlans(); toast("Plan duplicated");
-  }
-  function deletePlan(id) {
-    var seq = findSequence(id); if (!seq) return;
-    if (!confirm('Delete "' + (seq.name || "Untitled plan") + '"? This cannot be undone.')) return;
-    addTombstone(id, seq._syncedAt);
-    if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, "plans", id).catch(function () {});
-    state.sequences = state.sequences.filter(function (x) { return x.id !== id; });
-    save(); renderPlans(); toast("Plan deleted");
-  }
-  function planIsEmpty(seq) { return !(seq.name || "").trim() && (seq.routineIds || []).filter(Boolean).length === 0; }
-
-  function renderPlanEditor() {
-    var seq = findSequence(currentPlanId); if (!seq) { showPlans(); return; }
-    $("plan-title").textContent = seq.name || "New Plan";
-    $("plan-name").value = seq.name;
-    $("plan-head").innerHTML = "";
-    renderPlanRows();
-  }
-  function renderPlanRows() {
-    var seq = findSequence(currentPlanId); if (!seq) return;
-    var wrap = $("plan-rows"); wrap.innerHTML = "";
-    if (state.routines.length === 0) {
-      var note = el("div", "empty"); note.style.margin = "8px";
-      note.innerHTML = "<h2>No routines yet</h2><p>Create routines first, then chain them here.</p>";
-      wrap.appendChild(note);
-    } else if (seq.routineIds.length === 0) {
-      var n2 = el("div"); n2.style.cssText = "padding:14px 12px; color:var(--muted);";
-      n2.textContent = "No routines in this plan yet — add one below.";
-      wrap.appendChild(n2);
-    } else {
-      seq.routineIds.forEach(function (_, i) { wrap.appendChild(buildPlanRow(seq, i)); });
-    }
-    updatePlanTotals();
-  }
-  function buildPlanRow(seq, idx) {
-    var row = el("div");
-    // flex-wrap so the routine picker keeps a legible width on phones (drops to its own line).
-    row.style.cssText = "display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:9px 12px; border-top:1px solid var(--line);";
-    var num = el("div", null, String(idx + 1));
-    num.style.cssText = "width:24px;height:24px;border-radius:50%;background:var(--panel-2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:.78rem;flex-shrink:0;";
-    row.appendChild(num);
-
-    var sel = document.createElement("select"); sel.setAttribute("aria-label", "Routine"); sel.style.flex = "1"; sel.style.minWidth = "160px";
-    var ph = document.createElement("option"); ph.value = ""; ph.textContent = "— choose routine —"; sel.appendChild(ph);
-    state.routines.forEach(function (r) {
-      var o = document.createElement("option"); o.value = r.id;
-      o.textContent = (r.name || "Untitled routine") + " (" + fmtTime(routineDuration(r)) + ")";
-      if (seq.routineIds[idx] === r.id) o.selected = true; sel.appendChild(o);
-    });
-    sel.onchange = function () { seq.routineIds[idx] = sel.value; markPlanDirty(); renderPlanRows(); };
-    row.appendChild(sel);
-
-    var picked = seq.routineIds[idx] && findRoutine(seq.routineIds[idx]);
-    var dur = el("div", null, fmtTime(picked ? routineDuration(picked) : 0));
-    dur.style.cssText = "color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;";
-    row.appendChild(dur);
-
-    var acts = el("div"); acts.style.cssText = "display:flex;gap:4px;";
-    var up = el("button", "ghost small"); up.innerHTML = ic("up"); up.disabled = idx === 0; up.setAttribute("aria-label", "Move up"); up.onclick = function () { movePlanRow(idx, -1); };
-    var down = el("button", "ghost small"); down.innerHTML = ic("down"); down.disabled = idx === seq.routineIds.length - 1; down.setAttribute("aria-label", "Move down"); down.onclick = function () { movePlanRow(idx, 1); };
-    var del = el("button", "danger small"); del.innerHTML = ic("x"); del.setAttribute("aria-label", "Remove routine"); del.onclick = function () { seq.routineIds.splice(idx, 1); markPlanDirty(); renderPlanRows(); };
-    [up, down, del].forEach(function (b) { acts.appendChild(b); });
-    row.appendChild(acts);
-    return row;
-  }
-  function updatePlanTotals() {
-    var seq = findSequence(currentPlanId); if (!seq) return;
-    $("plan-total").textContent = fmtTime(sequenceDuration(seq));
-    var n = sequenceRoutines(seq).length;
-    $("plan-count").textContent = n + " routine" + (n === 1 ? "" : "s");
-    $("btn-run-plan").disabled = n === 0;
-  }
-  function addPlanRoutine() {
-    var seq = findSequence(currentPlanId);
-    if (state.routines.length === 0) { toast("Create a routine first"); return; }
-    seq.routineIds.push(""); // blank slot — user picks the routine (no silent duplicate)
-    markPlanDirty(); renderPlanRows();
-  }
-  function movePlanRow(i, dir) {
-    var seq = findSequence(currentPlanId); var j = i + dir;
-    if (j < 0 || j >= seq.routineIds.length) return;
-    var t = seq.routineIds[i]; seq.routineIds[i] = seq.routineIds[j]; seq.routineIds[j] = t;
-    markPlanDirty(); renderPlanRows();
-  }
-  function markPlanDirty() {
-    var seq = findSequence(currentPlanId); if (seq) seq.updatedAt = Date.now();
-    clearTimeout(autosaveTimer); autosaveTimer = setTimeout(autoSave, 500);
-    enqueueSync("plans", currentPlanId);   // cloud sync
-  }
-  function savePlan(showMsg) {
-    var seq = findSequence(currentPlanId); if (!seq) return;
-    seq.name = $("plan-name").value.trim(); seq.updatedAt = Date.now();
-    clearTimeout(autosaveTimer); save(); enqueueSync("plans", seq.id);
-    if (showMsg) toast("Plan saved");
-    $("plan-title").textContent = seq.name || "New Plan";
-  }
-  function openRunSequence(id) {
-    var seq = findSequence(id); if (!seq) return;
-    var steps = buildStepsForRoutines(sequenceRoutines(seq));
-    if (!steps.length) { toast("Add routines with exercises first"); return; }
-    beginRun(seq.name || "Class plan", steps);
   }
 
   // ===========================================================================
@@ -2857,7 +2609,6 @@
         " routine(s) with " + clean.routines.length + " from the backup. Continue?")) return;
       // Remember the current ids so we can delete-from-cloud anything the restore drops.
       var oldIds = { routines: state.routines.map(function (x) { return x.id; }),
-                     plans: state.sequences.map(function (x) { return x.id; }),
                      catalog: state.catalog.map(function (x) { return x.id; }) };
       var snapshotted = false;
       try { localStorage.setItem(STORE_KEY + ".prerestore", JSON.stringify(state)); snapshotted = true; } catch (e) {}
@@ -2879,7 +2630,6 @@
     if (!confirm("Undo the last restore and bring back your previous routines?")) return;
     try {
       var oldIds = { routines: state.routines.map(function (x) { return x.id; }),
-                     plans: state.sequences.map(function (x) { return x.id; }),
                      catalog: state.catalog.map(function (x) { return x.id; }) };
       state = normalizeState(JSON.parse(prev));
       [state.routines, state.sequences, state.catalog].forEach(function (list) { (list || []).forEach(function (x) { delete x._syncedAt; }); });
@@ -2983,10 +2733,6 @@
       saveBuilder(false);
       var r = findRoutine(currentEditId);
       if (r && routineIsEmpty(r)) { syncDiscard("routines", r.id); state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); }
-    } else if (!$("view-plan-editor").classList.contains("hidden")) {
-      savePlan(false);
-      var s = findSequence(currentPlanId);
-      if (s && planIsEmpty(s)) { syncDiscard("plans", s.id); state.sequences = state.sequences.filter(function (x) { return x.id !== s.id; }); }
     }
     clearTimeout(autosaveTimer); save();
     drainSyncDeferred();   // apply any cloud updates that arrived while this item was open
@@ -3001,7 +2747,6 @@
   }
   $("btn-moves").onclick = showCatalog;
   $("btn-theme").onclick = toggleTheme;
-  $("btn-plans").onclick = function () { leaveCurrentEditor(); showPlans(); };
   // Logo doubles as a "home" button back to the routine library.
   var brandLogo = $("brand-logo");
   brandLogo.style.cursor = "pointer";
@@ -3009,13 +2754,6 @@
   brandLogo.setAttribute("aria-label", "Home — routine library");
   brandLogo.onclick = function () { leaveCurrentEditor(); showLibrary(); };
   brandLogo.onkeydown = function (e) { if (e.key === "Enter" || e.code === "Space") { e.preventDefault(); brandLogo.click(); } };
-  $("btn-new-plan").onclick = createPlan;
-  $("btn-plans-back").onclick = showLibrary;   // back to the routine library from the Plans list
-  $("btn-plan-back").onclick = function () { leaveCurrentEditor(); showPlans(); };  // saves, prunes (w/ cloud cleanup), drains deferred sync
-  $("btn-save-plan").onclick = function () { savePlan(true); };
-  $("btn-add-plan-routine").onclick = addPlanRoutine;
-  $("btn-run-plan").onclick = function () { savePlan(false); openRunSequence(currentPlanId); };
-  $("plan-name").oninput = function () { var s = findSequence(currentPlanId); if (s) { s.name = $("plan-name").value; $("plan-title").textContent = s.name.trim() || "New Plan"; markPlanDirty(); } };
   $("btn-catalog-back").onclick = function () {
     clearTimeout(autosaveTimer); save();
     if (catalogReturnView === "builder" && findRoutine(currentEditId)) showBuilder(currentEditId);
@@ -3094,7 +2832,7 @@
   var syncPushTimer = null;
   var syncDeferred = [];         // cloud updates for the open editor, applied on close
 
-  function syncArr(coll) { return coll === "routines" ? state.routines : coll === "plans" ? state.sequences : coll === "catalog" ? state.catalog : null; }
+  function syncArr(coll) { return coll === "routines" ? state.routines : coll === "catalog" ? state.catalog : null; }
   function stripMeta(item) { var c = {}; for (var k in item) { if (k !== "_syncedAt") c[k] = item[k]; } return c; }
   function findSyncItem(coll, id) { var a = syncArr(coll); if (a) for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
 
@@ -3103,9 +2841,7 @@
     var arr = syncArr(coll); if (!arr) return;
     // Only defer an incoming change if its editor is ACTUALLY OPEN — otherwise a stale
     // currentEditId would wrongly park updates while you're back in the library.
-    var openId = (coll === "routines" && !$("view-builder").classList.contains("hidden")) ? currentEditId
-               : (coll === "plans" && !$("view-plan-editor").classList.contains("hidden")) ? currentPlanId
-               : null;
+    var openId = (coll === "routines" && !$("view-builder").classList.contains("hidden")) ? currentEditId : null;
     var touched = false;
     changes.forEach(function (c) {
       if (c.hasPendingWrites) return;                          // our own un-acked write — ignore (echo guard)
@@ -3127,7 +2863,7 @@
     if (touched) { save(); rerenderAfterSync(coll); }          // keep localStorage in step; NEVER markDirty (would echo)
   }
   function rerenderAfterSync(coll) {
-    if (!$("view-library").classList.contains("hidden") && (coll === "routines" || coll === "plans")) renderLibrary();
+    if (!$("view-library").classList.contains("hidden") && coll === "routines") renderLibrary();
     else if (!$("view-catalog").classList.contains("hidden") && coll === "catalog") renderCatalog();
   }
   function applySettingsDoc(data, hasPending) {
@@ -3184,15 +2920,14 @@
       if (cloud && cloud.migrationComplete) {
         // Cloud already holds this user's library (migrated on another device). Don't re-bulk-upload,
         // but push any items THIS device created before signing in so they aren't stranded local-only.
-        claim(state.routines); claim(state.sequences); save();
+        claim(state.routines); save();
         state.routines.forEach(function (r) { enqueueSync("routines", r.id); });
-        state.sequences.forEach(function (s) { enqueueSync("plans", s.id); });
         state.catalog.forEach(function (m) { enqueueSync("catalog", m.id); });
         try { localStorage.setItem(flagKey, "1"); } catch (e) {}
         return;
       }
-      claim(state.routines); claim(state.sequences); save();
-      var perColl = { routines: state.routines.map(stripMeta), plans: state.sequences.map(stripMeta), catalog: state.catalog.map(stripMeta) };
+      claim(state.routines); save();
+      var perColl = { routines: state.routines.map(stripMeta), catalog: state.catalog.map(stripMeta) };
       var patch = { email: user.email, displayName: user.displayName || user.email, settings: state.settings, migrationComplete: true };
       try { await window.EchelonSync.bulkUpload(user.uid, perColl, patch); } catch (e) { return; } // offline: leave flag unset, retry
       try { localStorage.setItem(flagKey, "1"); } catch (e) {} // only after the server ack
@@ -3219,11 +2954,10 @@
   function reconcileRestoreToCloud(oldIds) {
     if (!me || !window.EchelonSync) return;
     function pushAll(list, coll) { (list || []).forEach(function (x) { x.updatedAt = Date.now(); enqueueSync(coll, x.id); }); }
-    pushAll(state.routines, "routines"); pushAll(state.sequences, "plans"); pushAll(state.catalog, "catalog"); pushSettings();
+    pushAll(state.routines, "routines"); pushAll(state.catalog, "catalog"); pushSettings();
     function idSet(list) { var s = {}; (list || []).forEach(function (x) { s[x.id] = 1; }); return s; }
-    var nr = idSet(state.routines), np = idSet(state.sequences), nc = idSet(state.catalog);
+    var nr = idSet(state.routines), nc = idSet(state.catalog);
     (oldIds.routines || []).forEach(function (id) { if (!nr[id]) syncDiscard("routines", id); });
-    (oldIds.plans || []).forEach(function (id) { if (!np[id]) syncDiscard("plans", id); });
     (oldIds.catalog || []).forEach(function (id) { if (!nc[id]) syncDiscard("catalog", id); });
   }
 
