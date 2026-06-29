@@ -29,8 +29,7 @@
   THE DATA MODEL (everything the user creates) — saved as JSON in localStorage
     key "tempo.v1":
       state = {
-        settings:  { studioName, mode, theme, beeps, autostart, leadIn, accent, logo,
-                     logoCustom, lastDiscipline },
+        settings:  { studioName, theme, beeps, autostart, leadIn, lastDiscipline },
         routines:  [ { id, name, description, tags:[], discipline, createdAt, updatedAt,
                        blocks:[ { id, name, discipline, exercises:[
                          { id, name, duration, rest, metrics:{}, note } ] } ] } ],
@@ -224,9 +223,6 @@
   .topbar .spacer { flex: 1; }
 
   /* segmented mode toggle */
-  .seg-toggle { display: inline-flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
-  .seg-toggle button { border: none; background: transparent; border-radius: 999px; padding: 6px 14px; font-size: 0.85rem; color: var(--muted); }
-  .seg-toggle button.active { background: var(--gold-soft); color: var(--accent-text); font-weight: 700; }
 
   /* Default cards are contained sections → subtle shadow. Floating surfaces
      (library cards, modals, toast) opt up to the heavier --shadow individually. */
@@ -552,10 +548,6 @@
     <span class="studio" id="studio-label"></span>
   </div>
   <div class="spacer"></div>
-  <div class="seg-toggle" id="mode-toggle" role="group" aria-label="Mode">
-    <button data-mode="class" id="mode-class">Class</button>
-    <button data-mode="personal" id="mode-personal">Personal</button>
-  </div>
   <button class="ghost small" id="btn-plans" data-ic="layers" title="Class plans"><span>Plans</span></button>
   <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Exercise catalog"><span>Moves</span></button>
   <button class="ghost small" id="btn-theme" data-ic="contrast" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
@@ -567,7 +559,7 @@
   <section id="view-library">
     <div class="lib-head">
       <h1 id="lib-title">Class Library</h1>
-      <button class="gold" id="btn-new">+ New Routine</button>
+      <button class="gold" id="btn-new" data-ic="plus"><span>New Routine</span></button>
     </div>
     <div class="filters" id="tag-filters"></div>
     <div id="routine-list"></div>
@@ -757,6 +749,10 @@
       <button id="btn-undo-restore" class="ghost hidden" data-ic="restart">Undo last restore</button>
       <input type="file" id="restore-file" accept="application/json" class="hidden" />
     </div>
+    <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
+    <label>Import from ClassFlow</label>
+    <p class="muted" style="margin:4px 0 8px; font-size:0.86rem;">Bring your older ClassFlow workouts in as Cycle routines. Your ClassFlow data is left untouched.</p>
+    <button id="btn-import-classflow" data-ic="importF">Import from ClassFlow</button>
     <div class="modal-actions">
       <button class="ghost" id="btn-settings-close">Close</button>
       <button class="gold" id="btn-settings-save">Save</button>
@@ -843,7 +839,7 @@
   }
 
   // Echelon logo (embedded as a data: URL so the app stays a single offline file).
-  // It's the DEFAULT/built-in logo; a user-uploaded logo replaces it (see logoCustom).
+  // Branding is fixed to Echelon — this is the one logo, shown in the top bar + PDF export.
   var ECHELON_LOGO = "data:image/png;base64,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";
 
   // ===========================================================================
@@ -901,7 +897,7 @@
   // The settings every NEW install starts with. (Existing installs keep their own
   // saved settings; missing fields get filled in by normalizeState below.)
   function defaultSettings() {
-    return { studioName: "Echelon", mode: "class", theme: "dark", beeps: true, autostart: true, autostartMigrated: true, leadIn: 5, accent: "", logo: ECHELON_LOGO, logoCustom: false, lastDiscipline: "lagree" };
+    return { studioName: "Echelon", theme: "dark", beeps: true, autostart: true, autostartMigrated: true, leadIn: 5, lastDiscipline: "cycle" };
   }
   // Read the saved state from localStorage at startup. If nothing is saved (or it's
   // unreadable), start fresh. Whatever we load is run through normalizeState first.
@@ -924,7 +920,6 @@
     }
     if (!parsed.settings || typeof parsed.settings !== "object") parsed.settings = defaultSettings();
     if (typeof parsed.settings.studioName !== "string") parsed.settings.studioName = "Echelon";
-    if (parsed.settings.mode !== "personal") parsed.settings.mode = "class";
     if (parsed.settings.theme !== "light") parsed.settings.theme = "dark";
     parsed.settings.beeps = parsed.settings.beeps !== false;
     // Auto-advance is now the default (a class should flow continuously). One-time migration:
@@ -932,24 +927,8 @@
     // choice (on or off) is preserved via the migrated flag.
     if (parsed.settings.autostartMigrated !== true) { parsed.settings.autostart = true; parsed.settings.autostartMigrated = true; }
     parsed.settings.autostart = parsed.settings.autostart === true;
-    // Accept only a real #rrggbb hex accent; anything else (incl. a crafted backup
-    // injecting CSS) falls back to empty so no untrusted text reaches the stylesheet.
-    parsed.settings.accent = /^#[0-9a-f]{6}$/i.test(parsed.settings.accent || "") ? parsed.settings.accent : "";
-    if (!DISCIPLINES[parsed.settings.lastDiscipline]) parsed.settings.lastDiscipline = "lagree"; // default format for new routines
+    if (!DISCIPLINES[parsed.settings.lastDiscipline]) parsed.settings.lastDiscipline = "cycle"; // default format for new routines/blocks
     if ([0, 3, 5, 10].indexOf(parsed.settings.leadIn) < 0) parsed.settings.leadIn = 5; // get-ready countdown seconds
-    // Logo: keep an uploaded custom logo; otherwise always use the current built-in
-    // icon (this migrates any older built-in logo, e.g. the full wordmark, to the icon).
-    parsed.settings.logoCustom = parsed.settings.logoCustom === true;
-    // A custom logo must be a base64 *image* data-URL. This rejects anything else
-    // (e.g. a tampered backup setting logo to an attribute-breaking / script-bearing
-    // string) back to the built-in icon, so the PDF export can't be weaponized.
-    // (svg+xml is excluded on purpose — an SVG can itself carry script.)
-    var logoOk = parsed.settings.logoCustom && typeof parsed.settings.logo === "string" &&
-      /^data:image\/(png|jpe?g|gif|webp);base64,/i.test(parsed.settings.logo);
-    if (!logoOk) {
-      parsed.settings.logo = ECHELON_LOGO;
-      parsed.settings.logoCustom = false;
-    }
     if (!Array.isArray(parsed.catalog)) parsed.catalog = [];
     parsed.catalog = parsed.catalog
       .filter(function (m) { return m && typeof m === "object"; })
@@ -1293,7 +1272,7 @@
   }
 
   function renderLibrary() {
-    $("lib-title").textContent = state.settings.mode === "personal" ? "My Workouts" : "Class Library";
+    $("lib-title").textContent = "Class Library";
     // If the active tag no longer exists (its routine was edited/deleted), drop it
     // so the library doesn't silently show an empty, unexplained list.
     if (activeTag && allTags().indexOf(activeTag) < 0) activeTag = null;
@@ -1304,11 +1283,9 @@
     if (activeTag) routines = routines.filter(function (r) { return (r.tags || []).indexOf(activeTag) >= 0; });
 
     if (state.routines.length === 0) {
-      var isPersonal = state.settings.mode === "personal";
       var empty = el("div", "empty");
-      empty.innerHTML = "<h2>No " + (isPersonal ? "workouts" : "routines") + " yet</h2><p>Build your first " +
-        (isPersonal ? "workout" : "routine") + " — blocks of timed exercises, each with its own class format.</p>";
-      var b = iconBtn("plus", "gold", isPersonal ? "New Workout" : "New Routine"); b.onclick = createRoutine;
+      empty.innerHTML = "<h2>No routines yet</h2><p>Build your first routine — blocks of timed exercises, each with its own class format.</p>";
+      var b = iconBtn("plus", "gold", "New Routine"); b.onclick = createRoutine;
       empty.appendChild(b); list.appendChild(empty); return;
     }
     routines.sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
@@ -1769,7 +1746,7 @@
   // ===========================================================================
   function scheduleSave() { clearTimeout(autosaveTimer); autosaveTimer = setTimeout(autoSave, 500); } // debounced save for catalog/plan edits
 
-  var catalogDiscipline = "lagree";    // which format's moves the ☰ Moves screen shows/adds
+  var catalogDiscipline = "cycle";    // which format's moves the ☰ Moves screen shows/adds
   // Rebuild the <datalist> the builder's exercise-name input reads. If a format is
   // passed, only suggest moves of that format (so a cycle routine sees cycle moves).
   function updateMoveDatalist(disc) {
@@ -2142,7 +2119,6 @@
     run.running = false;
     run.lead = 0; run.ledIn = false;          // reset the get-ready lead-in for a new run
     $("run-routine").textContent = title;
-    $("run-mode-label").textContent = state.settings.mode === "personal" ? "Personal" : "Class";
     document.documentElement.style.overflow = "hidden";
     openOverlay("run-overlay", "btn-run-play");
     renderRun();
@@ -2504,7 +2480,7 @@
     var r = findRoutine(exportId);
     var studio = state.settings.studioName || "Echelon";
     var html = "";
-    if (state.settings.logo) html += "<img src='" + escapeHtml(state.settings.logo) + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
+    html += "<img src='" + ECHELON_LOGO + "' alt='' style='max-height:64px; margin-bottom:8px;' />";
     html += "<h1>" + escapeHtml(r.name || "Untitled routine") + "</h1>";
     html += "<p class='ps-sub'>" + escapeHtml(studio) +
       (r.description ? " — " + escapeHtml(r.description) : "") +
@@ -2646,26 +2622,14 @@
   // ===========================================================================
   // Settings, branding, theme, backup/restore
   // ---------------------------------------------------------------------------
-  //   setMode/updateModeUI ... Class vs Personal toggle (relabels the UI).
-  //   openSettings/saveSettings  the Settings dialog now holds only the per-user
-  //                            toggles (beeps, auto-start) + tips + backup/restore;
-  //                            branding is fixed (not user-editable).
-  //   updateBrand ............ applies the (fixed) Echelon name (wordmark), logo,
-  //                            and accent across the app at runtime.
+  //   openSettings/saveSettings  the Settings dialog holds only the per-user
+  //                            toggles (beeps, auto-start, lead-in) + tips +
+  //                            backup/restore + ClassFlow import; branding is fixed.
+  //   updateBrand ............ paints the (fixed) Echelon icon + name in the top bar.
   //   applyTheme/toggleTheme . switch the data-theme attribute (dark/light).
   //   backup/restore/undoRestore  export/import the whole state as a .json file.
+  //   importFromClassFlow .... one-time import of the older ClassFlow app's data.
   // ===========================================================================
-  function setMode(mode) {
-    state.settings.mode = (mode === "personal") ? "personal" : "class";
-    save(); updateModeUI();
-    if (!$("view-library").classList.contains("hidden")) renderLibrary();
-  }
-  function updateModeUI() {
-    var isPersonal = state.settings.mode === "personal";
-    $("mode-class").classList.toggle("active", !isPersonal);
-    $("mode-personal").classList.toggle("active", isPersonal);
-    $("btn-new").innerHTML = ic("plus") + "<span>" + (isPersonal ? "New Workout" : "New Routine") + "</span>";
-  }
   // Settings now holds only per-user preferences + the tips/backup sections.
   // Branding (name/logo/accent) is fixed to Echelon — set in defaultSettings(), not
   // editable here — so the app looks consistent for everyone it's distributed to.
@@ -2685,48 +2649,18 @@
     var li = parseInt($("set-leadin").value, 10); state.settings.leadIn = [0, 3, 5, 10].indexOf(li) >= 0 ? li : 5;
     save(); closeSettings(); toast("Settings saved");
   }
-  // Apply the (fixed Echelon) studio name as the wordmark + accent across the UI.
+  // Paint the (fixed Echelon) brand: the icon + studio-name lockup in the top bar.
   function updateBrand() {
-    var name = state.settings.studioName;
     var logo = $("brand-logo");
-    if (state.settings.logo) {
-      logo.innerHTML = "";
-      var img = document.createElement("img");
-      img.src = state.settings.logo;
-      img.alt = name || "Logo";
-      img.style.height = "26px"; img.style.maxWidth = "190px";
-      img.style.objectFit = "contain"; img.style.display = "block";
-      logo.appendChild(img);
-      // Pair the icon with the name as a lockup (name color adapts to the theme).
-      if (name) { var t = document.createElement("span"); t.textContent = name; logo.appendChild(t); }
-    } else if (name) {
-      logo.textContent = name;
-    } else {
-      logo.innerHTML = 'Echel<span class="accent">o</span>n';
-    }
+    logo.innerHTML = "";
+    var img = document.createElement("img");
+    img.src = ECHELON_LOGO;
+    img.alt = "Echelon";
+    img.style.height = "26px"; img.style.maxWidth = "190px";
+    img.style.objectFit = "contain"; img.style.display = "block";
+    logo.appendChild(img);
+    var t = document.createElement("span"); t.textContent = state.settings.studioName || "Echelon"; logo.appendChild(t);
     $("studio-label").textContent = "";
-    var root = document.documentElement, acc = state.settings.accent;
-    if (acc) {
-      root.style.setProperty("--gold", acc);
-      root.style.setProperty("--gold-dim", "color-mix(in srgb, " + acc + " 72%, black)");
-      root.style.setProperty("--gold-soft", "color-mix(in srgb, " + acc + " 16%, transparent)");
-      // Pick readable button-label + accent-text colors for the chosen accent's brightness.
-      var lum = accentLuminance(acc);
-      root.style.setProperty("--gold-ink", lum > 0.5 ? "#06202b" : "#ffffff");
-      root.style.setProperty("--accent-text", lum < 0.35 ? acc : "color-mix(in srgb, " + acc + " 72%, black)");
-    } else {
-      root.style.removeProperty("--gold");
-      root.style.removeProperty("--gold-dim");
-      root.style.removeProperty("--gold-soft");
-      root.style.removeProperty("--gold-ink");
-      root.style.removeProperty("--accent-text");
-    }
-  }
-  // Rough perceived brightness (0-1) of a #rrggbb color.
-  function accentLuminance(hex) {
-    var m = /^#?([0-9a-f]{6})$/i.exec(hex || ""); if (!m) return 0.4;
-    var n = parseInt(m[1], 16), r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   }
   function applyTheme() {
     document.documentElement.setAttribute("data-theme", state.settings.theme === "light" ? "light" : "dark");
@@ -2761,7 +2695,7 @@
       try { localStorage.setItem(STORE_KEY + ".prerestore", JSON.stringify(state)); snapshotted = true; } catch (e) {}
       state = clean;
       var ok = save();
-      updateBrand(); updateModeUI(); closeSettings(); showLibrary();
+      updateBrand(); closeSettings(); showLibrary();
       if (!ok) { toast("Restore loaded but couldn't be saved — storage may be full"); return; }
       toast(snapshotted ? "Backup restored — undo available in Settings" : "Backup restored");
     };
@@ -2775,9 +2709,72 @@
     try {
       state = normalizeState(JSON.parse(prev)); save();
       localStorage.removeItem(STORE_KEY + ".prerestore");
-      updateBrand(); updateModeUI(); closeSettings(); showLibrary();
+      updateBrand(); closeSettings(); showLibrary();
       toast("Previous routines restored");
     } catch (e) { toast("Could not undo restore"); }
+  }
+
+  // One-time import of the older ClassFlow app's data (it lives under its own
+  // localStorage key, "classflow.v1", so the two apps never collide). ClassFlow is a
+  // FLAT list of typed segments (exercise / rest / transition); Echelon is nested
+  // (routine -> blocks -> exercises). We map each ClassFlow class to one Echelon
+  // routine with a single Cycle block, then:
+  //   • exercise / transition segment -> a work exercise (transition keeps its time,
+  //     named "Transition" if it had no name);
+  //   • rest segment -> folded into the PREVIOUS exercise's rest (Echelon has no
+  //     standalone rest step) — or a 0-work "Rest" exercise if nothing precedes it;
+  //   • reps -> metrics.reps (kept even though a Cycle block doesn't show it, so it
+  //     reappears if you switch the block to Strength/Lagree); setting (+ any notes)
+  //     -> the coaching note; duration is already in seconds, copied directly.
+  // Fresh ids are minted for everything; ClassFlow's own data is left untouched.
+  function importFromClassFlow() {
+    var raw;
+    try { raw = localStorage.getItem("classflow.v1"); } catch (e) { raw = null; }
+    if (!raw) { toast("No ClassFlow data found on this device"); return; }
+    var classes = null;
+    try { var cf = JSON.parse(raw); if (cf && Array.isArray(cf.classes)) classes = cf.classes; }
+    catch (e) { classes = null; }
+    if (!classes) { toast("Couldn't read ClassFlow data"); return; }
+    if (!classes.length) { toast("ClassFlow has no classes to import"); return; }
+    if (!confirm("Import " + classes.length + " class(es) from ClassFlow? They'll be added to your library as Cycle routines (you can change each block's format afterward). Your ClassFlow data stays as-is.")) return;
+
+    var added = 0;
+    classes.forEach(function (c) {
+      if (!c || typeof c !== "object") return;
+      var segs = Array.isArray(c.segments) ? c.segments : [];
+      var exercises = [];
+      segs.forEach(function (s) {
+        if (!s || typeof s !== "object") return;
+        var dur = (typeof s.duration === "number" && s.duration > 0) ? Math.round(s.duration) : 0;
+        if (s.type === "rest") {
+          if (exercises.length) exercises[exercises.length - 1].rest += dur;       // fold into prior work step
+          else exercises.push({ id: uid(), name: "Rest", metrics: {}, duration: 0, rest: dur, note: "" });
+          return;
+        }
+        var note = [(s.setting || "").toString().trim(), (s.notes || "").toString().trim()]
+          .filter(Boolean).join(" — ");
+        exercises.push({
+          id: uid(),
+          name: (s.name || "").toString().trim() || (s.type === "transition" ? "Transition" : ""),
+          metrics: { reps: typeof s.reps === "string" ? s.reps : "" },
+          duration: dur, rest: 0, note: note
+        });
+      });
+      if (!exercises.length) exercises.push({ id: uid(), name: "", metrics: {}, duration: 45, rest: 0, note: "" });
+      state.routines.push({
+        id: uid(),
+        name: (c.name || "").toString().trim() || "Imported class",
+        description: (c.description || "").toString().trim(),
+        tags: ["classflow"],
+        discipline: "cycle",
+        createdAt: (typeof c.createdAt === "number") ? c.createdAt : Date.now(),
+        updatedAt: (typeof c.updatedAt === "number") ? c.updatedAt : Date.now(),
+        blocks: [{ id: uid(), name: "Imported", discipline: "cycle", exercises: exercises }]
+      });
+      added++;
+    });
+    save(); closeSettings(); renderLibrary();
+    toast("Imported " + added + " class(es) from ClassFlow");
   }
 
   // ===========================================================================
@@ -2805,8 +2802,6 @@
   $("btn-run-from-builder").onclick = function () { saveBuilder(false); openRun(currentEditId); };
   $("btn-export-builder").onclick = function () { saveBuilder(false); openExport(currentEditId); };
 
-  $("mode-class").onclick = function () { setMode("class"); };
-  $("mode-personal").onclick = function () { setMode("personal"); };
 
   // When navigating away from the builder/plan editor, discard a never-filled draft
   // so blank "Untitled" cards don't pile up (the in-page Back buttons already do this).
@@ -2867,6 +2862,7 @@
   $("btn-backup").onclick = backup;
   $("btn-restore").onclick = function () { $("restore-file").click(); };
   $("btn-undo-restore").onclick = undoRestore;
+  $("btn-import-classflow").onclick = importFromClassFlow;
   $("restore-file").onchange = function (e) { if (e.target.files[0]) restore(e.target.files[0]); e.target.value = ""; };
 
   $("btn-exp-pdf").onclick = exportPDF;
@@ -2908,14 +2904,13 @@
 
   // ===========================================================================
   // Init  — the actual startup sequence (runs once after everything is defined).
-  //   Apply the saved theme, paint the brand (name/logo/accent), set the
-  //   Class/Personal toggle, prime the exercise-name autocomplete, then show the
-  //   library. (`state` was already loaded near the top via loadState().)
+  //   Apply the saved theme, paint the brand (icon + name), prime the
+  //   exercise-name autocomplete, then show the library. (`state` was already
+  //   loaded near the top via loadState().)
   // ===========================================================================
   hydrateIcons();   // swap the static buttons' data-ic glyphs for inline SVG icons
   applyTheme();
   updateBrand();
-  updateModeUI();
   updateMoveDatalist();
   save();           // commit any load-time normalization/migration (e.g. autostart default) right away
   showLibrary();
