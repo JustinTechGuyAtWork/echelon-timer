@@ -113,6 +113,7 @@
     --gold-ink: #ffffff;        /* label color on accent-filled buttons */
     --rest: #e0a23c;            /* warm amber so rest reads distinct from teal */
     --rest-soft: rgba(224,162,60,0.15);
+    --warn: #ffc24d;            /* final-seconds alert: a bright, saturated amber distinct from the teal work color */
     --danger: #e5675f;
     --radius: 14px;
     --shadow: 0 10px 34px rgba(0,0,0,0.5);   /* floating: modals, toast, library cards */
@@ -142,6 +143,7 @@
     --gold-ink: #ffffff;
     --rest: #8f5800;            /* clears AA 4.5:1 as small text even on the amber rest overlay */
     --rest-soft: rgba(143,88,0,0.14);
+    --warn: #b45309;            /* final-seconds alert (light): strong amber, clear on the light run bg */
     --danger: #d4453d;
     --shadow: 0 8px 26px rgba(13,46,64,0.12);
     --shadow-sm: 0 1px 3px rgba(13,46,64,0.10);
@@ -191,7 +193,7 @@
   /* Visible keyboard focus on every interactive element (WCAG 2.4.7); :focus-visible
      keeps mouse clicks ring-free. Cards inset their ring so it isn't clipped. */
   button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
-  .routine-card:focus-visible, .plan-card:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+  .routine-card:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
   label { font-size: var(--t-label); color: var(--muted); display: block; margin-bottom: 4px; }
   a { color: var(--accent-text); }
   ::placeholder { color: #6f8a96; opacity: 1; }   /* ~3:1 teal-family, opacity:1 fixes Firefox dimming */
@@ -240,7 +242,7 @@
     border-radius: 999px; padding: 4px 12px; font-size: 0.82rem; cursor: pointer;
   }
   .tag-chip.active { background: var(--gold-soft); color: var(--accent-text); border-color: var(--gold-dim); }
-  .routine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--s4); }
+  .routine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--s4); }
   /* Library cards are the launch surface → they float (heavier shadow than .card default) */
   .routine-card { padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); cursor: pointer; position: relative; box-shadow: var(--shadow); }
   .routine-card:hover { border-color: var(--gold-dim); }
@@ -340,7 +342,6 @@
   .run-order { display: none; }   /* the running-order panel only appears on large landscape (media query) */
   .run-top { display: flex; align-items: center; gap: 12px; }
   .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; }
-  .run-top .run-mode { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: var(--accent-text); background: var(--gold-soft); padding: 4px 10px; border-radius: 999px; }
   .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: .82rem; margin-top: 6px; }
   .is-rest .run-block-label { color: var(--rest); }
   /* min-height:0 lets the stage shrink inside the flex column so the controls below it
@@ -376,9 +377,9 @@
     font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
   /* Final-seconds cue: color + bold reads in any theme and survives reduced-motion /
      a paused clock; the scale pulse is layered on only while actively counting. */
-  .run-time.warn { color: var(--gold); font-weight: 800; }
+  .run-time.warn { color: var(--warn); font-weight: 800; }   /* distinct alert amber (not the teal work color) + bold survives reduced-motion */
   .run-time.warn-anim { animation: tick 1s ease-in-out infinite; }
-  .is-rest .run-time.warn { color: var(--rest); }
+  .is-rest .run-time.warn { color: var(--warn); }
   /* Coaching note for the current exercise (empty for rest steps). */
   .run-note { color: color-mix(in srgb, var(--text) 82%, transparent); font-style: italic; font-size: 1.05rem;
     max-width: 34ch; margin-top: 12px; line-height: 1.35; }
@@ -393,6 +394,7 @@
   @keyframes tick { 0%, 100% { transform: none; } 50% { transform: scale(1.05); } }
   .run-controls { display: flex; gap: 12px; justify-content: center; align-items: center; padding: 14px 0 4px; flex-wrap: wrap; }
   .run-controls button { min-height: 48px; }   /* touch-first: comfortable targets mid-class */
+  button.big { font-size: 1.1rem; padding: 14px 26px; }   /* global "big" modifier (e.g. the sign-in CTA); run controls override the padding below */
   .run-controls .big { font-size: 1.1rem; padding: 14px 30px; }
   .run-done-msg { text-align: center; }
   .run-done-msg h2 { font-size: 2.4rem; margin: 0 0 6px; display: flex; align-items: center; justify-content: center; gap: 10px; }
@@ -426,12 +428,16 @@
     .run-overlay { flex-direction: row; gap: 28px; align-items: stretch; }
     .run-col { min-width: 0; }
     .run-order { display: flex; flex-direction: column; }
+    /* Wall-mounted display: the coaching metrics an instructor calls out (spring/cadence/
+       resistance) must be readable across the room, so scale them with the screen. */
+    .run-spring { font-size: clamp(1.05rem, 1.8vh, 1.5rem); }
+    .run-spring b { font-size: clamp(1.3rem, 2.4vh, 2rem); }
   }
 
   /* ---------- Modal ---------- */
   .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
   .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; box-shadow: var(--shadow); }
-  .modal h2 { margin: 0 0 14px; font-size: 1.2rem; }
+  .modal h2 { margin: 0 0 14px; font-size: var(--t-h2); }   /* adopt the shared heading step */
   .modal .field { margin-bottom: 14px; }
   .tips h3 { margin: 0 0 6px; font-size: 0.95rem; }
   .tips ul { margin: 0 0 16px; padding-left: 18px; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
@@ -452,7 +458,8 @@
   /* Sticky banner shown when a save actually fails (storage full) — unlike the toast,
      it stays put so the user can't keep editing unaware that changes aren't persisting. */
   #save-warning { position: fixed; top: 0; left: 0; right: 0; z-index: 320; background: #7f1d1d; color: #fff;
-    text-align: center; padding: 10px 16px; font-size: 0.92rem; box-shadow: var(--shadow); }
+    text-align: center; font-size: 0.92rem; box-shadow: var(--shadow);
+    padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left)); }
 
   .hidden { display: none !important; }
   .muted { color: var(--muted); }
@@ -489,9 +496,14 @@
       padding-right: calc(14px + env(safe-area-inset-right)); }
     header.topbar .spacer { display: none; }
     header.topbar .brand { width: 100%; }
-    /* Collapse Plans/Moves to icon-only on phones (title stays the accessible name),
+    /* Collapse Moves to icon-only on phones (title stays the accessible name),
        so the control cluster fits one row instead of crowding two. */
     header.topbar #btn-moves span { display: none; }
+  }
+  /* Stack the builder's exercise rows below tablet-PORTRAIT width (e.g. a 768px iPad in
+     portrait), so a multi-metric row + its 5-button action cluster never overflow off the
+     right edge. (Above this the grid "table" layout has room.) */
+  @media (max-width: 860px) {
     .ex-head { display: none; }
     .ex-row { grid-template-columns: 1fr 1fr; gap: 12px 10px; padding: 12px; }
     .ex-row > .cell { flex-direction: column; align-items: stretch; gap: 3px; }
@@ -506,8 +518,7 @@
     .ex-row > .cell.actions-cell .ex-actions { justify-content: flex-start; }
     .dur-input input { width: 100%; }
     .field-row, .field-row.three { grid-template-columns: 1fr; }
-    /* Touch targets: this is a phone/tablet-first builder, so the clustered icon
-       buttons and steppers must clear ~44px and not sit flush against delete. */
+    /* Touch targets: phone/tablet-first builder — clustered icon buttons + steppers clear ~44px. */
     .ex-actions { gap: 8px; }
     .ex-actions button, .block-head .block-actions button { min-height: 44px; min-width: 44px; padding: 8px 12px; font-size: 0.95rem; }
     .block-head .block-actions { gap: 8px; }
@@ -545,7 +556,7 @@
   body.signed-out header.topbar, body.signed-out .app { display: none !important; }
   .signin-card { text-align: center; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .signin-card #signin-logo { height: 40px; }
-  .signin-card h1 { font-family: var(--font-display); letter-spacing: -0.5px; }
+  .signin-card h1 { font-family: var(--font-display); letter-spacing: .5px; }   /* match the top-bar wordmark */
   .signin-card p { color: var(--muted); }
   .signin-error { color: var(--danger); font-size: 0.9rem; }
   .account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -657,7 +668,6 @@
   <div class="run-col">
     <div class="run-top">
       <span class="run-routine" id="run-routine"></span>
-      <span class="run-mode" id="run-mode-label">Class</span>
       <span class="muted" id="run-position"></span>
       <button class="ghost small" id="btn-run-exit" data-ic="x" aria-label="Exit run">Exit</button>
     </div>
@@ -710,10 +720,9 @@
       <ul>
         <li><b>Build a routine</b> — add blocks (sections) and exercises with a time and optional rest. Each block has its own <b>Class format</b> (Lagree, Cycle, Treadmill, Strength) that sets its fields, e.g. Cadence &amp; Resistance for cycle. Mix formats in one routine for crossover classes (e.g. a Cycle block then a Strength block).</li>
         <li><b>Run it</b> — tap a routine card (or <b>Start</b>). A get-ready countdown leads in (set it in Settings below); the timer auto-advances. Use the on-screen buttons or Space / ← / → / Esc.</li>
-        <li><b>Plans</b> (top bar) — chain routines into one back-to-back class.</li>
         <li><b>Moves</b> (top bar) — save go-to exercises per format; while building, start typing a name to auto-fill from a saved move.</li>
         <li><b>Export</b> — from a routine, get a PDF run sheet, spreadsheet, or text.</li>
-        <li><b>Your data stays on this device.</b> Use <b>Backup</b> before switching phones/computers, then <b>Restore</b> on the new one.</li>
+        <li><b>Your routines sync across your devices</b> automatically while you're signed in. <b>Backup</b> below also saves a personal copy you can <b>Restore</b> later.</li>
         <li><b>Add to Home Screen</b> (iPhone: Share → Add to Home Screen) to use it like an app.</li>
       </ul>
     </div>
@@ -890,7 +899,7 @@
        and REPAIR/upgrade it (fill missing fields, drop corrupt records, migrate
        an old logo to the new one). This is why opening an old save still works.
 
-   VIEWS: showLibrary()/showBuilder()/showCatalog()/showPlans()/showPlanEditor()
+   VIEWS: showLibrary()/showBuilder()/showCatalog()
      swap which <section> is visible (hideAllViews() hides them all first).
      The run timer and the settings/export dialogs are OVERLAYS opened with
      openOverlay()/closeOverlay() (which also trap focus and inert the page).
@@ -900,8 +909,8 @@
      = brief popup, `announce(msg)` = screen-reader message.
 
    SECTIONS BELOW (in order): Storage · Helpers · Overlay focus · Routing ·
-     Library · Builder · Exercise catalog · Class plans · Run mode (timer) ·
-     Audio · Exports · Settings/backup/theme · Events (wiring) · Init.
+     Library · Builder · Exercise catalog · Run mode (timer) ·
+     Audio · Exports · Settings/backup/theme · Cloud sync · Auth gate · Events · Init.
    ========================================================================== */
 (function () {
   // ===========================================================================
@@ -1091,8 +1100,10 @@
   // Persist the whole `state` to localStorage. Returns false if it failed (e.g.
   // storage full) so callers like restore() can react instead of falsely succeeding.
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; }
-    catch (e) { toast("Could not save — browser storage may be full."); return false; }
+    // The sticky #save-warning banner (not a clobberable toast) is the honest signal, so EVERY
+    // save path — typing, duplicate, delete, import — surfaces a real quota failure the same way.
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); setSaveWarning(false); return true; }
+    catch (e) { setSaveWarning(true); return false; }
   }
   // Show/hide the persistent "not saving" banner. Called by the debounced autosave so a
   // quota failure during editing surfaces a sticky warning, not just a fleeting toast.
@@ -1195,6 +1206,7 @@
   var toastTimer;
   function toast(msg) {
     var t = $("toast"); t.textContent = msg; t.classList.add("show");
+    announce(msg);                    // also send to the screen-reader live region
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove("show"); }, 2400);
   }
@@ -1246,7 +1258,7 @@
   // ===========================================================================
   // Routing  — there's no URL routing; "navigation" just shows one <section> and
   //   hides the others. show*() = go to a view; hideAllViews() hides them all.
-  //   currentEditId / currentPlanId remember which routine/plan is being edited.
+  //   currentEditId remembers which routine is open in the builder.
   // ===========================================================================
   var currentEditId = null;          // id of the routine currently open in the builder
   var catalogReturnView = "library"; // where ☰ Moves was opened from, so its Back returns there
@@ -1349,6 +1361,10 @@
 
     if (state.routines.length === 0) {
       var empty = el("div", "empty");
+      if (me && !firstRoutinesSnapshot) {   // signed in but the cloud hasn't answered yet — don't imply "you have nothing"
+        empty.innerHTML = "<h2>Loading your classes…</h2><p>Fetching your routines from the cloud.</p>";
+        list.appendChild(empty); return;
+      }
       empty.innerHTML = "<h2>No routines yet</h2><p>Build your first routine — blocks of timed exercises, each with its own class format.</p>";
       var b = iconBtn("plus", "gold", "New Routine"); b.onclick = createRoutine;
       empty.appendChild(b); list.appendChild(empty); return;
@@ -1358,8 +1374,9 @@
     routines.forEach(function (r) {
       var card = el("div", "card routine-card");
       var runnable = exerciseCount(r) > 0;
-      // tapping the card body starts the routine (tap-to-run); keyboard-operable too
-      var runCard = function () { if (runnable) openRun(r.id); };
+      // tapping the card body starts the routine (tap-to-run); keyboard-operable too.
+      // Even a 0-exercise card runs openRun, which toasts "Add an exercise first" (feedback, not silence).
+      var runCard = function () { openRun(r.id); };
       card.onclick = function (ev) { if (ev.target.closest("button")) return; runCard(); };
       if (runnable) {
         card.setAttribute("role", "button");
@@ -1401,7 +1418,7 @@
       row.appendChild(el("div", "spacer"));
       var menu = kebabMenu([
         { label: "Edit", icon: "pencil", fn: function () { showBuilder(r.id); } },
-        { label: "Export", icon: "download", fn: function () { if (runnable) openExport(r.id); } },
+        { label: "Export", icon: "download", fn: function () { openExport(r.id); } },   // openExport toasts if there's nothing to export
         { label: "Duplicate", icon: "copy", fn: function () { duplicateRoutine(r.id); } },
         { label: "Delete", icon: "trash", danger: true, fn: function () { deleteRoutine(r.id); } }
       ]);
@@ -1749,7 +1766,7 @@
     var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
     var i = b.exercises.findIndex(function (e) { return e.id === exId; }); if (i < 0) return;
     var copy = JSON.parse(JSON.stringify(b.exercises[i])); copy.id = uid();
-    b.exercises.splice(i + 1, 0, copy); markDirty(); renderBlocks();
+    b.exercises.splice(i + 1, 0, copy); markDirty(); renderBlocks(); toast("Exercise duplicated");
   }
   function deleteExercise(blockId, exId) {
     var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
@@ -2035,6 +2052,7 @@
     $("run-routine").textContent = title;
     document.documentElement.style.overflow = "hidden";
     openOverlay("run-overlay", "btn-run-play");
+    acquireWakeLock();                 // keep the screen awake through the class
     renderRun();
     announce("Ready: " + announceText(curStep()));
     setPlayLabel();
@@ -2044,8 +2062,27 @@
     if (!r || exerciseCount(r) === 0) { toast("Add an exercise first"); return; }
     beginRun(r.name || "Untitled routine", buildSteps(r));
   }
+  // True only while a run is genuinely underway (not the just-opened "ready" screen and
+  // not the finished "complete" screen) — so we confirm-before-exit only when it matters.
+  function runInProgress() {
+    if (run.index >= run.steps.length) return false;
+    var st = curStep();
+    return run.running || run.lead > 0 || run.index > 0 || run.elapsedBefore > 0 || (st && run.remaining < (st.duration || 0));
+  }
+  // Screen Wake Lock — stop the phone/tablet auto-locking and hiding the timer mid-class.
+  var wakeLock = null;
+  function acquireWakeLock() {
+    try {
+      if (navigator.wakeLock && navigator.wakeLock.request) {
+        navigator.wakeLock.request("screen").then(function (w) { wakeLock = w; }).catch(function () {});
+      }
+    } catch (e) {}
+  }
+  function releaseWakeLock() { try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {} }
   function closeRun() {
+    if (runInProgress() && !confirm("Exit this class? You'll lose your place.")) return;
     stopTicker(); run.running = false;
+    releaseWakeLock();
     closeOverlay("run-overlay");
     document.documentElement.style.overflow = "";
   }
@@ -2302,6 +2339,7 @@
     if (run.index < run.steps.length) advanceStep(false);
   }
   function restartRun() {
+    if (runInProgress() && !confirm("Restart this class from the beginning?")) return;
     run.index = 0; run.elapsedBefore = 0;
     run.remaining = run.steps[0].duration || 0; run.running = false; stopTicker();
     run.lead = 0; run.ledIn = false;             // a restart replays the get-ready lead-in
@@ -2814,7 +2852,7 @@
       if (currentEditId && !$("view-builder").classList.contains("hidden")) saveBuilder(false);
       else { clearTimeout(autosaveTimer); save(); }
     } else if (document.visibilityState === "visible") {
-      if (run.running) run.lastTick = Date.now();
+      if (run.running) { run.lastTick = Date.now(); acquireWakeLock(); }   // wake lock is dropped when hidden — re-acquire
     }
   });
 
@@ -2831,6 +2869,7 @@
   var syncDirty = new Set();     // "collection/id" keys pending push (genuine edits only)
   var syncPushTimer = null;
   var syncDeferred = [];         // cloud updates for the open editor, applied on close
+  var firstRoutinesSnapshot = false;  // false until the cloud's first routines snapshot lands (drives the library "Loading…" state)
 
   function syncArr(coll) { return coll === "routines" ? state.routines : coll === "catalog" ? state.catalog : null; }
   function stripMeta(item) { var c = {}; for (var k in item) { if (k !== "_syncedAt") c[k] = item[k]; } return c; }
@@ -2839,6 +2878,12 @@
   // Merge a batch of cloud changes for one collection into local state, in place.
   function syncApply(coll, changes) {
     var arr = syncArr(coll); if (!arr) return;
+    // The first routines snapshot landing (even if empty) means the cloud has answered —
+    // swap the library's "Loading…" state for the real one.
+    if (coll === "routines" && !firstRoutinesSnapshot) {
+      firstRoutinesSnapshot = true;
+      if (!$("view-library").classList.contains("hidden")) setTimeout(renderLibrary, 0);
+    }
     // Only defer an incoming change if its editor is ACTUALLY OPEN — otherwise a stale
     // currentEditId would wrongly park updates while you're back in the library.
     var openId = (coll === "routines" && !$("view-builder").classList.contains("hidden")) ? currentEditId : null;
@@ -2942,6 +2987,7 @@
   function stopSync() {
     syncUnsub.forEach(function (u) { try { u(); } catch (e) {} }); syncUnsub = [];
     clearTimeout(syncPushTimer); syncDirty.clear();
+    firstRoutinesSnapshot = false;
   }
   function resetLocalForNewUser() {                            // a different account signed in on this device
     state.routines = []; state.sequences = []; state.catalog = []; state.settings = defaultSettings();
@@ -3013,9 +3059,12 @@
         gcTombstones();
         try { await migrateToCloud(me); } catch (e) {}     // one-time upload of existing local data (guarded)
         startSync(me);                                       // attach listeners + enable per-item push
+        if (!$("view-library").classList.contains("hidden")) renderLibrary();  // show "Loading…" until the first snapshot (if the library is empty)
       } else if (user) {                                     // signed in but wrong domain / unverified
         flushSyncPush(); stopSync(); me = null; window.EchelonSync.signOut(); setCachedIdentity(null);
-        showSignIn("Please sign in with your company (@" + window.EchelonSync.domain + ") email.");
+        showSignIn(emailDomain(user.email) === window.EchelonSync.domain
+          ? "Please verify your email with Google, then sign in again."
+          : "Please sign in with your company (@" + window.EchelonSync.domain + ") email.");
       } else {                                               // signed out / never signed in
         flushSyncPush(); stopSync(); me = null; setCachedIdentity(null); showSignIn("");
       }
