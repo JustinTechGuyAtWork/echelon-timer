@@ -154,6 +154,7 @@
   html[data-theme="light"] ::placeholder { color: #7d96a1; }
   html[data-theme="light"] .run-overlay { background: radial-gradient(900px 640px at 50% -2%, #e6f3f9 0%, #ffffff 72%); }
   html[data-theme="light"] .run-overlay.is-rest { background: radial-gradient(900px 640px at 50% -2%, #fdf1de 0%, #ffffff 72%); }
+  html[data-theme="light"] .run-overlay.is-pause { background: radial-gradient(900px 640px at 50% -2%, #eef1f3 0%, #ffffff 72%); }
   html[data-theme="light"] .run-overlay.done { background: radial-gradient(900px 640px at 50% -2%, #e3f4ee 0%, #ffffff 72%); }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; overflow-x: hidden; }
@@ -319,7 +320,13 @@
   .ex-actions button.has-note { color: var(--accent-text); border-color: var(--gold-dim); }
   .ex-actions { display: flex; gap: 3px; justify-content: flex-end; }
   .ex-actions button { padding: 4px 7px; font-size: 0.8rem; }
-  .block-add { padding: 10px 12px; }
+  .block-add { padding: 10px 12px; display: flex; gap: 6px; }
+  /* A Pause row: no metric grid, just an icon + optional label — tinted so it reads
+     as a flow marker rather than a timed move. */
+  .ex-row-pause { background: color-mix(in srgb, var(--muted) 7%, transparent); }
+  .pause-label-wrap { display: flex; align-items: center; gap: 8px; width: 100%; color: var(--muted); }
+  .pause-label-wrap .pause-icon { display: flex; flex-shrink: 0; width: 1.05em; height: 1.05em; }
+  .pause-label-wrap input.pause-label { color: var(--text); }
 
   .builder-foot { display: flex; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
   .builder-foot .total { color: var(--muted); }
@@ -336,6 +343,7 @@
     padding-left: calc(20px + env(safe-area-inset-left));
     background: radial-gradient(900px 620px at 50% -2%, #0a3a4a 0%, #04161e 72%); }
   .run-overlay.is-rest { background: radial-gradient(900px 620px at 50% -2%, #34280c 0%, #04161e 72%); }
+  .run-overlay.is-pause { background: radial-gradient(900px 620px at 50% -2%, #1c242c 0%, #04161e 72%); }
   .run-overlay.done { background: radial-gradient(900px 620px at 50% -2%, #0a3a44 0%, #04161e 72%); }
   /* Left column holds the whole timer; on phones/portrait it IS the view. */
   .run-col { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
@@ -344,6 +352,7 @@
   .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; }
   .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: .82rem; margin-top: 6px; }
   .is-rest .run-block-label { color: var(--rest); }
+  .is-pause .run-block-label { color: var(--muted); }
   /* min-height:0 lets the stage shrink inside the flex column so the controls below it
      can never be pushed off-screen; overflow-y:auto means genuinely-too-tall content
      (e.g. a long note on a short screen) scrolls within the stage instead of shoving
@@ -353,11 +362,17 @@
   /* Phase label: a tracked uppercase signpost (not a pill — pills are for interactive chips) */
   .run-type-pill { text-transform: uppercase; letter-spacing: var(--track-pill); font-size: .82rem; font-weight: 700; color: var(--accent-text); }
   .is-rest .run-type-pill { color: var(--rest); }
+  .is-pause .run-type-pill { color: var(--muted); }
   .run-ex-name { font-family: var(--font-display); font-weight: 600; text-transform: uppercase; letter-spacing: .01em;
     font-size: clamp(1.9rem, 6vw, 3.8rem); line-height: 1.04; margin: 2px 0; }
   .run-spring { display: flex; gap: 18px; align-items: baseline; justify-content: center; color: var(--muted); font-size: 1.05rem; min-height: 1.4em; flex-wrap: wrap; }
   .run-spring b { color: var(--accent-text); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
   .is-rest .run-spring b { color: var(--rest); }
+  /* The pause screen repurposes .run-spring (normally metric chips) for a big static icon. */
+  .run-pause-icon { display: flex; justify-content: center; color: var(--muted); margin: 10px 0; }
+  .run-pause-icon .ic { width: 64px; height: 64px; }
+  /* No ring/countdown while paused — it's a static screen, not a timer. */
+  .run-overlay.is-pause .run-dial { display: none; }
 
   /* SIGNATURE: the countdown as a depleting interval dial. The ring drains as the
      interval runs (teal for work, amber for rest); the numerals sit inside it. */
@@ -417,10 +432,12 @@
   .run-order .ro-row .ro-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .run-order .ro-row .ro-dur { font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--text) 55%, transparent); flex-shrink: 0; }
   .run-order .ro-row.ro-rest { font-size: .85rem; color: color-mix(in srgb, var(--text) 45%, transparent); padding: 4px 10px; }
+  .run-order .ro-row.ro-pause { font-style: italic; color: color-mix(in srgb, var(--text) 55%, transparent); }
   .run-order .ro-row.done { opacity: .42; }
   .run-order .ro-row.done .ro-name { text-decoration: line-through; }
   .run-order .ro-row.current { background: var(--gold-soft); color: var(--text); box-shadow: inset 3px 0 0 var(--gold); font-weight: 600; }
   .is-rest .run-order .ro-row.current { background: var(--rest-soft); box-shadow: inset 3px 0 0 var(--rest); }
+  .is-pause .run-order .ro-row.current { background: color-mix(in srgb, var(--muted) 18%, transparent); box-shadow: inset 3px 0 0 var(--muted); }
   .run-order .ro-row .ro-note { color: var(--accent-text); flex-shrink: 0; font-style: normal; }
 
   /* The two-column "class dashboard" layout kicks in on large landscape screens. */
@@ -1086,6 +1103,7 @@
   //             fields; this migrates them into metrics so old saves keep working.
   function normalizeExercise(e) {
     e.id = e.id || uid();
+    e.type = e.type === "pause" ? "pause" : "exercise";   // "pause" = a manual-resume flow marker, not a timed move
     e.name = typeof e.name === "string" ? e.name : "";
     if (!e.metrics || typeof e.metrics !== "object") e.metrics = {};
     // migrate legacy top-level fields into metrics (once), then remove them
@@ -1214,9 +1232,9 @@
     });
     return t;
   }
-  function exerciseCount(r) {                                        // how many exercises in a routine (all blocks)
+  function exerciseCount(r) {                                        // how many REAL exercises in a routine (pauses don't count)
     var n = 0;
-    r.blocks.forEach(function (b) { n += b.exercises.length; });
+    r.blocks.forEach(function (b) { b.exercises.forEach(function (e) { if (e.type !== "pause") n++; }); });
     return n;
   }
 
@@ -1462,7 +1480,11 @@
   }
   // A block starts with 1 exercise and its own class format (defaults to the last format used).
   function newBlock(name, disc) { return { id: uid(), name: name || "", discipline: disciplineKey({ discipline: disc || state.settings.lastDiscipline }), exercises: [ newExercise() ] }; }
-  function newExercise() { return { id: uid(), name: "", metrics: {}, duration: 45, rest: 0, note: "" }; } // default 45s work, no metrics/note yet
+  function newExercise() { return { id: uid(), type: "exercise", name: "", metrics: {}, duration: 45, rest: 0, note: "" }; } // default 45s work, no metrics/note yet
+  // A Pause: waits for the instructor to tap Resume (equipment changes etc.) — never
+  // auto-advances, never counts toward class time. Lives in the same block.exercises
+  // list as a real exercise (reuses all the existing reorder/duplicate/delete plumbing).
+  function newPause() { return { id: uid(), type: "pause", name: "", metrics: {}, duration: 0, rest: 0, note: "" }; }
   function findRoutine(id) {            // look up a routine object by its id
     for (var i = 0; i < state.routines.length; i++) if (state.routines[i].id === id) return state.routines[i];
     return null;
@@ -1655,15 +1677,52 @@
     wrap.appendChild(colhead);
 
     var rows = el("div");
-    block.exercises.forEach(function (ex, ei) { rows.appendChild(buildExRow(ex, ei, block, r)); });
+    block.exercises.forEach(function (ex, ei) {
+      rows.appendChild(ex.type === "pause" ? buildPauseRow(ex, ei, block) : buildExRow(ex, ei, block, r));
+    });
     wrap.appendChild(rows);
 
     var add = el("div", "block-add");
     var addBtn = iconBtn("plus", null, "Add exercise");
     addBtn.onclick = function () { addExercise(block.id); };
     add.appendChild(addBtn);
+    var addPauseBtn = iconBtn("pause", "ghost", "Add pause");
+    addPauseBtn.onclick = function () { addPause(block.id); };
+    add.appendChild(addPauseBtn);
     wrap.appendChild(add);
     return wrap;
+  }
+  // A Pause row: no metric grid, no time/rest — just an optional label. Reuses the
+  // exercise row's cell classes (name-cell/idx-cell/actions-cell) so the existing
+  // mobile-stacked layout rules apply to it unchanged.
+  function buildPauseRow(ex, ei, block) {
+    var row = el("div", "ex-row ex-row-pause"); row.dataset.id = ex.id;
+    row.style.setProperty("--ex-cols", "28px 1fr 158px");
+    row.appendChild(fieldCell(el("div", "idx", String(ei + 1)), "", "idx-cell"));
+
+    var wrap = el("div", "pause-label-wrap");
+    var icon = el("span", "pause-icon"); icon.innerHTML = ic("pause");
+    wrap.appendChild(icon);
+    var label = document.createElement("input");
+    label.className = "pause-label"; label.value = ex.name || "";
+    label.placeholder = "Pause (optional label, e.g. Switch to mats)";
+    label.setAttribute("aria-label", "Pause label");
+    label.oninput = function () { ex.name = label.value; markDirty(); };
+    wrap.appendChild(label);
+    row.appendChild(fieldCell(wrap, "Pause", "name-cell"));
+
+    var actions = el("div", "ex-actions");
+    var up = el("button", "ghost"); up.innerHTML = ic("up"); up.title = "Move up"; up.setAttribute("aria-label", "Move pause up");
+    up.disabled = ei === 0; up.onclick = function () { moveExercise(block.id, ex.id, -1); };
+    var down = el("button", "ghost"); down.innerHTML = ic("down"); down.title = "Move down"; down.setAttribute("aria-label", "Move pause down");
+    down.disabled = ei === block.exercises.length - 1; down.onclick = function () { moveExercise(block.id, ex.id, 1); };
+    var dup = el("button", "ghost"); dup.innerHTML = ic("copy"); dup.title = "Duplicate"; dup.setAttribute("aria-label", "Duplicate pause");
+    dup.onclick = function () { duplicateExercise(block.id, ex.id); };
+    var del = el("button", "danger"); del.innerHTML = ic("x"); del.title = "Delete"; del.setAttribute("aria-label", "Delete pause");
+    del.onclick = function () { deleteExercise(block.id, ex.id); };
+    [up, down, dup, del].forEach(function (b) { actions.appendChild(b); });
+    row.appendChild(fieldCell(actions, "", "actions-cell"));
+    return row;
   }
 
   // Build one editable exercise row. The metric columns are generated from the
@@ -1774,6 +1833,21 @@
       if (last) { var inp = last.querySelectorAll("input")[0]; if (inp) inp.focus(); }
     }
   }
+  function addPause(blockId) {
+    var r = findRoutine(currentEditId);
+    var b = findBlock(r, blockId); if (!b) return;
+    b.exercises.push(newPause());
+    markDirty(); renderBlocks();
+    // focus the newly added pause's label input
+    var blocksWrap = $("blocks");
+    var blockEls = blocksWrap.querySelectorAll(".block");
+    var bi = r.blocks.findIndex(function (x) { return x.id === blockId; });
+    if (blockEls[bi]) {
+      var rows = blockEls[bi].querySelectorAll(".ex-row-pause");
+      var last = rows[rows.length - 1];
+      if (last) { var inp = last.querySelector("input.pause-label"); if (inp) inp.focus(); }
+    }
+  }
   function moveExercise(blockId, exId, dir) {
     var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
     var i = b.exercises.findIndex(function (e) { return e.id === exId; });
@@ -1790,8 +1864,9 @@
   function deleteExercise(blockId, exId) {
     var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
     var ex = b.exercises.filter(function (e) { return e.id === exId; })[0];
-    var hasData = ex && ((ex.name || "").trim() || exerciseHasMetrics(ex));
-    if (hasData && !confirm('Delete exercise "' + (ex.name || "(unnamed)") + '"?')) return;
+    var isPause = ex && ex.type === "pause";
+    var hasData = ex && (isPause ? (ex.name || "").trim() : ((ex.name || "").trim() || exerciseHasMetrics(ex)));
+    if (hasData && !confirm('Delete ' + (isPause ? "pause" : "exercise") + ' "' + (ex.name || (isPause ? "Pause" : "(unnamed)")) + '"?')) return;
     b.exercises = b.exercises.filter(function (e) { return e.id !== exId; });
     markDirty(); renderBlocks();
   }
@@ -2042,6 +2117,12 @@
     r.blocks.forEach(function (b) {
       var fields = disciplineFields(b);   // metric fields for THIS block's format
       b.exercises.forEach(function (ex) {
+        if (ex.type === "pause") {
+          // A pause is its own step kind — untimed, and it never gets a following
+          // rest step (that only applies to a worked exercise).
+          steps.push({ kind: "pause", block: b.name, name: ex.name || "", duration: 0 });
+          return;
+        }
         // Always emit a work step so the exercise (name + metrics) is shown, even if
         // its work time is 0 (e.g. a reps-only move). Zero-duration steps are passed
         // through by the timer's auto-advance.
@@ -2121,6 +2202,22 @@
 
     // In a plan, prefix the block label with the current routine name.
     $("run-block-label").textContent = (st.routine ? st.routine + (st.block ? " · " + st.block : "") : (st.block || ""));
+    $("run-position").textContent = "Step " + (run.index + 1) + " of " + run.steps.length;
+
+    if (st.kind === "pause") {
+      // Always halt here, no matter how we arrived (auto-advance, Skip, or Back) —
+      // a pause waits for a manual Resume tap, never a ticking countdown.
+      run.running = false; stopTicker();
+      $("run-type").textContent = "Pause";
+      $("run-ex-name").textContent = st.name || "Paused";
+      $("run-spring").innerHTML = "<span class='run-pause-icon'>" + ic("pause") + "</span>";
+      $("run-note").textContent = "Tap Resume when you're ready to continue.";
+      $("run-next").innerHTML = "";
+      buildRunOrder();
+      updateRunTime();
+      return;
+    }
+
     $("run-type").textContent = st.kind === "rest" ? "Rest" : "Exercise";
     $("run-ex-name").textContent = st.name || (st.kind === "rest" ? "Rest" : "(unnamed)");
 
@@ -2133,18 +2230,18 @@
     // Coaching note for the current exercise (rest steps carry none → cleared → CSS hides it).
     $("run-note").textContent = st.note || "";
 
-    $("run-position").textContent = "Step " + (run.index + 1) + " of " + run.steps.length;
-
     // Preview the next step the timer will actually land on — skip past any
-    // zero-duration steps (e.g. reps-only moves), which advanceStep auto-advances.
+    // zero-duration steps (e.g. reps-only moves), which advanceStep auto-advances,
+    // but stop at a pause (which the timer will never skip past on its own).
     var next = null;
     for (var ni = run.index + 1; ni < run.steps.length; ni++) {
-      if ((run.steps[ni].duration || 0) > 0) { next = run.steps[ni]; break; }
+      if ((run.steps[ni].duration || 0) > 0 || run.steps[ni].kind === "pause") { next = run.steps[ni]; break; }
     }
+    var nextLabel = next ? (next.name || (next.kind === "rest" ? "Rest" : next.kind === "pause" ? "Pause" : "(unnamed)")) : "";
     var nextHint = (next && next.meta && next.meta[0]) ? (" · " + next.meta[0].label.toLowerCase() + " " + escapeHtml(next.meta[0].value)) : "";
+    var nextDur = (next && next.kind !== "pause") ? (" · " + fmtTime(next.duration || 0)) : "";
     $("run-next").innerHTML = next
-      ? "Next: <b>" + escapeHtml(next.name || (next.kind === "rest" ? "Rest" : "(unnamed)")) + "</b>" +
-        nextHint + " · " + fmtTime(next.duration || 0)
+      ? "Next: <b>" + escapeHtml(nextLabel) + "</b>" + nextHint + nextDur
       : "Last step";
     buildRunOrder();
     updateRunTime();
@@ -2165,12 +2262,12 @@
       }
       var blk = st.block || "";
       if (blk !== lastBlock) { lastBlock = blk; if (blk) panel.appendChild(el("div", "ro-block", blk)); }
-      var cls = "ro-row" + (st.kind === "rest" ? " ro-rest" : "") +
+      var cls = "ro-row" + (st.kind === "rest" ? " ro-rest" : "") + (st.kind === "pause" ? " ro-pause" : "") +
         (i < run.index ? " done" : "") + (i === run.index ? " current" : "");
       var row = el("div", cls);
-      row.appendChild(el("div", "ro-name", st.name || (st.kind === "rest" ? "Rest" : "(unnamed)")));
+      row.appendChild(el("div", "ro-name", st.name || (st.kind === "rest" ? "Rest" : st.kind === "pause" ? "Pause" : "(unnamed)")));
       if ((st.note || "").trim()) { var nt = el("span", "ro-note"); nt.innerHTML = ic("note"); nt.title = st.note; row.appendChild(nt); }
-      row.appendChild(el("div", "ro-dur", fmtTime(st.duration || 0)));
+      row.appendChild(el("div", "ro-dur", st.kind === "pause" ? "—" : fmtTime(st.duration || 0)));
       panel.appendChild(row);
       if (i === run.index) currentRow = row;
     });
@@ -2181,8 +2278,9 @@
   function updateRunTime() {
     var st = curStep(); if (!st) return;
     var timeEl = $("run-time");
-    // Ceil so the countdown shows N..1 each for a full second and only hits 0:00 at the boundary.
-    timeEl.textContent = fmtTime(Math.ceil(run.remaining));
+    // fmtTime rounds to the nearest second — same rounding the Elapsed/Remaining row
+    // below uses, so all three numbers on screen always agree with each other.
+    timeEl.textContent = fmtTime(run.remaining);
     timeEl.classList.toggle("warn", run.remaining <= 5);
     timeEl.classList.toggle("warn-anim", run.remaining <= 5 && run.running); // pulse only while actually counting
     var dur = st.duration || 0;
@@ -2195,10 +2293,12 @@
     $("run-remaining").textContent = fmtTime(run.total - elapsed);
   }
 
-  // The "get ready" lead-in screen: previews the first exercise (name, metrics, note)
-  // with a depleting ring counting down whole seconds before the workout begins.
+  // The "get ready" lead-in screen: previews the upcoming exercise (name, metrics, note)
+  // with a depleting ring counting down whole seconds. Used both before the very first
+  // step, and (with a fixed 5s lead) when resuming from a Pause — run.index already
+  // points at the step being previewed in both cases.
   function renderReady() {
-    var st = run.steps[0]; if (!st) return;
+    var st = curStep(); if (!st) return;
     $("run-overlay").className = "run-overlay is-work ready";
     $("run-stage").className = "run-stage";
     var live = $("run-live"); live.classList.remove("hidden");
@@ -2206,7 +2306,7 @@
     $("run-done").classList.add("hidden");
     $("run-block-label").textContent = (st.routine ? st.routine + (st.block ? " · " + st.block : "") : (st.block || ""));
     $("run-type").textContent = "Get Ready";
-    $("run-ex-name").textContent = st.name || "First exercise";
+    $("run-ex-name").textContent = st.name || "Next exercise";
     $("run-spring").innerHTML = (st.meta || []).map(function (mt) {
       return "<span>" + escapeHtml(mt.label) + " <b>" + escapeHtml(mt.value) + "</b></span>";
     }).join("");
@@ -2218,28 +2318,32 @@
   }
   function updateReadyTime() {
     var timeEl = $("run-time");
-    timeEl.textContent = String(Math.max(0, Math.ceil(run.lead)));   // whole seconds: 5,4,3…
+    timeEl.textContent = String(Math.max(0, Math.round(run.lead)));   // whole seconds: 5,4,3… (rounded, matching fmtTime below)
     timeEl.classList.toggle("warn", run.lead <= 3);
     timeEl.classList.toggle("warn-anim", run.lead <= 3 && run.running); // pulse only while actually counting
     var frac = run.leadTotal > 0 ? Math.max(0, Math.min(1, run.lead / run.leadTotal)) : 0;
     $("run-ring-fill").style.strokeDashoffset = (276.46 * (1 - frac)).toFixed(2);
-    $("run-elapsed").textContent = "0:00";
-    $("run-remaining").textContent = fmtTime(run.total);
+    $("run-elapsed").textContent = fmtTime(run.elapsedBefore);
+    $("run-remaining").textContent = fmtTime(run.total - run.elapsedBefore);
   }
 
   function setPlayLabel() {
     var btn = $("btn-run-play");
     function set(name, label, cls) { btn.innerHTML = ic(name) + "<span>" + label + "</span>"; btn.className = cls; }
     if (run.index >= run.steps.length) { set("restart", "Restart", "gold big"); return; }
+    var st = curStep();
+    // Sitting on a pause (not already counting down into the next step) → the main
+    // button becomes "Resume", which starts the 5s buffer rather than the normal timer.
+    if (st && st.kind === "pause" && run.lead === 0) { set("play", "Resume", "gold big"); return; }
     if (run.running) { set("pause", "Pause", "big"); return; }
     // Paused mid-interval → "Resume" (reassures the instructor it won't restart); only a
     // brand-new, untouched run shows "Start".
-    var st = curStep();
     var started = run.lead > 0 || run.index > 0 || run.elapsedBefore > 0 || (st && run.remaining < (st.duration || 0));
     set("play", started ? "Resume" : "Start", "gold big");
   }
   function announceText(st) {
     if (!st) return "";
+    if (st.kind === "pause") return "Paused" + (st.name ? ": " + st.name : "") + ". Tap Resume to continue.";
     var extra = (st.meta || []).map(function (mt) { return mt.label + " " + mt.value; }).join(", ");
     return (st.kind === "rest" ? "Rest" : (st.name || "exercise")) +
       (extra ? ", " + extra : "") + ", " + fmtTime(st.duration || 0);
@@ -2247,7 +2351,23 @@
 
   function playPause() {
     if (run.index >= run.steps.length) { restartRun(); return; }
+    var st = curStep();
+    if (st && st.kind === "pause" && run.lead === 0) { resumeFromPause(); return; }
     if (run.running) pauseRun(); else startRun();
+  }
+  // Tapping Resume on a Pause: advance past it, then play a fixed 5s countdown
+  // (independent of the general get-ready lead-in setting) previewing the next
+  // exercise before actually revealing it — reuses the same lead-in machinery.
+  function resumeFromPause() {
+    if (!advanceIndex(0)) {                  // the pause was the last step
+      beep(660, 0.5); run.running = false; stopTicker();
+      announce("Routine complete"); renderRunDone(); return;
+    }
+    ensureAudio();
+    run.lead = 5; run.leadTotal = 5;
+    run.running = true; run.lastTick = Date.now();
+    startTicker(); setPlayLabel(); renderReady();
+    announce("Resuming in 5 seconds.");
   }
   function startRun() {
     ensureAudio(); run.running = true; run.lastTick = Date.now();
@@ -2282,43 +2402,53 @@
   function tick() {
     if (!run.running) return;
     var now = Date.now(); var dt = (now - run.lastTick) / 1000; run.lastTick = now;
-    // Lead-in ("get ready") countdown runs before the first step.
+    // Lead-in ("get ready") countdown runs before the first step. Beep boundaries use
+    // round() to match the displayed number exactly (see updateReadyTime) — otherwise
+    // the beep would fire up to half a second off from when the number actually changes.
     if (run.lead > 0) {
       var prevL = run.lead; run.lead -= dt;
-      var pcL = Math.ceil(prevL), ccL = Math.ceil(Math.max(0, run.lead));
+      var pcL = Math.round(prevL), ccL = Math.round(Math.max(0, run.lead));
       for (var nl = pcL - 1; nl >= ccL; nl--) if (nl >= 1 && nl <= 3) beep(880, 0.08);
       if (run.lead <= 0) endLeadIn(); else updateReadyTime();
       return;
     }
     var prev = run.remaining; run.remaining -= dt;
-    // Countdown beeps for any of 3/2/1 crossed this tick (clamped so a long lag spike still cues).
-    var prevCeil = Math.ceil(prev), curCeil = Math.ceil(Math.max(0, run.remaining));
-    for (var n = prevCeil - 1; n >= curCeil; n--) if (n >= 1 && n <= 3) beep(880, 0.08);
+    // Countdown beeps for any of 3/2/1 crossed this tick (clamped so a long lag spike still
+    // cues). round() matches the displayed number (see updateRunTime) so the beep always
+    // lands exactly when the number changes.
+    var prevRound = Math.round(prev), curRound = Math.round(Math.max(0, run.remaining));
+    for (var n = prevRound - 1; n >= curRound; n--) if (n >= 1 && n <= 3) beep(880, 0.08);
     if (run.remaining <= 0) advanceStep(true); else updateRunTime();
   }
 
+  // Move run.index forward past the current step, skipping any further zero-duration
+  // steps EXCEPT a pause (which must always stop the run, regardless of duration).
+  // Returns true if we landed on a real step, false if we ran off the end.
+  function advanceIndex(carry) {
+    run.elapsedBefore += (curStep().duration || 0);
+    run.index++;
+    while (run.index < run.steps.length) {
+      var nxt = run.steps[run.index];
+      run.remaining = (nxt.duration || 0) + carry; carry = 0;
+      if (run.remaining > 0 || nxt.kind === "pause") break;
+      run.elapsedBefore += (nxt.duration || 0); run.index++;
+    }
+    return run.index < run.steps.length;
+  }
   // Move to the next step. fromTimer=true means the clock hit 0 (vs. the user
   // pressing Skip, fromTimer=false).
   function advanceStep(fromTimer) {
     // "carry" rolls a tiny timer overshoot into the next step so long sessions don't
     // drift — but only in auto-start mode (continuous), and capped at 2s.
     var carry = (fromTimer && state.settings.autostart) ? Math.max(-2, run.remaining) : 0;
-    run.elapsedBefore += (curStep().duration || 0);
-    run.index++;
-    // Skip past any zero-length steps (e.g. reps-only moves) so we land on a real one.
-    while (run.index < run.steps.length) {
-      var nxt = run.steps[run.index];
-      run.remaining = (nxt.duration || 0) + carry; carry = 0;
-      if (run.remaining > 0) break;
-      run.elapsedBefore += (nxt.duration || 0); run.index++;
-    }
-    if (run.index >= run.steps.length) {     // ran off the end -> done
+    if (!advanceIndex(carry)) {               // ran off the end -> done
       beep(660, 0.5); run.running = false; stopTicker();
       announce("Routine complete"); renderRunDone(); return;
     }
     beep(1046, 0.25);                         // higher beep = new step started
     renderRun();
     announce(announceText(curStep()));
+    if (curStep().kind === "pause") { run.running = false; stopTicker(); setPlayLabel(); return; }  // a pause always waits for Resume
     // Keep running into the next step only on a manual Skip, OR if auto-start is on.
     // (When the timer expires and auto-start is OFF, we pause between steps.)
     var keepRunning = run.running && (!fromTimer || state.settings.autostart);
@@ -2344,11 +2474,12 @@
       if (run.running) run.lastTick = Date.now();
       updateRunTime(); announce(announceText(curStep())); return;
     }
-    // Step back, skipping over any zero-duration (reps-only) steps so Prev lands on a real one.
+    // Step back, skipping over any zero-duration (reps-only) steps so Prev lands on a
+    // real one — but never skip past a pause, which must always stop the run.
     do {
       run.index--;
       run.elapsedBefore -= (curStep().duration || 0);
-    } while (run.index > 0 && (curStep().duration || 0) <= 0);
+    } while (run.index > 0 && (curStep().duration || 0) <= 0 && curStep().kind !== "pause");
     run.remaining = curStep().duration || 0;
     if (run.running) run.lastTick = Date.now();
     renderRun(); announce(announceText(curStep())); setPlayLabel();
@@ -2468,6 +2599,17 @@
         "<th>Start</th><th>Work</th><th>Rest</th>";
       html += "<table><thead><tr>" + ths + "</tr></thead><tbody>";
       b.exercises.forEach(function (e, ei) {
+        if (e.type === "pause") {
+          // A pause spans the exercise+metric columns as one labeled line, contributes
+          // no time, and doesn't advance the cumulative Start column.
+          html += "<tr class='r-pause'>" +
+            "<td class='num'>" + (ei + 1) + "</td>" +
+            "<td colspan='" + (1 + fields.length) + "'>" + escapeHtml("Pause" + (e.name ? " — " + e.name : "")) + "</td>" +
+            "<td class='num'>" + fmtTime(startAt) + "</td>" +
+            "<td class='num'>—</td><td class='num'>—</td>" +
+            "</tr>";
+          return;
+        }
         var tds = fields.map(function (f) { return "<td>" + escapeHtml(metricDisplay(e, f)) + "</td>"; }).join("");
         html += "<tr class='r-" + (e.rest ? "rest" : "work") + "'>" +
           "<td class='num'>" + (ei + 1) + "</td>" +
@@ -2513,16 +2655,17 @@
     lines.push(head.map(csv).join(","));
     var totWork = 0, totRest = 0;
     rows.forEach(function (x) {
-      totWork += x.duration; totRest += x.rest;
+      totWork += x.duration; totRest += x.rest;   // both 0 for a pause row, so this stays correct unconditionally
+      var isPause = x.ex.type === "pause";
       // Only fill a metric cell if that field belongs to THIS row's block format.
       // (Switching a block's format keeps the old values on the exercise so you can
       // switch back — but they must not leak into another block's union column.)
       var ownKeys = {};
       disciplineFields({ discipline: x.discipline }).forEach(function (f) { ownKeys[f.key] = true; });
-      var cells = [csv(x.block), x.n, csv(x.name)];
-      if (mixed) cells.push(csv(DISCIPLINES[x.discipline].label));
-      cells = cells.concat(fields.map(function (f) { return ownKeys[f.key] ? csv(metricDisplay(x.ex, f)) : ""; }))
-        .concat([fmtTime(x.startAt), fmtTime(x.duration), x.rest, x.duration]);
+      var cells = [csv(x.block), x.n, csv(isPause ? ("Pause" + (x.ex.name ? " — " + x.ex.name : "")) : x.name)];
+      if (mixed) cells.push(isPause ? "" : csv(DISCIPLINES[x.discipline].label));
+      cells = cells.concat(fields.map(function (f) { return (!isPause && ownKeys[f.key]) ? csv(metricDisplay(x.ex, f)) : ""; }))
+        .concat(isPause ? [fmtTime(x.startAt), "—", "—", "—"] : [fmtTime(x.startAt), fmtTime(x.duration), x.rest, x.duration]);
       lines.push(cells.join(","));
     });
     // Totals reconcile with their own columns: work under Work, rest under Rest.
@@ -2549,6 +2692,11 @@
       var fields = disciplineFields(b);   // each block lists its own format's metrics
       out.push("── " + (bi + 1) + ". " + (b.name || "Block " + (bi + 1)) + "  [" + DISCIPLINES[disciplineKey(b)].label + "]  (" + fmtTime(blockDuration(b)) + ")");
       b.exercises.forEach(function (e, ei) {
+        if (e.type === "pause") {
+          out.push("  " + pad((ei + 1) + ".", 4) + pad("[" + fmtTime(startAt) + "]", 9) + " " +
+            "Pause" + (e.name ? " — " + e.name : ""));
+          return;   // no time contribution — startAt stays put
+        }
         var line = "  " + pad((ei + 1) + ".", 4) + pad("[" + fmtTime(startAt) + "]", 9) + " " +
           (e.name || "(unnamed)") + "  (" + fmtTime(e.duration || 0) + ")";
         var extra = [];
