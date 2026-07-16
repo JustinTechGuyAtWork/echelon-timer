@@ -348,9 +348,13 @@
   /* Left column holds the whole timer; on phones/portrait it IS the view. */
   .run-col { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
   .run-order { display: none; }   /* the running-order panel only appears on large landscape (media query) */
-  .run-top { display: flex; align-items: center; gap: 12px; }
-  .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; }
-  .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: .82rem; margin-top: 6px; }
+  /* The block label is a flex sibling of the routine name + actions. By default it has
+     flex-basis:100% and the highest order, so it wraps to its own centered line BELOW the
+     top row (standard + phone). Wall mode overrides this to sit it inline, centered. */
+  .run-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; order: 1; }
+  .run-top-actions { display: flex; align-items: center; gap: 12px; order: 2; }
+  .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: .82rem; margin-top: 6px; order: 3; flex: 1 0 100%; }
   .is-rest .run-block-label { color: var(--rest); }
   .is-pause .run-block-label { color: var(--muted); }
   /* min-height:0 lets the stage shrink inside the flex column so the controls below it
@@ -472,17 +476,18 @@
     body.wall-run .run-overlay { gap: clamp(28px, 3vw, 56px); }
     body.wall-run .run-ex-name { font-size: clamp(2.4rem, 8vh, 6.4rem); }
     body.wall-run .run-type-pill { font-size: clamp(1rem, 2vh, 1.6rem); }
-    body.wall-run .run-block-label { font-size: clamp(1rem, 2.2vh, 1.8rem); }
+    /* Wall mode: pull the block label INTO the top row, centered between the routine
+       name (left, flex:1) and the step counter + Exit (right, flex:1). This frees the
+       whole line it used to occupy, so the exercise/dial content moves up. */
+    body.wall-run .run-block-label { order: 2; flex: 0 1 auto; margin-top: 0; font-size: clamp(1rem, 2.4vh, 2rem); }
+    body.wall-run .run-top-actions { order: 3; flex: 1; justify-content: flex-end; }
     body.wall-run .run-spring { font-size: clamp(1.4rem, 3.2vh, 2.6rem); gap: clamp(20px, 2.4vw, 40px); }
     body.wall-run .run-spring b { font-size: clamp(1.8rem, 4.2vh, 3.4rem); }
-    /* 32vh (not more): the column must fit name + metrics + dial + note + next +
-       elapsed/remaining in ~89vh of stage WITH headroom for a TWO-LINE exercise name
-       plus a two-line coaching note — real Lagree names like "Reverse Kneeling Crunch
-       Left Side" wrap at these sizes. Measured at 1920×1080: that worst case fits with
-       ~11px slack at 32vh and overflows at 36vh. Wall mode's value is in the text
-       sizes, not the ring — the countdown digits (0.33 × dial ≈ 114px at 1080p) stay
-       enormous. */
-    body.wall-run .run-dial { --dial: min(clamp(280px, 30vw, 560px), 32vh); }
+    /* 35vh: moving the block label into the top row (above) freed ~a line of height in
+       the stage, so the dial can grow while the two-line-name + two-line-note worst case
+       still fits at 1920×1080 (re-measured below). The countdown digits are 0.33 × dial,
+       so a bigger ring means bigger numbers too — ≈ 125px at 1080p. */
+    body.wall-run .run-dial { --dial: min(clamp(280px, 32vw, 560px), 35vh); }
     body.wall-run .run-note { font-size: clamp(1.05rem, 2.4vh, 2rem); }
     body.wall-run .run-next { font-size: clamp(1.1rem, 2.6vh, 2.2rem); }
     body.wall-run .run-overall { font-size: clamp(1.4rem, 3.6vh, 3rem); gap: clamp(30px, 3.4vw, 60px); }
@@ -737,10 +742,15 @@
   <div class="run-col">
     <div class="run-top">
       <span class="run-routine" id="run-routine"></span>
-      <span class="muted" id="run-position"></span>
-      <button class="ghost small" id="btn-run-exit" data-ic="x" aria-label="Exit run">Exit</button>
+      <!-- Block label lives in this row so it can sit centered between the routine name
+           and step counter on wide screens; on standard/phone it wraps to its own line
+           below (see CSS). -->
+      <div class="run-block-label" id="run-block-label"></div>
+      <div class="run-top-actions">
+        <span class="muted" id="run-position"></span>
+        <button class="ghost small" id="btn-run-exit" data-ic="x" aria-label="Exit run">Exit</button>
+      </div>
     </div>
-    <div class="run-block-label" id="run-block-label"></div>
 
     <div class="run-stage" id="run-stage">
       <div id="run-live">
