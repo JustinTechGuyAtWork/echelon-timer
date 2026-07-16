@@ -357,7 +357,13 @@
      can never be pushed off-screen; overflow-y:auto means genuinely-too-tall content
      (e.g. a long note on a short screen) scrolls within the stage instead of shoving
      the controls out of view. */
-  .run-stage { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
+  /* Center the timer content via AUTO MARGINS on the child, not justify-content:center:
+     with justify-content:center + overflow-y:auto, overflowing content spills off BOTH
+     ends and the top half becomes unreachable (scrollTop can't go negative). Auto margins
+     render identically when content fits, but collapse to 0 on overflow so everything
+     stays reachable from the top. */
+  .run-stage { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 4px; }
+  #run-live, .run-done-msg { margin-top: auto; margin-bottom: auto; }
   #run-live { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
   /* Phase label: a tracked uppercase signpost (not a pill — pills are for interactive chips) */
   .run-type-pill { text-transform: uppercase; letter-spacing: var(--track-pill); font-size: .82rem; font-weight: 700; color: var(--accent-text); }
@@ -458,6 +464,42 @@
     .run-order .ro-row { font-size: clamp(1rem, 2vh, 1.6rem); padding: clamp(7px, 1.1vh, 13px) 10px; }
     /* .ro-rest carries its own padding at base, which outranks .ro-row's — so restate it here. */
     .run-order .ro-row.ro-rest { font-size: clamp(.85rem, 1.6vh, 1.25rem); padding: clamp(4px, .6vh, 7px) 10px; }
+
+    /* ===== Wall display mode (per-device choice in Settings → "This device") =====
+       An explicit switch, not screen-size detection: the same 1080p panel can be an
+       arm's-length monitor or a TV read from 20 feet, and pixels can't tell which.
+       Everything scales primarily with screen HEIGHT (vh) so 1080p and 4K TVs look alike. */
+    body.wall-run .run-overlay { gap: clamp(28px, 3vw, 56px); }
+    body.wall-run .run-ex-name { font-size: clamp(2.4rem, 8vh, 6.4rem); }
+    body.wall-run .run-type-pill { font-size: clamp(1rem, 2vh, 1.6rem); }
+    body.wall-run .run-block-label { font-size: clamp(1rem, 2.2vh, 1.8rem); }
+    body.wall-run .run-spring { font-size: clamp(1.4rem, 3.2vh, 2.6rem); gap: clamp(20px, 2.4vw, 40px); }
+    body.wall-run .run-spring b { font-size: clamp(1.8rem, 4.2vh, 3.4rem); }
+    /* 32vh (not more): the column must fit name + metrics + dial + note + next +
+       elapsed/remaining in ~89vh of stage WITH headroom for a TWO-LINE exercise name
+       plus a two-line coaching note — real Lagree names like "Reverse Kneeling Crunch
+       Left Side" wrap at these sizes. Measured at 1920×1080: that worst case fits with
+       ~11px slack at 32vh and overflows at 36vh. Wall mode's value is in the text
+       sizes, not the ring — the countdown digits (0.33 × dial ≈ 114px at 1080p) stay
+       enormous. */
+    body.wall-run .run-dial { --dial: min(clamp(280px, 30vw, 560px), 32vh); }
+    body.wall-run .run-note { font-size: clamp(1.05rem, 2.4vh, 2rem); }
+    body.wall-run .run-next { font-size: clamp(1.1rem, 2.6vh, 2.2rem); }
+    body.wall-run .run-overall { font-size: clamp(1.4rem, 3.6vh, 3rem); gap: clamp(30px, 3.4vw, 60px); }
+    body.wall-run .run-overall b { font-size: clamp(1.7rem, 4.6vh, 3.8rem); }
+    body.wall-run .run-pause-icon .ic { width: clamp(72px, 12vh, 140px); height: clamp(72px, 12vh, 140px); }
+    /* Wall running order — full-list style: wider panel, much bigger rows. */
+    body.wall-run .run-order { width: clamp(420px, 32vw, 660px); }
+    body.wall-run .run-order .ro-title { font-size: clamp(1.1rem, 2.2vh, 1.8rem); }
+    body.wall-run .run-order .ro-routine { font-size: clamp(1rem, 2vh, 1.6rem); }
+    body.wall-run .run-order .ro-block { font-size: clamp(.9rem, 1.8vh, 1.5rem); }
+    body.wall-run .run-order .ro-row { font-size: clamp(1.3rem, 3vh, 2.4rem); padding: clamp(10px, 1.6vh, 20px) 12px; }
+    body.wall-run .run-order .ro-row.ro-rest { font-size: clamp(1rem, 2.2vh, 1.8rem); padding: clamp(6px, 1vh, 12px) 12px; }
+    /* Rolling style: only ~5 rows, so they can be huge; rests stay slim between them. */
+    body.wall-order-rolling .run-order.ro-rolling .ro-row { font-size: clamp(1.6rem, 4.2vh, 3.4rem); padding: clamp(12px, 2vh, 26px) 14px; }
+    body.wall-order-rolling .run-order.ro-rolling .ro-row.ro-rest { font-size: clamp(1.1rem, 2.4vh, 2rem); padding: clamp(6px, 1vh, 12px) 14px; }
+    body.wall-order-rolling .run-order.ro-rolling .ro-row.done { opacity: .32; }
+    .run-order .ro-more { color: color-mix(in srgb, var(--text) 40%, transparent); font-size: clamp(.9rem, 1.8vh, 1.5rem); padding: 8px 14px; }
   }
 
   /* ---------- Modal ---------- */
@@ -771,6 +813,23 @@
       </select>
     </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
+    <label>This device</label>
+    <p class="muted" style="margin:4px 0 8px; font-size:0.86rem;">Saved on this screen only, never synced — set the studio TV to Wall display once and it keeps that choice (if the TV's browser data ever gets cleared, just set it again here). Wall display needs a large landscape screen; phones and portrait tablets always use the standard run screen.</p>
+    <div class="toggle-row">
+      <label for="set-runmode" style="flex:1;">Run screen on this device</label>
+      <select id="set-runmode" style="width:auto;">
+        <option value="standard">Standard</option>
+        <option value="wall">Wall display</option>
+      </select>
+    </div>
+    <div class="toggle-row">
+      <label for="set-orderstyle" style="flex:1;">Running order style (Wall display)</label>
+      <select id="set-orderstyle" style="width:auto;">
+        <option value="list">Full list</option>
+        <option value="rolling">Rolling</option>
+      </select>
+    </div>
+    <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
     <label>Backup &amp; restore all routines</label>
     <div style="display:flex; gap:10px; margin-top:6px; flex-wrap:wrap;">
       <button id="btn-backup" data-ic="download">Download backup</button>
@@ -954,6 +1013,22 @@
   //   and update it later.
   // ===========================================================================
   var STORE_KEY = "tempo.v1";        // bump this only if you intentionally want a clean slate for everyone
+  // Per-DEVICE display preferences. Deliberately OUTSIDE state/settings: settings sync to
+  // the user's account (last write wins across devices), but the display mode describes
+  // THIS screen — the studio wall TV stays "wall" while the same account's iPad stays
+  // "standard". Also excluded from backups (which only copy `state`) for the same reason.
+  var DISPLAY_KEY = "tempo.display.v1";
+  function loadDisplayPrefs() {
+    var p = null;
+    try { p = JSON.parse(localStorage.getItem(DISPLAY_KEY) || "null"); } catch (e) {}
+    if (!p || typeof p !== "object") p = {};
+    return {
+      runMode:    p.runMode === "wall" ? "wall" : "standard",
+      orderStyle: p.orderStyle === "rolling" ? "rolling" : "list"
+    };
+  }
+  var displayPrefs = loadDisplayPrefs();
+  function saveDisplayPrefs() { try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(displayPrefs)); } catch (e) {} }
   var idCounter = 0;
   function uid() {
     // Prefer a real UUID; fall back to time + randomness + counter. The timestamp makes
@@ -2247,13 +2322,38 @@
     updateRunTime();
   }
 
-  // Build the running-order panel (large-landscape "class dashboard"): the full step
-  // list grouped by routine (plans) and block, with the current step highlighted and
-  // scrolled into view, completed steps dimmed. It's a live view of run.steps.
+  // Build the running-order panel (large-landscape "class dashboard"). Two styles:
+  //  - Full list (default): every step, grouped by routine (plans) and block, current
+  //    highlighted + scrolled into view, completed dimmed.
+  //  - Rolling (wall display option): a 5-row window — the step just finished (dimmed),
+  //    the current step (big), and the next three — no group headers, rolls forward
+  //    automatically. Built for reading from across the room.
   function buildRunOrder() {
     var panel = $("run-order"); if (!panel) return;
     panel.innerHTML = "";
     panel.appendChild(el("div", "ro-title", "Running order"));
+    var rolling = displayPrefs.runMode === "wall" && displayPrefs.orderStyle === "rolling";
+    panel.classList.toggle("ro-rolling", rolling);
+    function makeRow(st, i) {
+      var cls = "ro-row" + (st.kind === "rest" ? " ro-rest" : "") + (st.kind === "pause" ? " ro-pause" : "") +
+        (i < run.index ? " done" : "") + (i === run.index ? " current" : "");
+      var row = el("div", cls);
+      row.appendChild(el("div", "ro-name", st.name || (st.kind === "rest" ? "Rest" : st.kind === "pause" ? "Pause" : "(unnamed)")));
+      if ((st.note || "").trim()) { var nt = el("span", "ro-note"); nt.innerHTML = ic("note"); nt.title = st.note; row.appendChild(nt); }
+      row.appendChild(el("div", "ro-dur", st.kind === "pause" ? "—" : fmtTime(st.duration || 0)));
+      return row;
+    }
+    if (rolling) {
+      // Window centered just behind the current step; on the done screen (index past the
+      // end) it settles on the final steps, all dimmed.
+      var c = Math.min(run.index, run.steps.length - 1);
+      var from = Math.max(0, c - 1), to = Math.min(run.steps.length - 1, c + 3);
+      for (var i = from; i <= to; i++) panel.appendChild(makeRow(run.steps[i], i));
+      if (to < run.steps.length - 1) {
+        panel.appendChild(el("div", "ro-more", "+ " + (run.steps.length - 1 - to) + " more"));
+      }
+      return;   // only ~5 rows — nothing to scroll
+    }
     var lastRoutine = null, lastBlock = null, currentRow = null;
     run.steps.forEach(function (st, i) {
       if (st.routine && st.routine !== lastRoutine) {
@@ -2262,12 +2362,7 @@
       }
       var blk = st.block || "";
       if (blk !== lastBlock) { lastBlock = blk; if (blk) panel.appendChild(el("div", "ro-block", blk)); }
-      var cls = "ro-row" + (st.kind === "rest" ? " ro-rest" : "") + (st.kind === "pause" ? " ro-pause" : "") +
-        (i < run.index ? " done" : "") + (i === run.index ? " current" : "");
-      var row = el("div", cls);
-      row.appendChild(el("div", "ro-name", st.name || (st.kind === "rest" ? "Rest" : st.kind === "pause" ? "Pause" : "(unnamed)")));
-      if ((st.note || "").trim()) { var nt = el("span", "ro-note"); nt.innerHTML = ic("note"); nt.title = st.note; row.appendChild(nt); }
-      row.appendChild(el("div", "ro-dur", st.kind === "pause" ? "—" : fmtTime(st.duration || 0)));
+      var row = makeRow(st, i);
       panel.appendChild(row);
       if (i === run.index) currentRow = row;
     });
@@ -2756,6 +2851,9 @@
     $("set-beeps").checked = !!state.settings.beeps;
     $("set-autostart").checked = !!state.settings.autostart;
     $("set-leadin").value = String(state.settings.leadIn);
+    $("set-runmode").value = displayPrefs.runMode;        // per-device (not synced, not saved by Save)
+    $("set-orderstyle").value = displayPrefs.orderStyle;
+    $("set-orderstyle").disabled = displayPrefs.runMode !== "wall";
     var hasUndo = false;
     try { hasUndo = !!localStorage.getItem(STORE_KEY + ".prerestore"); } catch (e) {}
     $("btn-undo-restore").classList.toggle("hidden", !hasUndo);
@@ -2784,6 +2882,15 @@
   }
   function applyTheme() {
     document.documentElement.setAttribute("data-theme", state.settings.theme === "light" ? "light" : "dark");
+  }
+  // Apply the per-device display mode. The classes live on <body> — NOT on the run
+  // overlay, whose className is rebuilt wholesale by renderRun/renderReady/renderRunDone
+  // (any class added there would be wiped on the next step change).
+  function applyDisplayMode() {
+    document.body.classList.toggle("wall-run", displayPrefs.runMode === "wall");
+    document.body.classList.toggle("wall-order-rolling", displayPrefs.runMode === "wall" && displayPrefs.orderStyle === "rolling");
+    // Mid-run switch: rebuild the running-order panel in the new style right away.
+    if (!$("run-overlay").classList.contains("hidden")) buildRunOrder();
   }
   function toggleTheme() {
     state.settings.theme = (state.settings.theme === "light") ? "dark" : "light";
@@ -2980,6 +3087,28 @@
   $("btn-settings").onclick = openSettings;
   $("btn-settings-close").onclick = closeSettings;
   $("btn-settings-save").onclick = saveSettings;
+  // Per-device display prefs apply INSTANTLY (independent of the Save button, which
+  // commits only the synced account settings above it).
+  $("set-runmode").onchange = function () {
+    displayPrefs.runMode = this.value === "wall" ? "wall" : "standard";
+    $("set-orderstyle").disabled = displayPrefs.runMode !== "wall";
+    saveDisplayPrefs(); applyDisplayMode();
+  };
+  $("set-orderstyle").onchange = function () {
+    displayPrefs.orderStyle = this.value === "rolling" ? "rolling" : "list";
+    saveDisplayPrefs(); applyDisplayMode();
+  };
+  // If another tab on THIS device changes the display prefs, pick them up live — the
+  // run screen covers the Settings gear during a class, so a second tab is the only
+  // way to reconfigure a screen mid-class without exiting the run.
+  window.addEventListener("storage", function (e) {
+    if (e.key !== DISPLAY_KEY) return;
+    displayPrefs = loadDisplayPrefs();
+    $("set-runmode").value = displayPrefs.runMode;
+    $("set-orderstyle").value = displayPrefs.orderStyle;
+    $("set-orderstyle").disabled = displayPrefs.runMode !== "wall";
+    applyDisplayMode();
+  });
   $("btn-backup").onclick = backup;
   $("btn-restore").onclick = function () { $("restore-file").click(); };
   $("btn-undo-restore").onclick = undoRestore;
@@ -3344,6 +3473,7 @@
   // ===========================================================================
   hydrateIcons();   // swap the static buttons' data-ic glyphs for inline SVG icons
   applyTheme();
+  applyDisplayMode();   // per-device run-screen mode (wall display vs standard)
   updateBrand();
   updateMoveDatalist();
   updateAccountUI();
