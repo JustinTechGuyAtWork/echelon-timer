@@ -428,10 +428,19 @@
     .run-overlay { flex-direction: row; gap: 28px; align-items: stretch; }
     .run-col { min-width: 0; }
     .run-order { display: flex; flex-direction: column; }
-    /* Wall-mounted display: the coaching metrics an instructor calls out (spring/cadence/
-       resistance) must be readable across the room, so scale them with the screen. */
+    /* Wall-mounted display: everything an instructor reads across the room scales with the
+       screen height — coaching metrics, the elapsed/remaining readout, and the running order. */
     .run-spring { font-size: clamp(1.05rem, 1.8vh, 1.5rem); }
     .run-spring b { font-size: clamp(1.3rem, 2.4vh, 2rem); }
+    .run-overall { font-size: clamp(1.04rem, 2.2vh, 1.9rem); gap: clamp(26px, 3vw, 48px); }
+    .run-overall b { font-size: clamp(1.15rem, 2.8vh, 2.4rem); }
+    .run-order { width: clamp(360px, 26vw, 520px); }
+    .run-order .ro-title { font-size: clamp(.95rem, 1.7vh, 1.4rem); }
+    .run-order .ro-routine { font-size: clamp(.82rem, 1.5vh, 1.2rem); }
+    .run-order .ro-block { font-size: clamp(.72rem, 1.3vh, 1.05rem); }
+    .run-order .ro-row { font-size: clamp(1rem, 2vh, 1.6rem); padding: clamp(7px, 1.1vh, 13px) 10px; }
+    /* .ro-rest carries its own padding at base, which outranks .ro-row's — so restate it here. */
+    .run-order .ro-row.ro-rest { font-size: clamp(.85rem, 1.6vh, 1.25rem); padding: clamp(4px, .6vh, 7px) 10px; }
   }
 
   /* ---------- Modal ---------- */
@@ -559,6 +568,7 @@
   .signin-card h1 { font-family: var(--font-display); letter-spacing: .5px; }   /* match the top-bar wordmark */
   .signin-card p { color: var(--muted); }
   .signin-error { color: var(--danger); font-size: 0.9rem; }
+  .signin-error.signin-note { color: var(--muted); }   /* same slot, but this one isn't a failure */
   .account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 </style>
@@ -870,6 +880,13 @@
     setUserDoc:  (uid, data) => setDoc(doc(db, "users", uid), data, { merge: true }),
     getUserDocOnce: (uid) => getDoc(doc(db, "users", uid)).then((s) => s.exists() ? s.data() : null),
     bulkUpload:  bulkUpload,
+    // Class share links: a snapshot doc in /shares that any company user can read + import.
+    // A ref's id exists the instant it's made — no server round trip. That lets the app copy
+    // the link inside the click itself (Safari only allows clipboard writes there) and let the
+    // upload land afterwards, instead of hanging on an ack that never comes when offline.
+    newShareRef: () => doc(collection(db, "shares")),
+    writeShare:  (ref, data) => setDoc(ref, Object.assign({}, data, { createdAt: serverTimestamp() })),
+    getShare:    (id) => getDoc(doc(db, "shares", id)).then((s) => s.exists() ? s.data() : null),
   };
   window.dispatchEvent(new Event("echelon-sync-ready"));
 </script>
@@ -1140,6 +1157,7 @@
     trash:   '<path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13M10 11v6M14 11v6"/>',
     download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
     upload:  '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 8l5-5 5 5"/><path d="M12 3v12"/>',
+    link:    '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     importF: '<path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>',
     pdf:     '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
     table:   '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>',
@@ -1419,6 +1437,7 @@
       var menu = kebabMenu([
         { label: "Edit", icon: "pencil", fn: function () { showBuilder(r.id); } },
         { label: "Export", icon: "download", fn: function () { openExport(r.id); } },   // openExport toasts if there's nothing to export
+        { label: "Share link", icon: "link", fn: function () { shareRoutineLink(r.id); } },
         { label: "Duplicate", icon: "copy", fn: function () { duplicateRoutine(r.id); } },
         { label: "Delete", icon: "trash", danger: true, fn: function () { deleteRoutine(r.id); } }
       ]);
@@ -2968,6 +2987,7 @@
         claim(state.routines); save();
         state.routines.forEach(function (r) { enqueueSync("routines", r.id); });
         state.catalog.forEach(function (m) { enqueueSync("catalog", m.id); });
+        flushSyncPush();          // fire now — the startSync() call right after this returns tears down the 800ms debounce timer
         try { localStorage.setItem(flagKey, "1"); } catch (e) {}
         return;
       }
@@ -2993,6 +3013,90 @@
     state.routines = []; state.sequences = []; state.catalog = []; state.settings = defaultSettings();
     try { localStorage.removeItem(TOMB_KEY); } catch (e) {}
     save();
+  }
+
+  // ---- Class share links ---------------------------------------------------
+  //   "Share link" saves a SNAPSHOT of the routine to /shares and copies a short URL.
+  //   Any signed-in company teammate who opens it imports their OWN COPY — independent,
+  //   so later edits on either side never affect the other. The link needs sign-in
+  //   (Firestore rules only let @COMPANY users read /shares).
+  // --------------------------------------------------------------------------
+  function copyToClipboard(text, okMsg) {
+    function fallback() {
+      var ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(ta);
+      if (ok) toast(okMsg); else prompt("Copy this link:", text);   // last resort: let them copy it by hand
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { toast(okMsg); }, fallback);
+    else fallback();
+  }
+  function shareRoutineLink(id) {
+    var r = findRoutine(id); if (!r) return;
+    if (!me || !window.EchelonSync) { toast("Sign in to share a class"); return; }
+    if (exerciseCount(r) === 0) { toast("Add an exercise first"); return; }
+    var ref = window.EchelonSync.newShareRef();      // id is ready now — copy while we still have the click
+    var offline = navigator.onLine === false;
+    copyToClipboard(location.origin + location.pathname + "?share=" + ref.id,
+      offline ? "Link copied — it starts working once you're back online"
+              : "Share link copied — it sends a snapshot of this class as it is right now");
+    window.EchelonSync.writeShare(ref, {
+      routine: stripMeta(r),
+      routineName: r.name || "Untitled routine",
+      sharedByEmail: me.email,
+      sharedByName: me.displayName || me.email
+    }).catch(function (err) {                        // offline this just waits; it only rejects for real
+      try { console.error("share write failed", err); } catch (e) {}
+      toast(err && err.code === "permission-denied"
+        ? "That link won't work — sharing isn't switched on in Firebase yet"
+        : "That link may not work — the class didn't reach the server");
+    });
+  }
+  // Opened with ?share=<id> → offer to import that snapshot as your own copy.
+  var shareImportStarted = false;                   // auth can fire more than once — only ever import once
+  function maybeImportShare() {
+    var sid = null;
+    try { sid = new URLSearchParams(location.search).get("share"); } catch (e) {}
+    if (!sid || !me || !window.EchelonSync || shareImportStarted) return;
+    shareImportStarted = true;
+    function clearParam() { try { history.replaceState({}, "", location.pathname); } catch (e) {} }
+    window.EchelonSync.getShare(sid).then(function (data) {
+      if (!data || !data.routine) { clearParam(); toast("That share link is no longer available"); return; }
+      var email = typeof data.sharedByEmail === "string" ? data.sharedByEmail : "";
+      if (email && me.email && email.toLowerCase() === me.email.toLowerCase()) {
+        clearParam(); toast("That's your own share link — send it to a teammate"); return;
+      }
+      // The rules pin sharedByEmail to the sender; sharedByName is unchecked, so lead with the
+      // verified address and show the free-text name only as an obviously-quoted, clearly-labeled
+      // extra — never woven into the same phrase, where a faked "Name <email>" could impersonate
+      // someone else and bury the real sender after it.
+      var name = String(data.sharedByName || "").replace(/\s+/g, " ").trim().slice(0, 80);
+      var by = email || "a teammate";
+      var label = (name && name.toLowerCase() !== email.toLowerCase()) ? (' (display name: "' + name + '")') : "";
+      // A share doc is another user's data — run it through the same repair path as a
+      // restored backup rather than trusting its shape.
+      var copy = normalizeState({ routines: [JSON.parse(JSON.stringify(data.routine))],
+                                  settings: null, catalog: [], sequences: [] }).routines[0];
+      if (!copy || !exerciseCount(copy)) { clearParam(); toast("That shared class looks damaged"); return; }
+      var nm = copy.name || "Untitled routine";
+      if (!confirm('Import "' + nm + '" — shared by ' + by + label + '?\n\nYou get your own copy to edit.')) { clearParam(); return; }
+      copy.id = uid(); copy.createdAt = Date.now(); copy.updatedAt = Date.now();
+      copy.scope = "mine"; copy.ownerEmail = me.email; copy.ownerName = me.displayName || me.email;
+      delete copy._syncedAt;
+      (copy.blocks || []).forEach(function (b) {      // fresh ids so it can't collide with the sharer's
+        b.id = uid();
+        (b.exercises || []).forEach(function (e) { e.id = uid(); });
+      });
+      state.routines.push(copy); save(); enqueueSync("routines", copy.id); renderLibrary();
+      clearParam();                                   // only now — the import is committed
+      toast('Imported "' + nm + '"');
+    }).catch(function (err) {                         // keep ?share= so a reload retries
+      shareImportStarted = false;
+      try { console.error("share read failed", err); } catch (e) {}
+      toast(err && err.code === "permission-denied"
+        ? "Couldn't open that link — sharing isn't switched on in Firebase yet"
+        : "Couldn't open that share link — check your connection and reload");
+    });
   }
   // After a "Restore from file" while signed in, make the cloud follow the restored local
   // state: push every restored item (so it wins + reaches other devices) and delete from the
@@ -3021,9 +3125,21 @@
   }
   function emailDomain(email) { return (email || "").toLowerCase().split("@")[1] || ""; }
   function showApp() { document.body.classList.remove("signed-out"); }
-  function showSignIn(msg) {
+  function showSignIn(msg, isNote) {
     document.body.classList.add("signed-out");
-    var e = $("signin-error"); if (e) { e.textContent = msg || ""; e.classList.toggle("hidden", !msg); }
+    var e = $("signin-error");
+    if (e) {
+      e.textContent = msg || "";
+      e.classList.toggle("hidden", !msg);
+      e.classList.toggle("signin-note", isNote === true);
+    }
+  }
+  // Someone who followed a ?share= link hits the sign-in wall first — say why they're here.
+  function showSignInOrShareNote() {
+    var p = null;
+    try { p = new URLSearchParams(location.search).get("share"); } catch (e) {}
+    if (p) showSignIn("A teammate shared a class with you. Sign in with your company Google account to open it.", true);
+    else showSignIn("");
   }
   function updateAccountUI(user) {
     var el = $("account-email"); var id = user || cachedIdentity();
@@ -3060,13 +3176,14 @@
         try { await migrateToCloud(me); } catch (e) {}     // one-time upload of existing local data (guarded)
         startSync(me);                                       // attach listeners + enable per-item push
         if (!$("view-library").classList.contains("hidden")) renderLibrary();  // show "Loading…" until the first snapshot (if the library is empty)
+        maybeImportShare();                                  // opened via a ?share=… link → offer the import
       } else if (user) {                                     // signed in but wrong domain / unverified
         flushSyncPush(); stopSync(); me = null; window.EchelonSync.signOut(); setCachedIdentity(null);
         showSignIn(emailDomain(user.email) === window.EchelonSync.domain
           ? "Please verify your email with Google, then sign in again."
           : "Please sign in with your company (@" + window.EchelonSync.domain + ") email.");
       } else {                                               // signed out / never signed in
-        flushSyncPush(); stopSync(); me = null; setCachedIdentity(null); showSignIn("");
+        flushSyncPush(); stopSync(); me = null; setCachedIdentity(null); showSignInOrShareNote();
       }
     });
   }
@@ -3083,7 +3200,7 @@
   updateMoveDatalist();
   updateAccountUI();
   var siLogo = $("signin-logo"); if (siLogo) siLogo.src = ECHELON_LOGO;
-  if (cachedIdentity()) showApp(); else showSignIn("");        // offline-first gate decision
+  if (cachedIdentity()) showApp(); else showSignInOrShareNote();   // offline-first gate decision
   if (window.EchelonSync) startAuthGate();
   else window.addEventListener("echelon-sync-ready", startAuthGate);
   save();           // commit any load-time normalization/migration (e.g. autostart default) right away
