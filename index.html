@@ -374,12 +374,7 @@
   /* The block label is a flex sibling of the routine name + actions. By default it has
      flex-basis:100% and the highest order, so it wraps to its own centered line BELOW the
      top row (standard + phone). Wall mode overrides this to sit it inline, centered. */
-  /* position+z-index: in Broadcast mode, every piece is position:fixed and freely
-     draggable anywhere on screen — CSS stacking rules paint position:fixed elements above
-     static content REGARDLESS of DOM order, so a piece dragged over this corner would
-     silently swallow clicks on Exit (as happened). An explicit z-index above their
-     (implicit, z-index:auto) stacking keeps Exit clickable no matter how pieces are arranged. */
-  .run-top { position: relative; z-index: 10; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .run-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .run-top .run-routine { font-size: var(--t-body); color: var(--muted); flex: 1; order: 1; }
   .run-top-actions { display: flex; align-items: center; gap: 12px; order: 2; }
   .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: var(--t-small); margin-top: 6px; order: 3; flex: 1 0 100%; }
@@ -401,17 +396,6 @@
      (1280×800), content overflowed .run-stage by 6px and triggered a scrollbar on what's
      meant to read as a full, contained screen. */
   #run-live { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; }
-  /* .bc-el marks every piece Broadcast mode can position independently (bc-exname,
-     bc-spring, bc-note, bc-timer, bc-overall) — everywhere else it must be invisible as a
-     box so its one child flows exactly as before. The `order` values below (unrelated to
-     the grouping) are what actually keep the original type→name→spring→dial→note→next→
-     overall sequence in this flex layout. */
-  .bc-el { display: contents; }
-  /* Studio logo: only exists for Broadcast mode (no equivalent in Standard/Wall) — unlike
-     the other bc-el pieces, display:contents doesn't work here (a replaced element like
-     <img> has no "contents" to unwrap, so browsers just render it as display:none), so
-     it gets its own explicit hide/show instead of sharing the .bc-el default. */
-  #run-logo { display: none; }
   #run-type { order: 1; } #run-ex-name { order: 2; } #run-spring { order: 3; }
   .run-dial { order: 4; } #run-note { order: 5; } #run-next { order: 6; } .run-overall { order: 7; }
   /* Phase label: a tracked uppercase signpost (not a pill — pills are for interactive chips) */
@@ -572,109 +556,6 @@
     /* No rolling-specific override — the base .ro-row.done opacity (.62, chosen above
        for AA contrast) already applies; the old .32 here dropped well under 2:1. */
     .run-order .ro-more { color: color-mix(in srgb, var(--text) 65%, transparent); font-size: clamp(.9rem, 1.8vh, 1.5rem); padding: 8px 14px; }
-
-    /* ===== Broadcast mode (per-device choice in Settings → "This device") =====
-       A third mode: instead of Wall's single scaled-up column, six pieces — timer,
-       exercise info, up next, running order, block/round label, studio logo — become
-       independently sized/positioned boxes covering the screen. position:fixed (not
-       absolute) is deliberate: it works regardless of how deeply an element sits in
-       the DOM, so the routine name, Exit button, step counter, and playback controls
-       are untouched, staying exactly where Standard/Wall already put them.
-       The percentages below are Pass 1's fixed default; a drag/resize editor to change
-       them is a follow-up. container-type:size + cq* units make the text inside each
-       box scale with the box itself rather than the viewport, so resizing a box (once
-       the editor exists) actually changes how big its content reads. */
-    body.broadcast-run .bc-el,
-    body.broadcast-run #run-next,
-    body.broadcast-run #run-order,
-    body.broadcast-run .run-block-label,
-    body.broadcast-run #run-logo {
-      position: fixed; margin: 0;
-    }
-    /* container-type:size only goes on boxes whose OWN descendants use cq units below —
-       #run-next/.run-block-label size their own (only) text node, and a container can't
-       query itself for that (circular), so those two use vh instead, further down. */
-    body.broadcast-run .bc-el,
-    body.broadcast-run #run-order {
-      container-type: size;
-    }
-    body.broadcast-run #bc-exname,
-    body.broadcast-run #bc-spring,
-    body.broadcast-run #bc-note,
-    body.broadcast-run #bc-timer,
-    body.broadcast-run #bc-overall,
-    body.broadcast-run #run-next,
-    body.broadcast-run .run-block-label {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      overflow: hidden; text-align: center;
-    }
-    body.broadcast-run #run-order { display: flex; flex-direction: column; overflow-y: auto; width: auto; }
-    body.broadcast-run #run-logo { display: block; object-fit: contain; }
-
-    /* Default layout (percentages of the screen) — a drag/resize editor is a follow-up.
-       Timer/overall and exname/spring/note used to be two boxes sharing 4-5 different
-       pieces of content; each piece now gets its own box so resizing or text-sizing one
-       (e.g. the countdown dial) can never push a DIFFERENT piece (e.g. Elapsed/Remaining)
-       past its edge and get clipped. */
-    body.broadcast-run #bc-timer        { left: 3%;  top: 8%;  width: 40%; height: 42%; }
-    body.broadcast-run #bc-overall      { left: 3%;  top: 52%; width: 40%; height: 8%;  }
-    body.broadcast-run .run-block-label { left: 3%;  top: 64%; width: 40%; height: 10%; }
-    body.broadcast-run #run-logo        { left: 3%;  top: 78%; width: 14%; height: 14%; }
-    body.broadcast-run #bc-exname       { left: 46%; top: 8%;  width: 51%; height: 14%; }
-    body.broadcast-run #bc-spring       { left: 46%; top: 24%; width: 51%; height: 8%;  }
-    body.broadcast-run #bc-note         { left: 46%; top: 34%; width: 51%; height: 10%; }
-    body.broadcast-run #run-next        { left: 46%; top: 46%; width: 51%; height: 10%; }
-    body.broadcast-run #run-order       { left: 46%; top: 58%; width: 51%; height: 34%; }
-
-    /* Text scales with its own box (container query units), not the viewport). Every
-       rule below caps on BOTH cqw and cqh (not just cqh) — Pass 1's boxes were a fixed
-       shape so height was always the binding constraint, but Pass 2 lets a box go
-       arbitrarily narrow, and a cqh-only size would then overflow its own width. */
-    /* Every size below is × var(--bc-text-scale) — the per-piece "Text size" the editor
-       sets on each element (default 1), so an instructor can push the timer bigger or the
-       running order smaller than the box alone would auto-fit. */
-    /* The dial already fills 78% of its (now dial-only) box at 100% text size — the
-       tightest fit of any piece. A 3rd/4th bound (92cqw/92cqh, independent of scale)
-       stops it growing past its own edge at high text-size settings instead of clipping. */
-    body.broadcast-run .run-dial { --dial: min(calc(78cqw * var(--bc-text-scale, 1)), calc(78cqh * var(--bc-text-scale, 1)), 92cqw, 92cqh); margin: 0; }
-    body.broadcast-run .run-type-pill { font-size: calc(min(3cqw, 6cqh) * var(--bc-text-scale, 1)); }
-    body.broadcast-run .run-ex-name { font-size: calc(min(7cqw, 15cqh) * var(--bc-text-scale, 1)); margin: 2cqh 0; }
-    /* Cadence/Resistance now has its own dedicated (short, wide) box — the old 6cqh ceiling
-       was tuned for when this shared a much taller box with the exercise name. A box this
-       short caps cqh-based sizing hard regardless of the text-size slider, so it stayed
-       "tiny" even at 200%. A far more generous cqh lets the slider actually make it
-       prominent — the 55/60cqh outer ceiling was tuned empirically (measured against actual
-       rendered text) as the largest size that still fits BOTH label+value phrases on one
-       line at 200% scale in the default box width; higher wraps the phrase onto 2 lines,
-       which then overflows the (short) box height instead. */
-    body.broadcast-run .run-spring { font-size: min(calc(8cqw * var(--bc-text-scale, 1)), calc(45cqh * var(--bc-text-scale, 1)), 55cqh); gap: 3cqw; }
-    body.broadcast-run .run-spring b { font-size: min(calc(9cqw * var(--bc-text-scale, 1)), calc(52cqh * var(--bc-text-scale, 1)), 60cqh); }
-    body.broadcast-run .run-note { font-size: calc(min(2.5cqw, 5.5cqh) * var(--bc-text-scale, 1)); max-width: 90cqw; margin-top: 1.5cqh; }
-    /* Same fix as .run-spring above — Elapsed/Remaining now has its own dedicated short box. */
-    body.broadcast-run .run-overall { font-size: min(calc(8cqw * var(--bc-text-scale, 1)), calc(45cqh * var(--bc-text-scale, 1)), 55cqh); gap: 4cqw; margin-top: 1cqh; }
-    body.broadcast-run .run-overall b { font-size: min(calc(9cqw * var(--bc-text-scale, 1)), calc(52cqh * var(--bc-text-scale, 1)), 60cqh); }
-    body.broadcast-run #run-next { font-size: calc(3.2vh * var(--bc-text-scale, 1)); line-height: 1.3; }
-    body.broadcast-run .run-block-label { font-size: calc(5.5vh * var(--bc-text-scale, 1)); }
-    /* The sticky title's fade-gradient (base rule, above) fades FROM --bg — a flat color
-       that matches the app's own normal background but NOT the broadcast screen's actual
-       backdrop (a radial gradient, .run-overlay above), so it rendered as a visibly
-       mismatched rectangle sitting over "RUNNING ORDER". Drop the fade in broadcast mode —
-       the title stays pinned while scrolling, it just doesn't try to fade content under it. */
-    body.broadcast-run #run-order .ro-title { font-size: calc(min(5cqw, 6cqh) * var(--bc-text-scale, 1)); background: transparent; }
-    body.broadcast-run #run-order .ro-routine { font-size: calc(min(4cqw, 5cqh) * var(--bc-text-scale, 1)); }
-    body.broadcast-run #run-order .ro-block { font-size: calc(min(4cqw, 4.5cqh) * var(--bc-text-scale, 1)); }
-    body.broadcast-run #run-order .ro-row { font-size: calc(min(4cqw, 5.5cqh) * var(--bc-text-scale, 1)); padding: 1cqh 1.5cqw; }
-    body.broadcast-run #run-order .ro-row.ro-rest { font-size: calc(min(3.5cqw, 4.5cqh) * var(--bc-text-scale, 1)); }
-    body.broadcast-run #run-order .ro-more { font-size: calc(min(4cqw, 4.5cqh) * var(--bc-text-scale, 1)); }
-    /* The current-step row's solid tinted fill is a useful "you are here" cue on the
-       instructor's own screen (Standard/Wall), but on the audience-facing Broadcast output
-       it reads as leftover app chrome. Keep the accent bar + bold weight, drop the fill.
-       (.is-rest/.is-pause land on #run-overlay itself, not body — hence the selector shape.) */
-    body.broadcast-run #run-order .ro-row.current,
-    body.broadcast-run #run-overlay.is-rest #run-order .ro-row.current,
-    body.broadcast-run #run-overlay.is-pause #run-order .ro-row.current {
-      background: transparent;
-    }
   }
 
   /* ---------- Modal ---------- */
@@ -823,89 +704,6 @@
   .account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 
-  /* ---------- Broadcast layout editor (a mini design tool) ---------- */
-  .bc-workbench { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; margin-top: 6px; }
-  .bc-stage { flex: 1 1 520px; min-width: 300px; display: flex; flex-direction: column; gap: 8px; }
-  .bc-stage-hint { margin: 0; text-align: center; color: var(--muted); font-size: var(--t-eyebrow); }
-  /* The canvas is a stand-in for the actual TV: a subtly lit dark screen. */
-  .bc-editor-canvas { position: relative; width: 100%; aspect-ratio: 16/9; overflow: hidden;
-    background: radial-gradient(130% 130% at 50% -10%, var(--panel-2), var(--panel));
-    border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-sm); }
-
-  /* Each element is a live little preview of what it shows on the broadcast. */
-  .bc-editor-canvas .bc-box { position: absolute; overflow: hidden; container-type: size;
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    text-align: center; color: var(--text); cursor: move; user-select: none;
-    background: color-mix(in srgb, var(--accent-text) 9%, transparent);
-    border: 1px solid color-mix(in srgb, var(--accent-text) 38%, transparent);
-    border-radius: 6px; transition: border-color .12s ease, background .12s ease, box-shadow .12s ease; }
-  .bc-editor-canvas .bc-box:hover { border-color: color-mix(in srgb, var(--accent-text) 66%, transparent); }
-  .bc-editor-canvas .bc-box.selected { border: 2px solid var(--gold);
-    background: color-mix(in srgb, var(--gold) 12%, transparent);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 22%, transparent); }
-  .bc-editor-canvas .bc-box:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-  /* Live-preview content — sized by the box itself (container query units) so it scales as you resize. */
-  .bc-pv { pointer-events: none; line-height: 1.05; max-width: 100%; }
-  .bc-pv-timer { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; font-size: calc(min(26cqw, 42cqh) * var(--bc-text-scale, 1)); }
-  .bc-pv-eyebrow { text-transform: uppercase; letter-spacing: .08em; color: var(--accent-text); font-weight: 700; font-size: calc(min(6.5cqw, 13cqh) * var(--bc-text-scale, 1)); }
-  .bc-pv-name { font-family: var(--font-display); text-transform: uppercase; font-weight: 600; font-size: calc(min(11cqw, 22cqh) * var(--bc-text-scale, 1)); }
-  .bc-pv-line { color: color-mix(in srgb, var(--text) 74%, transparent); font-size: calc(min(7.5cqw, 15cqh) * var(--bc-text-scale, 1)); padding: 0 4cqw; }
-  .bc-pv-overall, .bc-pv-spring { display: flex; gap: 4cqw; justify-content: center; flex-wrap: wrap;
-    color: color-mix(in srgb, var(--text) 74%, transparent); font-size: calc(min(5cqw, 10cqh) * var(--bc-text-scale, 1)); }
-  .bc-pv-overall b, .bc-pv-spring b { color: var(--accent-text); font-variant-numeric: tabular-nums; }
-  .bc-pv-note { font-style: italic; color: color-mix(in srgb, var(--text) 82%, transparent); font-size: calc(min(6cqw, 12cqh) * var(--bc-text-scale, 1)); padding: 0 4cqw; }
-  .bc-pv-block { font-family: var(--font-display); text-transform: uppercase; color: var(--accent-text); font-weight: 600; letter-spacing: .04em; font-size: calc(min(11cqw, 26cqh) * var(--bc-text-scale, 1)); }
-  /* Fill the box (contain) exactly like the real #run-logo on the broadcast, so the editor
-     preview is truthful about how big the logo actually renders on the TV. */
-  .bc-pv-logo { width: 100%; height: 100%; object-fit: contain; opacity: .92; }
-  .bc-pv-order { width: 100%; height: 100%; padding: 7cqh 7cqw; text-align: left; display: flex; flex-direction: column; }
-  .bc-pv-order-title { text-transform: uppercase; letter-spacing: .06em; color: color-mix(in srgb, var(--text) 66%, transparent); font-size: calc(min(5.5cqw, 11cqh) * var(--bc-text-scale, 1)); margin-bottom: 4cqh; }
-  .bc-pv-order-row { display: flex; justify-content: space-between; gap: 6cqw; font-size: calc(min(6cqw, 12cqh) * var(--bc-text-scale, 1)); color: color-mix(in srgb, var(--text) 84%, transparent); padding: 1.4cqh 0; }
-  .bc-pv-order-row span:last-child { font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--text) 72%, transparent); }
-
-  /* Selection handles: four corners; the bottom-right is the primary grip. */
-  .bc-editor-canvas .bc-handle { position: absolute; width: 13px; height: 13px; margin: -7px 0 0 -7px;
-    background: var(--bg); border: 2px solid var(--gold); border-radius: 3px; box-shadow: var(--shadow-sm); z-index: 2; }
-  .bc-editor-canvas .bc-handle.tl { cursor: nwse-resize; }
-  .bc-editor-canvas .bc-handle.tr { cursor: nesw-resize; }
-  .bc-editor-canvas .bc-handle.bl { cursor: nesw-resize; }
-  .bc-editor-canvas .bc-handle.br { cursor: nwse-resize; }
-  .bc-editor-canvas .bc-guide-v { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dashed var(--gold); z-index: 3; }
-  .bc-editor-canvas .bc-guide-h { position: absolute; left: 0; right: 0; height: 0; border-top: 2px dashed var(--gold); z-index: 3; }
-  .bc-editor-canvas .bc-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    text-align: center; padding: 20px; color: var(--muted); font-size: var(--t-note-lg); }
-
-  /* Inspector — a real properties panel, not a loose checkbox list. */
-  .bc-inspector { flex: 1 1 264px; min-width: 240px; max-width: 340px; align-self: stretch; display: flex; flex-direction: column; gap: 16px;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; box-shadow: var(--shadow-sm); }
-  .bc-insp-title { font-size: var(--t-eyebrow); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin-bottom: 8px; }
-  .bc-insp-hint { margin: 0; color: var(--muted); font-size: var(--t-small); }
-  /* Elements list (layers) */
-  .bc-el-row { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
-  .bc-el-row:hover { background: var(--panel-2); }
-  .bc-el-row.active { background: var(--gold-soft); box-shadow: inset 3px 0 0 var(--gold); }
-  .bc-el-name { flex: 1; min-width: 0; font-size: var(--t-small); text-align: left; justify-content: flex-start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: transparent; border: none; color: inherit; padding: 0; cursor: pointer; }
-  .bc-el-row.hidden-el .bc-el-name { color: var(--muted); text-decoration: line-through; }
-  .bc-el-eye { flex: none; display: inline-flex; align-items: center; justify-content: center; padding: 4px; border: none; background: transparent; color: var(--muted); border-radius: 6px; }
-  .bc-el-eye:hover { background: var(--panel-2); color: var(--text); }
-  .bc-el-row.active .bc-el-eye { color: var(--text); }
-  .bc-el-eye .ic { width: 1.1em; height: 1.1em; }
-  /* Position & size numeric fields */
-  .bc-prop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-  .bc-prop { display: flex; flex-direction: column; gap: 4px; }
-  .bc-prop > span { font-size: var(--t-eyebrow); color: var(--muted); }
-  .bc-prop-input { display: flex; align-items: center; gap: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); padding: 0 9px; }
-  .bc-prop-input:focus-within { border-color: var(--gold); }
-  .bc-prop-input input { border: none; background: transparent; padding: 8px 0; width: 100%; text-align: right; color: var(--text); -moz-appearance: textfield; }
-  .bc-prop-input input::-webkit-outer-spin-button, .bc-prop-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .bc-prop-suffix { color: var(--muted); font-size: var(--t-small); }
-  .bc-align-row { display: flex; gap: 8px; margin-top: 10px; }
-  .bc-align-row button { flex: 1; font-size: var(--t-small); padding: 8px 4px; }
-  /* Text-size control */
-  .bc-textsize-row { display: flex; align-items: center; gap: 10px; }
-  .bc-textsize-row input[type="range"] { flex: 1; accent-color: var(--gold); height: 22px; }
-  .bc-textsize-val { flex: none; min-width: 40px; text-align: right; font-size: var(--t-small); font-variant-numeric: tabular-nums; color: var(--text); }
-  .bc-textsize-reset { margin-top: 10px; font-size: var(--t-small); }
 </style>
 </head>
 <body class="signed-out">
@@ -1004,35 +802,6 @@
     </div>
   </section>
 
-  <!-- ===== Broadcast Layout Editor ===== -->
-  <section id="view-bc-editor" class="hidden">
-    <div class="builder-top">
-      <button class="ghost" id="btn-bc-back" data-ic="arrowLeft">Back</button>
-      <h1>Design Broadcast Layout</h1>
-      <button class="ghost" id="btn-bc-reset">Reset</button>
-      <button class="gold" id="btn-bc-save">Save layout</button>
-    </div>
-    <div class="bc-workbench">
-      <div class="bc-stage">
-        <div class="bc-editor-canvas" id="bc-editor-canvas"></div>
-        <p class="bc-stage-hint">Drag a piece to move it · drag a corner to resize · arrow keys nudge, Alt+arrows resize</p>
-      </div>
-      <aside class="bc-inspector">
-        <div class="bc-insp-sec">
-          <div class="bc-insp-title">Elements</div>
-          <div id="bc-elements-list"></div>
-        </div>
-        <div class="bc-insp-sec">
-          <div class="bc-insp-title">Position &amp; size</div>
-          <div id="bc-props"></div>
-        </div>
-        <div class="bc-insp-sec">
-          <div class="bc-insp-title">Text size</div>
-          <div id="bc-textsize"></div>
-        </div>
-      </aside>
-    </div>
-  </section>
 
 </div>
 
@@ -1055,34 +824,20 @@
 
     <div class="run-stage" id="run-stage">
       <div id="run-live">
-        <!-- bc-exname/bc-timer only become real (positionable) boxes in Broadcast mode
-             (see "Broadcast mode" CSS below) — in Standard/Wall they're display:contents,
-             so their children flow directly in #run-live's flex order (set via the
-             .run-type-pill/.run-ex-name/etc. `order` rules, unchanged from before). -->
-        <div class="bc-el" id="bc-exname">
-          <span class="run-type-pill" id="run-type">Exercise</span>
-          <div class="run-ex-name" id="run-ex-name">—</div>
+        <span class="run-type-pill" id="run-type">Exercise</span>
+        <div class="run-ex-name" id="run-ex-name">—</div>
+        <div class="run-spring" id="run-spring"></div>
+        <div class="run-note" id="run-note"></div>
+        <div class="run-dial">
+          <svg class="run-ring" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="run-ring-track" cx="50" cy="50" r="44"></circle>
+            <circle class="run-ring-fill" id="run-ring-fill" cx="50" cy="50" r="44"></circle>
+          </svg>
+          <div class="run-time" id="run-time">0:00</div>
         </div>
-        <div class="bc-el" id="bc-spring">
-          <div class="run-spring" id="run-spring"></div>
-        </div>
-        <div class="bc-el" id="bc-note">
-          <div class="run-note" id="run-note"></div>
-        </div>
-        <div class="bc-el" id="bc-timer">
-          <div class="run-dial">
-            <svg class="run-ring" viewBox="0 0 100 100" aria-hidden="true">
-              <circle class="run-ring-track" cx="50" cy="50" r="44"></circle>
-              <circle class="run-ring-fill" id="run-ring-fill" cx="50" cy="50" r="44"></circle>
-            </svg>
-            <div class="run-time" id="run-time">0:00</div>
-          </div>
-        </div>
-        <div class="bc-el" id="bc-overall">
-          <div class="run-overall">
-            <span>Elapsed <b id="run-elapsed">0:00</b></span>
-            <span>Remaining <b id="run-remaining">0:00</b></span>
-          </div>
+        <div class="run-overall">
+          <span>Elapsed <b id="run-elapsed">0:00</b></span>
+          <span>Remaining <b id="run-remaining">0:00</b></span>
         </div>
         <div class="run-next" id="run-next"></div>
       </div>
@@ -1099,7 +854,6 @@
 
   <!-- Right column: the running order. Shown only on large landscape screens (CSS). -->
   <aside class="run-order" id="run-order" aria-label="Running order"></aside>
-  <img id="run-logo" alt="" />
 </div>
 
 <!-- ===== Settings Modal ===== -->
@@ -1140,25 +894,20 @@
     </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
     <label class="section-label">This device</label>
-    <p class="muted" style="margin:4px 0 8px; font-size:var(--t-note);">Saved on this screen only, never synced — set the studio TV to Wall display or Broadcast once and it keeps that choice (if the TV's browser data ever gets cleared, just set it again here). Both need a large landscape screen; phones and portrait tablets always use the standard run screen.</p>
+    <p class="muted" style="margin:4px 0 8px; font-size:var(--t-note);">Saved on this screen only, never synced — set the studio TV to Wall display once and it keeps that choice (if the TV's browser data ever gets cleared, just set it again here). Needs a large landscape screen; phones and portrait tablets always use the standard run screen.</p>
     <div class="toggle-row">
       <label for="set-runmode" style="flex:1;">Run screen on this device</label>
       <select id="set-runmode" style="width:auto;">
         <option value="standard">Standard</option>
         <option value="wall">Wall display</option>
-        <option value="broadcast">Broadcast</option>
       </select>
     </div>
     <div class="toggle-row">
-      <label for="set-orderstyle" style="flex:1;">Running order style (Wall / Broadcast)</label>
+      <label for="set-orderstyle" style="flex:1;">Running order style (Wall)</label>
       <select id="set-orderstyle" style="width:auto;">
         <option value="list">Full list</option>
         <option value="rolling">Rolling</option>
       </select>
-    </div>
-    <div class="toggle-row hidden" id="bc-edit-row">
-      <label style="flex:1;">Broadcast layout</label>
-      <button class="ghost small" id="btn-bc-edit">Edit layout…</button>
     </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
     <label class="section-label">Backup &amp; restore all routines</label>
@@ -1353,100 +1102,13 @@
     try { p = JSON.parse(localStorage.getItem(DISPLAY_KEY) || "null"); } catch (e) {}
     if (!p || typeof p !== "object") p = {};
     return {
-      runMode:    (p.runMode === "wall" || p.runMode === "broadcast") ? p.runMode : "standard",
+      runMode:    p.runMode === "wall" ? p.runMode : "standard",
       orderStyle: p.orderStyle === "rolling" ? "rolling" : "list"
     };
   }
   var displayPrefs = loadDisplayPrefs();
   function saveDisplayPrefs() { try { localStorage.setItem(DISPLAY_KEY, JSON.stringify(displayPrefs)); } catch (e) {} }
 
-  // Broadcast mode's 6 pieces, as percentages of the screen (0-100) — resolution
-  // independent, so the same layout looks right on any TV. Per-device, like
-  // displayPrefs above (not synced, not in backups). left/top/width/height describe
-  // where the box actually renders; the CSS defaults (Pass 1) are the fallback for a
-  // device that has never opened the editor.
-  var BROADCAST_KEY = "tempo.broadcastLayout.v1";
-  // Timer and Exercise name used to each be ONE box holding several different things
-  // (dial+stats; label+name+cadence/resistance+note) — resizing or text-sizing one part
-  // could push a DIFFERENT part in the same box past the edge, where it got clipped. Each
-  // piece is now its own independent box, so nothing shares space with a neighbor.
-  var BROADCAST_ELEMENTS = ["timer", "overall", "exname", "spring", "note", "next", "order", "blockLabel", "logo"];
-  var BROADCAST_LABELS = {
-    timer: "Timer / countdown", overall: "Elapsed / remaining", exname: "Exercise name",
-    spring: "Cadence / resistance", note: "Coaching note", next: "Up next preview",
-    order: "Running order", blockLabel: "Block / round label", logo: "Studio logo"
-  };
-  var BROADCAST_SELECTORS = {
-    timer: "#bc-timer", overall: "#bc-overall", exname: "#bc-exname", spring: "#bc-spring", note: "#bc-note",
-    next: "#run-next", order: "#run-order", blockLabel: ".run-block-label", logo: "#run-logo"
-  };
-  // textScale multiplies each piece's auto-fit text size (1 = default). Lets an instructor
-  // make, say, the timer bigger or the running order smaller than the box alone dictates.
-  var BC_TEXT_MIN = 0.5, BC_TEXT_MAX = 2;
-  function defaultBroadcastLayout() {
-    return {
-      timer:      { left: 3,  top: 8,  width: 40, height: 42, visible: true, textScale: 1 },
-      overall:    { left: 3,  top: 52, width: 40, height: 8,  visible: true, textScale: 1 },
-      blockLabel: { left: 3,  top: 64, width: 40, height: 10, visible: true, textScale: 1 },
-      logo:       { left: 3,  top: 78, width: 14, height: 14, visible: true, textScale: 1 },
-      exname:     { left: 46, top: 8,  width: 51, height: 14, visible: true, textScale: 1 },
-      spring:     { left: 46, top: 24, width: 51, height: 8,  visible: true, textScale: 1 },
-      note:       { left: 46, top: 34, width: 51, height: 10, visible: true, textScale: 1 },
-      // "Next: <name> · <duration>" can wrap to 3 lines for a long exercise name — 10%
-      // wasn't tall enough and the top or bottom line got clipped. 14% fits 3 lines cleanly.
-      next:       { left: 46, top: 46, width: 51, height: 14, visible: true, textScale: 1 },
-      order:      { left: 46, top: 62, width: 51, height: 30, visible: true, textScale: 1 }
-    };
-  }
-  function clampPct(v) { return Math.max(0, Math.min(100, v)); }
-  // Rebuild from stored JSON defensively — a hand-edited or stale-schema value
-  // shouldn't be able to push a box off-canvas or to a degenerate (zero) size.
-  function loadBroadcastLayout() {
-    var def = defaultBroadcastLayout(), stored = null;
-    try { stored = JSON.parse(localStorage.getItem(BROADCAST_KEY) || "null"); } catch (e) {}
-    if (!stored || typeof stored !== "object") return def;
-    var out = {};
-    BROADCAST_ELEMENTS.forEach(function (k) {
-      var src = stored[k], d = def[k];
-      if (!src || typeof src !== "object") { out[k] = d; return; }
-      function num(v, fallback) { v = Number(v); return isFinite(v) ? v : fallback; }
-      // Width/height are floored at 5 FIRST, then left/top are pulled back to make room —
-      // clamping in the other order (position first) could leave e.g. left:98 forcing
-      // width down to 2 (since only 2% of canvas remains), silently breaking the 5% floor.
-      var width = Math.min(100, Math.max(5, num(src.width, d.width)));
-      var height = Math.min(100, Math.max(5, num(src.height, d.height)));
-      var left = Math.max(0, Math.min(100 - width, clampPct(num(src.left, d.left))));
-      var top = Math.max(0, Math.min(100 - height, clampPct(num(src.top, d.top))));
-      var textScale = Math.max(BC_TEXT_MIN, Math.min(BC_TEXT_MAX, num(src.textScale, 1)));  // missing on pre-textScale saves → 1
-      out[k] = { left: left, top: top, width: width, height: height, visible: !(src.visible === false || src.visible === "false"), textScale: textScale };
-    });
-    return out;
-  }
-  function saveBroadcastLayout(layout) { try { localStorage.setItem(BROADCAST_KEY, JSON.stringify(layout)); } catch (e) {} }
-  var broadcastLayout = loadBroadcastLayout();
-  // Push the saved layout onto the real run-screen elements. Only meaningful in
-  // Broadcast mode — but the "else" branch must fully undo it, not just the hidden
-  // class: #run-order and #run-next still have a real `width` (etc.) rule in
-  // Standard/Wall CSS (just no `position`), and an inline style ALWAYS beats a
-  // stylesheet rule regardless of position, so a leftover inline width from
-  // Broadcast would silently override Standard/Wall's own sizing.
-  function applyBroadcastLayout() {
-    BROADCAST_ELEMENTS.forEach(function (k) {
-      var el = document.querySelector(BROADCAST_SELECTORS[k]);
-      if (!el) return;
-      if (displayPrefs.runMode === "broadcast") {
-        var v = broadcastLayout[k];
-        el.style.left = v.left + "%"; el.style.top = v.top + "%";
-        el.style.width = v.width + "%"; el.style.height = v.height + "%";
-        el.style.setProperty("--bc-text-scale", v.textScale);
-        el.classList.toggle("hidden", !v.visible);
-      } else {
-        el.style.left = ""; el.style.top = ""; el.style.width = ""; el.style.height = "";
-        el.style.removeProperty("--bc-text-scale");
-        el.classList.remove("hidden");
-      }
-    });
-  }
   var idCounter = 0;
   function uid() {
     // Prefer a real UUID; fall back to time + randomness + counter. The timestamp makes
@@ -1679,9 +1341,7 @@
     contrast:'<circle cx="12" cy="12" r="9"/><path d="M12 3v18a9 9 0 0 0 0-18Z" fill="currentColor" stroke="none"/>',
     check:   '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
     arrowLeft:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
-    plus:    '<path d="M12 5v14M5 12h14"/>',
-    eye:     '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
-    eyeOff:  '<path d="M9.9 5.2A9.5 9.5 0 0 1 12 5c6.5 0 10 7 10 7a15.3 15.3 0 0 1-2.4 3.2M6.6 6.6A15.3 15.3 0 0 0 2 12s3.5 7 10 7a9.5 9.5 0 0 0 4.2-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="M3 3l18 18"/>'
+    plus:    '<path d="M12 5v14M5 12h14"/>'
   };
   function ic(name) {
     return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -1795,7 +1455,6 @@
     $("view-builder").classList.add("hidden");
     $("view-library").classList.add("hidden");
     $("view-catalog").classList.add("hidden");
-    $("view-bc-editor").classList.add("hidden");
   }
   function showLibrary() {
     hideAllViews();
@@ -2683,30 +2342,38 @@
   }
   function buildSteps(r) {
     var steps = [];
-    r.blocks.forEach(function (b) {
+    // blockId (the block's index in this routine) uniquely tags every step of a given
+    // block instance so the running order can COLLAPSE its repeated rounds into one
+    // listing. (Single-routine only today; a future multi-routine plan runner would need
+    // to offset blockId per routine to avoid cross-routine collisions.)
+    r.blocks.forEach(function (b, bi) {
       var fields = disciplineFields(b);   // metric fields for THIS block's format
       var rounds = b.repeat || 1;
+      var blockName = b.name || "";
       for (var round = 1; round <= rounds; round++) {
-        // Fold the round number into the block label itself (rather than a separate
-        // field) so everything that already displays st.block — the run screen, the
-        // running-order list's block grouping, wall mode — shows "Round 2 of 5" for
-        // free, and the running order gets a fresh group header each time it changes.
+        // st.block keeps the "Round 2 of 5" suffix so the run screen / wall label reads it
+        // directly. The running-order panel instead uses blockId/blockName/round/
+        // roundsTotal/posInRound (below) to show the block ONCE with a live round header.
         var blockLabel = rounds > 1
-          ? (b.name ? b.name + " · Round " + round + " of " + rounds : "Round " + round + " of " + rounds)
-          : b.name;
+          ? (blockName ? blockName + " · Round " + round + " of " + rounds : "Round " + round + " of " + rounds)
+          : blockName;
+        var posInRound = 0;   // position of this step within the round — the key the collapsed running order highlights by
         b.exercises.forEach(function (ex) {
           if (ex.type === "pause") {
             // A pause is its own step kind — untimed, and it never gets a following
             // rest step (that only applies to a worked exercise).
-            steps.push({ kind: "pause", block: blockLabel, name: ex.name || "", duration: 0 });
+            steps.push({ kind: "pause", block: blockLabel, blockId: bi, blockName: blockName, round: round, roundsTotal: rounds, posInRound: posInRound, name: ex.name || "", duration: 0 });
+            posInRound++;
             return;
           }
           // Always emit a work step so the exercise (name + metrics) is shown, even if
           // its work time is 0 (e.g. a reps-only move). Zero-duration steps are passed
           // through by the timer's auto-advance.
-          steps.push({ kind: "work", block: blockLabel, name: ex.name, meta: stepMeta(ex, fields), duration: ex.duration || 0, note: ex.note || "" });
+          steps.push({ kind: "work", block: blockLabel, blockId: bi, blockName: blockName, round: round, roundsTotal: rounds, posInRound: posInRound, name: ex.name, meta: stepMeta(ex, fields), duration: ex.duration || 0, note: ex.note || "" });
+          posInRound++;
           if (ex.rest > 0) {
-            steps.push({ kind: "rest", block: blockLabel, name: "Rest", meta: [], duration: ex.rest });
+            steps.push({ kind: "rest", block: blockLabel, blockId: bi, blockName: blockName, round: round, roundsTotal: rounds, posInRound: posInRound, name: "Rest", meta: [], duration: ex.rest });
+            posInRound++;
           }
         });
       }
@@ -2840,9 +2507,9 @@
     panel.appendChild(el("div", "ro-title", "Running order"));
     var rolling = runModeHasOrder(displayPrefs.runMode) && displayPrefs.orderStyle === "rolling";
     panel.classList.toggle("ro-rolling", rolling);
-    function makeRow(st, i) {
+    function makeRow(st, state) {
       var cls = "ro-row" + (st.kind === "rest" ? " ro-rest" : "") + (st.kind === "pause" ? " ro-pause" : "") +
-        (i < run.index ? " done" : "") + (i === run.index ? " current" : "");
+        (state === "done" ? " done" : "") + (state === "current" ? " current" : "");
       var row = el("div", cls);
       row.appendChild(el("div", "ro-name", st.name || (st.kind === "rest" ? "Rest" : st.kind === "pause" ? "Pause" : "(unnamed)")));
       if ((st.note || "").trim()) { var nt = el("span", "ro-note"); nt.innerHTML = ic("note"); nt.title = st.note; row.appendChild(nt); }
@@ -2850,27 +2517,60 @@
       return row;
     }
     if (rolling) {
-      // Window centered just behind the current step; on the done screen (index past the
-      // end) it settles on the final steps, all dimmed.
+      // A moving "what's coming up" window of the next few ACTUAL steps (repeats included),
+      // centered just behind the current step; on the done screen it settles on the final
+      // steps, all dimmed. Deliberately does NOT collapse rounds — the point is the preview.
       var c = Math.min(run.index, run.steps.length - 1);
       var from = Math.max(0, c - 1), to = Math.min(run.steps.length - 1, c + 3);
-      for (var i = from; i <= to; i++) panel.appendChild(makeRow(run.steps[i], i));
+      for (var i = from; i <= to; i++) {
+        panel.appendChild(makeRow(run.steps[i], i < run.index ? "done" : i === run.index ? "current" : ""));
+      }
       if (to < run.steps.length - 1) {
         panel.appendChild(el("div", "ro-more", "+ " + (run.steps.length - 1 - to) + " more"));
       }
       return;   // only ~5 rows — nothing to scroll
     }
-    var lastRoutine = null, lastBlock = null, currentRow = null;
-    run.steps.forEach(function (st, i) {
-      if (st.routine && st.routine !== lastRoutine) {
-        lastRoutine = st.routine; lastBlock = null;
-        panel.appendChild(el("div", "ro-routine", st.routine));
+    // Full list: COLLAPSE each repeated block to a single listing (round 1 is the template
+    // — every round has identical content). The current exercise is highlighted by its
+    // position WITHIN the current round, so the highlight cycles through the same rows each
+    // round; the block header shows the live round ("Round 2 of 4") for the active block.
+    var complete = run.index >= run.steps.length;
+    var cur = complete ? null : run.steps[run.index];
+    var groups = [], byId = {};
+    run.steps.forEach(function (st) {
+      if ((st.round || 1) !== 1) return;   // only round 1 supplies the display rows
+      var key = st.blockId != null ? st.blockId : ("b:" + (st.block || ""));
+      var g = byId[key];
+      if (!g) {
+        g = { blockId: st.blockId, routine: st.routine || null,
+              blockName: st.blockName != null ? st.blockName : (st.block || ""),
+              roundsTotal: st.roundsTotal || 1, rows: [] };
+        byId[key] = g; groups.push(g);
       }
-      var blk = st.block || "";
-      if (blk !== lastBlock) { lastBlock = blk; if (blk) panel.appendChild(el("div", "ro-block", blk)); }
-      var row = makeRow(st, i);
-      panel.appendChild(row);
-      if (i === run.index) currentRow = row;
+      g.rows.push(st);
+    });
+    var lastRoutine = null, currentRow = null;
+    groups.forEach(function (g) {
+      if (g.routine && g.routine !== lastRoutine) { lastRoutine = g.routine; panel.appendChild(el("div", "ro-routine", g.routine)); }
+      var isActive = !!cur && cur.blockId === g.blockId;
+      var header;
+      if (g.roundsTotal > 1) {
+        var roundPart = isActive ? ("Round " + cur.round + " of " + g.roundsTotal) : (g.roundsTotal + " rounds");
+        header = g.blockName ? (g.blockName + " · " + roundPart) : roundPart;
+      } else {
+        header = g.blockName;   // "" for an unnamed single-round block → no header (unchanged)
+      }
+      if (header) panel.appendChild(el("div", "ro-block", header));
+      g.rows.forEach(function (st) {
+        var state;
+        if (complete || cur.blockId > g.blockId) state = "done";        // whole block already behind us
+        else if (cur.blockId < g.blockId) state = "";                    // block not reached yet
+        else state = st.posInRound < cur.posInRound ? "done"             // within the active block: this round's progress
+          : (st.posInRound === cur.posInRound ? "current" : "");
+        var row = makeRow(st, state);
+        panel.appendChild(row);
+        if (state === "current") currentRow = row;
+      });
     });
     // Keep the current step in view (only when the panel is actually visible).
     if (currentRow && panel.offsetParent !== null) currentRow.scrollIntoView({ block: "center", behavior: "auto" });
@@ -3394,12 +3094,11 @@
   // Settings now holds only per-user preferences + the tips/backup sections.
   // Branding (name/logo/accent) is fixed to Echelon — set in defaultSettings(), not
   // editable here — so the app looks consistent for everyone it's distributed to.
-  // Two bits of Settings UI hinge on the current run mode — kept in one place since
+  // The running-order style dropdown only applies to Wall mode — kept in one place since
   // it's set from 3 spots (opening Settings, changing the mode here, and picking it
   // up live from another tab via the storage listener below).
   function syncRunModeUI() {
     $("set-orderstyle").disabled = !runModeHasOrder(displayPrefs.runMode);
-    $("bc-edit-row").classList.toggle("hidden", displayPrefs.runMode !== "broadcast");
   }
   function openSettings() {
     $("set-beeps").checked = !!state.settings.beeps;
@@ -3441,430 +3140,13 @@
   // Apply the per-device display mode. The classes live on <body> — NOT on the run
   // overlay, whose className is rebuilt wholesale by renderRun/renderReady/renderRunDone
   // (any class added there would be wiped on the next step change).
-  // Wall and Broadcast both offer the Full-list/Rolling running-order choice (the class
-  // name predates Broadcast and stayed as-is rather than a repo-wide rename).
-  function runModeHasOrder(mode) { return mode === "wall" || mode === "broadcast"; }
+  function runModeHasOrder(mode) { return mode === "wall"; }
   function applyDisplayMode() {
     document.body.classList.toggle("wall-run", displayPrefs.runMode === "wall");
-    document.body.classList.toggle("broadcast-run", displayPrefs.runMode === "broadcast");
     document.body.classList.toggle("wall-order-rolling", runModeHasOrder(displayPrefs.runMode) && displayPrefs.orderStyle === "rolling");
-    applyBroadcastLayout();
     // Mid-run switch: rebuild the running-order panel in the new style right away.
     if (!$("run-overlay").classList.contains("hidden")) buildRunOrder();
   }
-
-  // ===========================================================================
-  // Broadcast layout editor — drag/resize the 6 Broadcast-mode pieces on a
-  // scaled-down stand-in for the TV. Works on a LOCAL COPY (bcEditLayout); nothing
-  // reaches the real broadcastLayout/localStorage until Save. Percent-based math
-  // throughout so it's independent of the canvas's actual on-screen pixel size.
-  // ===========================================================================
-  var bcEditLayout = null;
-  var bcSelectedKey = null;
-  var bcDrag = null;              // {key, kind:'move'|'resize', pointerId, startClientX/Y, startLayout, rect}
-  var bcGuideV = null, bcGuideH = null;   // active snap-guide positions (% ) while dragging, else null
-  var BC_SNAP = 1.5;              // percent — how close to a guide before it snaps
-
-  function showBroadcastEditor() {
-    bcEditLayout = JSON.parse(JSON.stringify(broadcastLayout));
-    bcSelectedKey = null;
-    clearBcDragState();   // safety net: a drag interrupted in a PRIOR editor session must not leak into this one
-    hideAllViews();
-    $("view-bc-editor").classList.remove("hidden");
-    renderBcEditor();
-  }
-  function bcHasUnsavedChanges() { return JSON.stringify(bcEditLayout) !== JSON.stringify(broadcastLayout); }
-  // Only btn-bc-back used to check this — Moves and the Home logo both jump straight to
-  // another view, silently discarding in-progress edits. Every exit out of this view
-  // needs to go through this same check (true = safe to navigate away).
-  function confirmLeaveBcEditor() {
-    if ($("view-bc-editor").classList.contains("hidden")) return true;
-    return !bcHasUnsavedChanges() || confirm("Discard unsaved layout changes?");
-  }
-
-  // A tiny live preview of what each piece actually shows on the broadcast, so the
-  // canvas reads like the real screen instead of six gray labels. Text is sized in
-  // container-query units (see CSS) so it scales as the box is resized.
-  function bcPreviewHTML(k) {
-    switch (k) {
-      case "timer":      return '<div class="bc-pv bc-pv-timer">0:45</div>';
-      case "overall":    return '<div class="bc-pv bc-pv-overall"><span>Elapsed <b>0:12</b></span><span>Remaining <b>0:33</b></span></div>';
-      case "exname":     return '<div class="bc-pv bc-pv-eyebrow">Exercise</div><div class="bc-pv bc-pv-name">Standing Climb</div>';
-      case "spring":     return '<div class="bc-pv bc-pv-spring"><span>Cadence <b>85</b></span><span>Resistance <b>60</b></span></div>';
-      case "note":       return '<div class="bc-pv bc-pv-note">Keep your core tight and drive through the heels.</div>';
-      case "next":       return '<div class="bc-pv bc-pv-line">Next: Seated Flat</div>';
-      case "blockLabel": return '<div class="bc-pv bc-pv-block">Block 1</div>';
-      case "logo":       return '<img class="bc-pv-logo" src="' + ECHELON_LOGO + '" alt="">';
-      case "order":      return '<div class="bc-pv-order"><div class="bc-pv-order-title">Running order</div>' +
-        '<div class="bc-pv-order-row"><span>Standing Climb</span><span>0:45</span></div>' +
-        '<div class="bc-pv-order-row"><span>Seated Flat</span><span>0:45</span></div>' +
-        '<div class="bc-pv-order-row"><span>Sprints</span><span>0:30</span></div></div>';
-      default:           return escapeHtml(BROADCAST_LABELS[k]);
-    }
-  }
-  var BC_HANDLES = [["tl", 0, 0], ["tr", 1, 0], ["bl", 0, 1], ["br", 1, 1]];  // corner, x-of-width, y-of-height
-  function renderBcEditor() {
-    renderBcCanvas();
-    renderBcElements();
-    renderBcProps();
-    renderBcTextSize();
-  }
-  function renderBcCanvas() {
-    var canvas = $("bc-editor-canvas");
-    canvas.innerHTML = "";
-    var anyVisible = false;
-    BROADCAST_ELEMENTS.forEach(function (k) {
-      var v = bcEditLayout[k];
-      if (!v.visible) return;
-      anyVisible = true;
-      var box = el("div", "bc-box" + (bcSelectedKey === k ? " selected" : ""));
-      box.innerHTML = bcPreviewHTML(k);
-      box.style.left = v.left + "%"; box.style.top = v.top + "%";
-      box.style.width = v.width + "%"; box.style.height = v.height + "%";
-      box.style.setProperty("--bc-text-scale", v.textScale);   // so the preview shows the chosen text size
-      box.dataset.bcKey = k;
-      box.tabIndex = 0;
-      box.setAttribute("role", "button");
-      box.setAttribute("aria-label", BROADCAST_LABELS[k] + " — drag to move, arrow keys to nudge (Shift for a bigger step, Alt to resize instead of move)");
-      // Selecting happens in startBcDrag — every click starts with a mousedown, and that
-      // handler re-renders + refocuses, so a separate onclick would fire on a replaced node.
-      box.onmousedown = function (e) { startBcDrag(e, k, "move"); };
-      box.ontouchstart = function (e) { startBcDrag(e, k, "move"); };
-      box.onkeydown = function (e) { bcNudge(e, k); };
-      canvas.appendChild(box);
-      if (bcSelectedKey === k) {
-        BC_HANDLES.forEach(function (h) {
-          var handle = el("div", "bc-handle " + h[0]);
-          handle.style.left = (v.left + v.width * h[1]) + "%";
-          handle.style.top = (v.top + v.height * h[2]) + "%";
-          handle.setAttribute("aria-hidden", "true");
-          handle.onmousedown = function (e) { e.stopPropagation(); startBcDrag(e, k, "resize", h[0]); };
-          handle.ontouchstart = function (e) { e.stopPropagation(); startBcDrag(e, k, "resize", h[0]); };
-          canvas.appendChild(handle);
-        });
-      }
-    });
-    if (bcGuideV != null) { var gv = el("div", "bc-guide-v"); gv.style.left = bcGuideV + "%"; canvas.appendChild(gv); }
-    if (bcGuideH != null) { var gh = el("div", "bc-guide-h"); gh.style.top = bcGuideH + "%"; canvas.appendChild(gh); }
-    if (!anyVisible) canvas.appendChild(el("div", "bc-empty", "Everything's hidden — switch a piece back on in the panel to place it."));
-  }
-  // The Elements list = a layers panel: each piece has an eye toggle + a name that selects it.
-  function renderBcElements() {
-    var list = $("bc-elements-list");
-    list.innerHTML = "";
-    BROADCAST_ELEMENTS.forEach(function (k) {
-      var v = bcEditLayout[k];
-      var row = el("div", "bc-el-row" + (bcSelectedKey === k ? " active" : "") + (v.visible ? "" : " hidden-el"));
-      var name = el("button", "bc-el-name", BROADCAST_LABELS[k]); name.type = "button";
-      name.onclick = function () {
-        if (!v.visible) v.visible = true;   // clicking a hidden piece brings it back and selects it
-        bcSelectedKey = k; renderBcEditor(); focusBcBox(k);
-      };
-      var eye = el("button", "bc-el-eye"); eye.type = "button"; eye.id = "bc-eye-" + k;
-      eye.innerHTML = ic(v.visible ? "eye" : "eyeOff");
-      // An action-verb label ("Hide X") already tells a screen reader what the button does;
-      // pairing it with aria-pressed (a STATE) contradicts itself, so the label carries it alone.
-      eye.title = (v.visible ? "Hide " : "Show ") + BROADCAST_LABELS[k];
-      eye.setAttribute("aria-label", eye.title);
-      eye.onclick = function (e) {
-        e.stopPropagation();
-        v.visible = !v.visible;
-        if (!v.visible && bcSelectedKey === k) bcSelectedKey = null;
-        renderBcEditor();
-        var again = document.getElementById("bc-eye-" + k); if (again) again.focus();
-      };
-      row.appendChild(name); row.appendChild(eye);
-      list.appendChild(row);
-    });
-  }
-  // Position & size = precise numeric entry, complementing the drag handles.
-  function renderBcProps() {
-    var wrap = $("bc-props");
-    wrap.innerHTML = "";
-    if (!bcSelectedKey || !bcEditLayout[bcSelectedKey].visible) {
-      wrap.appendChild(el("p", "bc-insp-hint", "Select a piece to place it exactly."));
-      return;
-    }
-    var grid = el("div", "bc-prop-grid");
-    grid.appendChild(bcPropField("left", "X"));
-    grid.appendChild(bcPropField("top", "Y"));
-    grid.appendChild(bcPropField("width", "W"));
-    grid.appendChild(bcPropField("height", "H"));
-    wrap.appendChild(grid);
-    var align = el("div", "bc-align-row");
-    var cx = el("button", "ghost small", "Center across"); cx.type = "button";
-    cx.onclick = function () { var v = bcEditLayout[bcSelectedKey]; v.left = Math.round((100 - v.width) / 2); renderBcEditor(); focusBcBox(bcSelectedKey); };
-    var cy = el("button", "ghost small", "Center down"); cy.type = "button";
-    cy.onclick = function () { var v = bcEditLayout[bcSelectedKey]; v.top = Math.round((100 - v.height) / 2); renderBcEditor(); focusBcBox(bcSelectedKey); };
-    align.appendChild(cx); align.appendChild(cy);
-    wrap.appendChild(align);
-  }
-  function bcPropField(prop, labelText) {
-    // Close over the key at render time — NOT the live bcSelectedKey. Otherwise typing in
-    // a field then clicking another piece to commit would apply this value to the piece you
-    // just clicked (selection already moved before the field's change event fires).
-    var key = bcSelectedKey;
-    var v = bcEditLayout[key];
-    var cell = el("div", "bc-prop");
-    cell.appendChild(el("span", null, labelText));
-    var ib = el("div", "bc-prop-input");
-    var inp = document.createElement("input");
-    inp.type = "number"; inp.value = Math.round(v[prop]);
-    inp.min = (prop === "width" || prop === "height") ? 5 : 0; inp.max = 100; inp.step = 1;
-    inp.id = "bc-prop-" + prop;
-    inp.setAttribute("aria-label", BROADCAST_LABELS[key] + " " + labelText + " percent");
-    inp.onchange = function () {
-      var val = parseFloat(inp.value);
-      if (isNaN(val)) { inp.value = Math.round(bcEditLayout[key][prop]); return; }  // restore, keep focus
-      applyBcProp(key, prop, val);
-    };
-    ib.appendChild(inp); ib.appendChild(el("span", "bc-prop-suffix", "%"));
-    cell.appendChild(ib);
-    return cell;
-  }
-  function applyBcProp(key, prop, val) {
-    var v = bcEditLayout[key];
-    if (prop === "width")       v.width  = Math.max(5, Math.min(100 - v.left, Math.round(val)));
-    else if (prop === "height") v.height = Math.max(5, Math.min(100 - v.top,  Math.round(val)));
-    else if (prop === "left")   v.left   = Math.max(0, Math.min(100 - v.width,  Math.round(val)));
-    else if (prop === "top")    v.top    = Math.max(0, Math.min(100 - v.height, Math.round(val)));
-    // Update the canvas in place instead of a full rebuild, so focus stays put and Tab can
-    // move to the next field (a rebuild + force-refocus trapped focus on the same field).
-    bcApplyDragVisual(key);
-    var inp = document.getElementById("bc-prop-" + prop);   // reflect the clamped/rounded value
-    if (inp) inp.value = Math.round(v[prop]);
-  }
-  // Text size = a per-piece multiplier on the auto-fit size. The slider updates the model
-  // and the canvas preview LIVE (setting the CSS var on the one box) without a full
-  // re-render, so dragging stays smooth and the slider keeps focus.
-  function renderBcTextSize() {
-    var wrap = $("bc-textsize");
-    wrap.innerHTML = "";
-    if (!bcSelectedKey || !bcEditLayout[bcSelectedKey].visible) {
-      wrap.appendChild(el("p", "bc-insp-hint", "Select a piece to size its text.")); return;
-    }
-    if (bcSelectedKey === "logo") {
-      wrap.appendChild(el("p", "bc-insp-hint", "The logo scales with its box — drag a corner to resize it.")); return;
-    }
-    var v = bcEditLayout[bcSelectedKey];
-    var row = el("div", "bc-textsize-row");
-    var slider = document.createElement("input");
-    slider.type = "range"; slider.min = String(BC_TEXT_MIN * 100); slider.max = String(BC_TEXT_MAX * 100); slider.step = "5";
-    slider.value = String(Math.round((v.textScale || 1) * 100));
-    slider.setAttribute("aria-label", BROADCAST_LABELS[bcSelectedKey] + " text size percent");
-    var readout = el("span", "bc-textsize-val", slider.value + "%");
-    slider.oninput = function () {
-      var s = (+slider.value) / 100;
-      bcEditLayout[bcSelectedKey].textScale = s;
-      readout.textContent = slider.value + "%";
-      var box = document.querySelector('#bc-editor-canvas [data-bc-key="' + bcSelectedKey + '"]');
-      if (box) box.style.setProperty("--bc-text-scale", s);
-    };
-    row.appendChild(slider); row.appendChild(readout);
-    wrap.appendChild(row);
-    var reset = el("button", "ghost small bc-textsize-reset", "Reset to 100%"); reset.type = "button";
-    reset.onclick = function () { bcEditLayout[bcSelectedKey].textScale = 1; renderBcEditor(); focusBcBox(bcSelectedKey); };
-    wrap.appendChild(reset);
-  }
-  function focusBcBox(key) {
-    if (!key) return;
-    var box = document.querySelector('#bc-editor-canvas [data-bc-key="' + key + '"]');
-    if (box) box.focus();
-  }
-  function bcNudge(e, key) {
-    var step = e.shiftKey ? 5 : 1;
-    var v = bcEditLayout[key];
-    if (e.altKey) {
-      // Alt+arrow resizes — otherwise a keyboard-only user has no way to reach the
-      // (mouse/touch-only) corner handle at all.
-      if (e.key === "ArrowLeft") v.width = Math.max(5, v.width - step);
-      else if (e.key === "ArrowRight") v.width = Math.min(100 - v.left, v.width + step);
-      else if (e.key === "ArrowUp") v.height = Math.max(5, v.height - step);
-      else if (e.key === "ArrowDown") v.height = Math.min(100 - v.top, v.height + step);
-      else return;
-    } else {
-      if (e.key === "ArrowLeft") v.left = clampPct(Math.max(0, v.left - step));
-      else if (e.key === "ArrowRight") v.left = clampPct(Math.min(100 - v.width, v.left + step));
-      else if (e.key === "ArrowUp") v.top = clampPct(Math.max(0, v.top - step));
-      else if (e.key === "ArrowDown") v.top = clampPct(Math.min(100 - v.height, v.top + step));
-      else return;
-    }
-    e.preventDefault();
-    renderBcEditor(); focusBcBox(key);
-  }
-
-  // Tears down whatever startBcDrag set up, however the drag ends (mouseup/touchend,
-  // a touchcancel, the window losing focus mid-drag, or a stale drag from a previous
-  // editor session) — without this being reachable from every one of those paths, an
-  // abandoned drag leaves its listeners live, and the NEXT unrelated mouse/touch move
-  // anywhere on the page keeps dragging the box (see startBcDrag for the full story).
-  function clearBcDragState() {
-    bcDrag = null; bcGuideV = null; bcGuideH = null;
-    document.removeEventListener("mousemove", onBcDragMove);
-    document.removeEventListener("mouseup", endBcDrag);
-    document.removeEventListener("touchmove", onBcDragMove);
-    document.removeEventListener("touchend", endBcDrag);
-    document.removeEventListener("touchcancel", endBcDrag);
-    window.removeEventListener("blur", endBcDrag);
-  }
-  // Update the selection highlight + handles IN PLACE — toggle .selected on the existing
-  // boxes (never recreate them) and rebuild only the handles. Crucial for touch: a full
-  // canvas rebuild would DETACH the box the finger started on, and per the Touch Events
-  // spec touchmove/touchend keep firing at that original (now-orphaned) node, so they'd
-  // never reach the document listeners and the drag would be dead.
-  function bcSyncSelectionDom() {
-    var canvas = $("bc-editor-canvas");
-    Array.prototype.forEach.call(canvas.querySelectorAll(".bc-handle"), function (h) { h.remove(); });
-    Array.prototype.forEach.call(canvas.querySelectorAll(".bc-box"), function (b) {
-      b.classList.toggle("selected", b.dataset.bcKey === bcSelectedKey);
-    });
-    if (bcSelectedKey && bcEditLayout[bcSelectedKey] && bcEditLayout[bcSelectedKey].visible) {
-      var v = bcEditLayout[bcSelectedKey], key = bcSelectedKey;
-      BC_HANDLES.forEach(function (h) {
-        var handle = el("div", "bc-handle " + h[0]);
-        handle.style.left = (v.left + v.width * h[1]) + "%"; handle.style.top = (v.top + v.height * h[2]) + "%";
-        handle.setAttribute("aria-hidden", "true");
-        handle.onmousedown = function (e) { e.stopPropagation(); startBcDrag(e, key, "resize", h[0]); };
-        handle.ontouchstart = function (e) { e.stopPropagation(); startBcDrag(e, key, "resize", h[0]); };
-        canvas.appendChild(handle);
-      });
-    }
-  }
-  // Reposition a box (and, if it's the selected one, its handles + the snap guides) from
-  // the model — WITHOUT rebuilding the canvas, so an in-progress pointer/touch keeps its
-  // live target. Used every drag frame and on numeric-field commits.
-  function bcApplyDragVisual(key) {
-    var v = bcEditLayout[key];
-    var box = document.querySelector('#bc-editor-canvas [data-bc-key="' + key + '"]');
-    if (box) { box.style.left = v.left + "%"; box.style.top = v.top + "%"; box.style.width = v.width + "%"; box.style.height = v.height + "%"; }
-    if (key === bcSelectedKey) {
-      BC_HANDLES.forEach(function (h) {
-        var hd = document.querySelector("#bc-editor-canvas .bc-handle." + h[0]);
-        if (hd) { hd.style.left = (v.left + v.width * h[1]) + "%"; hd.style.top = (v.top + v.height * h[2]) + "%"; }
-      });
-    }
-    ["bc-guide-v", "bc-guide-h"].forEach(function (c) { var g = document.querySelector("#bc-editor-canvas ." + c); if (g) g.remove(); });
-    var canvas = $("bc-editor-canvas");
-    if (bcGuideV != null) { var gv = el("div", "bc-guide-v"); gv.style.left = bcGuideV + "%"; canvas.appendChild(gv); }
-    if (bcGuideH != null) { var gh = el("div", "bc-guide-h"); gh.style.top = bcGuideH + "%"; canvas.appendChild(gh); }
-  }
-  function startBcDrag(e, key, kind, corner) {
-    e.preventDefault();
-    var selChanged = bcSelectedKey !== key;
-    bcSelectedKey = key;
-    var pt = e.touches ? e.touches[0] : e;
-    bcDrag = {
-      key: key, kind: kind, corner: corner || "br",   // which corner is being dragged (resize only)
-      pointerId: e.touches ? pt.identifier : null,   // null = mouse (only one to track)
-      startClientX: pt.clientX, startClientY: pt.clientY,
-      startLayout: Object.assign({}, bcEditLayout[key]),
-      rect: $("bc-editor-canvas").getBoundingClientRect()
-    };
-    document.addEventListener("mousemove", onBcDragMove);
-    document.addEventListener("mouseup", endBcDrag);
-    document.addEventListener("touchmove", onBcDragMove, { passive: false });
-    document.addEventListener("touchend", endBcDrag);
-    document.addEventListener("touchcancel", endBcDrag);
-    window.addEventListener("blur", endBcDrag);   // e.g. alt-tab mid-drag — no mouseup ever reaches us
-    // Selection change: update the canvas IN PLACE (not a full rebuild — see bcSyncSelectionDom)
-    // and refresh the inspector (separate DOM, safe to rebuild — it isn't the touch target).
-    if (selChanged) { bcSyncSelectionDom(); renderBcElements(); renderBcProps(); renderBcTextSize(); }
-  }
-  function onBcDragMove(e) {
-    if (!bcDrag) return;
-    var pt;
-    if (e.touches) {
-      pt = Array.prototype.slice.call(e.touches).filter(function (t) { return t.identifier === bcDrag.pointerId; })[0];
-      if (!pt) return;   // a DIFFERENT finger moved — not the one driving this drag
-    } else {
-      if ((e.buttons & 1) === 0) { endBcDrag(); return; }   // button released outside this window/document
-      pt = e;
-    }
-    e.preventDefault();
-    var dxPct = (pt.clientX - bcDrag.startClientX) / bcDrag.rect.width * 100;
-    var dyPct = (pt.clientY - bcDrag.startClientY) / bcDrag.rect.height * 100;
-    var v = bcEditLayout[bcDrag.key], s = bcDrag.startLayout;
-    if (bcDrag.kind === "move") {
-      v.left = Math.max(0, Math.min(100 - s.width, Math.round(s.left + dxPct)));
-      v.top = Math.max(0, Math.min(100 - s.height, Math.round(s.top + dyPct)));
-    } else {
-      // Resize from whichever corner is dragged: the OPPOSITE corner stays pinned.
-      // Compute the four edges, move only the ones this corner owns, clamp each moved
-      // edge against its fixed partner (min 5% size) and the canvas bounds.
-      var c = bcDrag.corner;
-      var lft = s.left, top = s.top, rgt = s.left + s.width, bot = s.top + s.height;
-      if (c.indexOf("l") >= 0) lft = Math.max(0, Math.min(rgt - 5, s.left + dxPct));
-      if (c.indexOf("r") >= 0) rgt = Math.min(100, Math.max(lft + 5, (s.left + s.width) + dxPct));
-      if (c.indexOf("t") >= 0) top = Math.max(0, Math.min(bot - 5, s.top + dyPct));
-      if (c.indexOf("b") >= 0) bot = Math.min(100, Math.max(top + 5, (s.top + s.height) + dyPct));
-      lft = Math.round(lft); top = Math.round(top);
-      v.left = lft; v.top = top; v.width = Math.round(rgt) - lft; v.height = Math.round(bot) - top;
-    }
-    applyBcSnap(bcDrag.key, bcDrag.kind, bcDrag.corner);
-    // Final safety clamp — valid for both ops: cap size first, then fit position inside it.
-    // Round everything so the model (and the numeric fields) stay whole, consistent numbers.
-    v.width = Math.round(Math.max(5, Math.min(100, v.width)));
-    v.height = Math.round(Math.max(5, Math.min(100, v.height)));
-    v.left = Math.round(Math.max(0, Math.min(100 - v.width, v.left)));
-    v.top = Math.round(Math.max(0, Math.min(100 - v.height, v.top)));
-    bcApplyDragVisual(bcDrag.key);   // in place — do NOT rebuild the canvas mid-gesture
-  }
-  function endBcDrag() {
-    var key = bcDrag && bcDrag.key;
-    clearBcDragState();
-    renderBcEditor();   // safe now the gesture is over: full rebuild normalizes everything
-    focusBcBox(key || bcSelectedKey);
-  }
-  // Smart guides: snap a dragged edge/center to the canvas's own center or to
-  // another VISIBLE element's edge/center when within BC_SNAP percent.
-  function findBcSnap(edges, targets) {
-    var best = null;
-    edges.forEach(function (edge) {
-      targets.forEach(function (t) {
-        var d = t - edge;
-        if (Math.abs(d) <= BC_SNAP && (!best || Math.abs(d) < Math.abs(best.delta))) best = { delta: d, target: t };
-      });
-    });
-    return best;
-  }
-  function applyBcSnap(key, kind, corner) {
-    bcGuideV = null; bcGuideH = null;
-    var v = bcEditLayout[key];
-    var targetsX = [0, 50, 100], targetsY = [0, 50, 100];
-    BROADCAST_ELEMENTS.forEach(function (k) {
-      if (k === key || !bcEditLayout[k].visible) return;
-      var o = bcEditLayout[k];
-      targetsX.push(o.left, o.left + o.width / 2, o.left + o.width);
-      targetsY.push(o.top, o.top + o.height / 2, o.top + o.height);
-    });
-    if (kind === "move") {
-      var snapX = findBcSnap([v.left, v.left + v.width / 2, v.left + v.width], targetsX);
-      if (snapX) { v.left = clampPct(v.left + snapX.delta); bcGuideV = snapX.target; }
-      var snapY = findBcSnap([v.top, v.top + v.height / 2, v.top + v.height], targetsY);
-      if (snapY) { v.top = clampPct(v.top + snapY.delta); bcGuideH = snapY.target; }
-    } else {
-      // Resize: snap only the edges this corner actually moved, keeping the pinned
-      // (opposite) edge fixed and never letting the box shrink below 5%.
-      corner = corner || "br";
-      if (corner.indexOf("l") >= 0) {                 // left edge moved (right pinned)
-        var right = v.left + v.width;
-        var snapL = findBcSnap([v.left], targetsX);
-        if (snapL) { var nl = Math.max(0, Math.min(right - 5, snapL.target)); v.left = nl; v.width = right - nl; bcGuideV = snapL.target; }
-      } else {                                          // right edge moved (left pinned)
-        var snapR = findBcSnap([v.left + v.width], targetsX);
-        if (snapR) { var nr = Math.min(100, Math.max(v.left + 5, snapR.target)); v.width = nr - v.left; bcGuideV = snapR.target; }
-      }
-      if (corner.indexOf("t") >= 0) {                 // top edge moved (bottom pinned)
-        var bottom = v.top + v.height;
-        var snapT = findBcSnap([v.top], targetsY);
-        if (snapT) { var nt = Math.max(0, Math.min(bottom - 5, snapT.target)); v.top = nt; v.height = bottom - nt; bcGuideH = snapT.target; }
-      } else {                                          // bottom edge moved (top pinned)
-        var snapB = findBcSnap([v.top + v.height], targetsY);
-        if (snapB) { var nb = Math.min(100, Math.max(v.top + 5, snapB.target)); v.height = nb - v.top; bcGuideH = snapB.target; }
-      }
-    }
-  }
-
   function toggleTheme() {
     state.settings.theme = (state.settings.theme === "light") ? "dark" : "light";
     state.settings.updatedAt = Date.now();
@@ -4035,14 +3317,14 @@
     addTombstone(id, it && it._syncedAt);
     if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, coll, id).catch(function () {});
   }
-  $("btn-moves").onclick = function () { if (confirmLeaveBcEditor()) showCatalog(); };
+  $("btn-moves").onclick = showCatalog;
   $("btn-theme").onclick = toggleTheme;
   // Logo doubles as a "home" button back to the routine library.
   var brandLogo = $("brand-logo");
   brandLogo.style.cursor = "pointer";
   brandLogo.title = "Home"; brandLogo.setAttribute("role", "button"); brandLogo.setAttribute("tabindex", "0");
   brandLogo.setAttribute("aria-label", "Home — routine library");
-  brandLogo.onclick = function () { if (!confirmLeaveBcEditor()) return; leaveCurrentEditor(); showLibrary(); };
+  brandLogo.onclick = function () { leaveCurrentEditor(); showLibrary(); };
   brandLogo.onkeydown = function (e) { if (e.key === "Enter" || e.code === "Space") { e.preventDefault(); brandLogo.click(); } };
   $("btn-catalog-back").onclick = function () {
     if (catalogReturnView === "builder" && findRoutine(currentEditId)) {
@@ -4075,7 +3357,7 @@
   };
   // Per-device display prefs also apply instantly.
   $("set-runmode").onchange = function () {
-    displayPrefs.runMode = (this.value === "wall" || this.value === "broadcast") ? this.value : "standard";
+    displayPrefs.runMode = this.value === "wall" ? "wall" : "standard";
     syncRunModeUI();
     saveDisplayPrefs(); applyDisplayMode();
   };
@@ -4083,34 +3365,9 @@
     displayPrefs.orderStyle = this.value === "rolling" ? "rolling" : "list";
     saveDisplayPrefs(); applyDisplayMode();
   };
-  $("btn-bc-edit").onclick = function () {
-    // If already in the editor with unsaved edits (Settings opened over it), re-entering
-    // would silently reset the working copy — guard it like every other exit/entry.
-    if (!confirmLeaveBcEditor()) return;
-    closeSettings(); showBroadcastEditor();
-  };
-  $("btn-bc-back").onclick = function () { if (confirmLeaveBcEditor()) showLibrary(); };
-  $("btn-bc-reset").onclick = function () {
-    // Reset only touches the working copy — it's fully reversible until Save (in fact
-    // Back, right above, can discard it just as easily), so no "can't be undone" claim.
-    if (!confirm("Reset to the default layout? This replaces what you see here — tap Save layout afterward to make it stick.")) return;
-    bcEditLayout = defaultBroadcastLayout(); bcSelectedKey = null; renderBcEditor();
-  };
-  $("btn-bc-save").onclick = function () {
-    if (!BROADCAST_ELEMENTS.some(function (k) { return bcEditLayout[k].visible; })) {
-      toast("Turn at least one piece back on before saving — an all-hidden layout would leave the TV blank");
-      return;
-    }
-    broadcastLayout = JSON.parse(JSON.stringify(bcEditLayout));
-    saveBroadcastLayout(broadcastLayout);
-    applyBroadcastLayout();
-    toast("Broadcast layout saved");
-    showLibrary();
-  };
-  // If another tab on THIS device changes the display prefs or the Broadcast layout,
-  // pick it up live — the run screen covers the Settings gear during a class, so a
-  // second tab (e.g. a phone editing the layout) is the only way to reconfigure a
-  // screen mid-class without exiting the run.
+  // If another tab on THIS device changes the display prefs, pick it up live — the run
+  // screen covers the Settings gear during a class, so a second tab is the only way to
+  // reconfigure a screen mid-class without exiting the run.
   window.addEventListener("storage", function (e) {
     if (e.key === DISPLAY_KEY) {
       displayPrefs = loadDisplayPrefs();
@@ -4118,9 +3375,6 @@
       $("set-orderstyle").value = displayPrefs.orderStyle;
       syncRunModeUI();
       applyDisplayMode();
-    } else if (e.key === BROADCAST_KEY) {
-      broadcastLayout = loadBroadcastLayout();
-      applyBroadcastLayout();
     }
   });
   $("btn-backup").onclick = backup;
@@ -4519,7 +3773,6 @@
   updateMoveDatalist();
   updateAccountUI();
   var siLogo = $("signin-logo"); if (siLogo) siLogo.src = ECHELON_LOGO;
-  var rLogo = $("run-logo"); if (rLogo) rLogo.src = ECHELON_LOGO;   // Broadcast mode's logo box
   if (cachedIdentity()) showApp(); else showSignInOrShareNote();   // offline-first gate decision
   if (window.EchelonSync) startAuthGate();
   else window.addEventListener("echelon-sync-ready", startAuthGate);
