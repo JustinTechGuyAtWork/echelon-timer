@@ -393,7 +393,13 @@
      render identically when content fits, but collapse to 0 on overflow so everything
      stays reachable from the top. */
   .run-stage { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 4px; }
-  #run-live, .run-done-msg { margin-top: auto; margin-bottom: auto; }
+  /* Weighted spacers (not equal auto margins) bias the resting position toward the top:
+     a short routine (one exercise, no note) no longer sits dead-centered with a tall gap
+     above it. Still overflow-safe — both spacers have zero content, so on overflow they
+     stay at 0 and the real content renders flush at the top, reachable via scroll. */
+  .run-stage::before, .run-stage::after { content: ""; flex: 1 1 0; }
+  .run-stage::after { flex-grow: 2; }
+  #run-live, .run-done-msg { margin-top: 0; margin-bottom: 0; }
   /* gap:5px (not 6px) reclaims a few px of the stage's tight vertical budget — with a
      coaching note + metrics + next-preview all showing on a common laptop height
      (1280×800), content overflowed .run-stage by 6px and triggered a scrollbar on what's
@@ -510,10 +516,19 @@
     .run-overlay { flex-direction: row; gap: 28px; align-items: stretch; }
     .run-col { min-width: 0; }
     .run-order { display: flex; flex-direction: column; }
+    /* Pull the block label into the top row here too (same move Wall mode makes below) —
+       it frees the line it otherwise wraps to on its own, so the exercise/dial content
+       starts higher instead of leaving a tall gap under the top bar. */
+    .run-block-label { order: 2; flex: 0 1 auto; margin-top: 0; }
+    .run-top-actions { order: 3; flex: 1; justify-content: flex-end; }
     /* Wall-mounted display: everything an instructor reads across the room scales with the
        screen height — coaching metrics, the elapsed/remaining readout, and the running order. */
     .run-spring { font-size: clamp(1.05rem, 1.8vh, 1.5rem); }
     .run-spring b { font-size: clamp(1.3rem, 2.4vh, 2rem); }
+    /* The coaching note had no responsive rule at all here — it stayed pinned at a small
+       fixed size while everything around it (including .run-spring, right above) scaled up
+       with the screen, so it looked disproportionately tiny/easy to miss on a bigger screen. */
+    .run-note { font-size: clamp(1.1rem, 2vh, 1.6rem); }
     .run-overall { font-size: clamp(1.04rem, 2.2vh, 1.9rem); gap: clamp(26px, 3vw, 48px); }
     .run-overall b { font-size: clamp(1.15rem, 2.8vh, 2.4rem); }
     .run-order { width: clamp(360px, 26vw, 520px); }
@@ -551,7 +566,13 @@
        still fits at 1920×1080 (re-measured below). The countdown digits are 0.33 × dial,
        so a bigger ring means bigger numbers too — ≈ 125px at 1080p. */
     body.wall-run .run-dial { --dial: min(clamp(280px, 32vw, 560px), 35vh); }
-    body.wall-run .run-note { font-size: clamp(1.05rem, 2.4vh, 2rem); }
+    /* Modest bump (not matching .run-spring's full range) — the comment above documents
+       this size was budgeted against the dial size for a worst-case 2-line name + 2-line
+       note fitting at 1920×1080 with zero slack (measured: scrollHeight === clientHeight
+       exactly at the old size). This value was picked by testing the SAME worst case
+       live — it's the largest bump that still fits with zero overflow; anything above
+       clamp(1.15rem, 2.6vh, 2.2rem) measurably reintroduces it. */
+    body.wall-run .run-note { font-size: clamp(1.1rem, 2.5vh, 2.1rem); }
     body.wall-run .run-next { font-size: clamp(1.1rem, 2.6vh, 2.2rem); }
     body.wall-run .run-overall { font-size: clamp(1.4rem, 3.6vh, 3rem); gap: clamp(30px, 3.4vw, 60px); }
     body.wall-run .run-overall b { font-size: clamp(1.7rem, 4.6vh, 3.8rem); }
