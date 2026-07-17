@@ -396,10 +396,11 @@
      (1280×800), content overflowed .run-stage by 6px and triggered a scrollbar on what's
      meant to read as a full, contained screen. */
   #run-live { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; }
-  /* bc-exname/bc-timer group elements for Broadcast mode's positioning (see far below) —
-     everywhere else they must be invisible as boxes so their children flow exactly as
-     before. The `order` values below (unrelated to the grouping) are what actually keep
-     the original type→name→spring→dial→note→next→overall sequence in this flex layout. */
+  /* .bc-el marks every piece Broadcast mode can position independently (bc-exname,
+     bc-spring, bc-note, bc-timer, bc-overall) — everywhere else it must be invisible as a
+     box so its one child flows exactly as before. The `order` values below (unrelated to
+     the grouping) are what actually keep the original type→name→spring→dial→note→next→
+     overall sequence in this flex layout. */
   .bc-el { display: contents; }
   /* Studio logo: only exists for Broadcast mode (no equivalent in Standard/Wall) — unlike
      the other bc-el pieces, display:contents doesn't work here (a replaced element like
@@ -593,7 +594,10 @@
       container-type: size;
     }
     body.broadcast-run #bc-exname,
+    body.broadcast-run #bc-spring,
+    body.broadcast-run #bc-note,
     body.broadcast-run #bc-timer,
+    body.broadcast-run #bc-overall,
     body.broadcast-run #run-next,
     body.broadcast-run .run-block-label {
       display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -602,13 +606,20 @@
     body.broadcast-run #run-order { display: flex; flex-direction: column; overflow-y: auto; width: auto; }
     body.broadcast-run #run-logo { display: block; object-fit: contain; }
 
-    /* Default layout (percentages of the screen) — a drag/resize editor is a follow-up. */
-    body.broadcast-run #bc-timer        { left: 3%;  top: 10%; width: 40%; height: 54%; }
-    body.broadcast-run #bc-exname       { left: 46%; top: 10%; width: 51%; height: 24%; }
-    body.broadcast-run #run-next        { left: 46%; top: 36%; width: 51%; height: 12%; }
-    body.broadcast-run #run-order       { left: 46%; top: 50%; width: 51%; height: 40%; }
-    body.broadcast-run .run-block-label { left: 3%;  top: 66%; width: 40%; height: 10%; }
+    /* Default layout (percentages of the screen) — a drag/resize editor is a follow-up.
+       Timer/overall and exname/spring/note used to be two boxes sharing 4-5 different
+       pieces of content; each piece now gets its own box so resizing or text-sizing one
+       (e.g. the countdown dial) can never push a DIFFERENT piece (e.g. Elapsed/Remaining)
+       past its edge and get clipped. */
+    body.broadcast-run #bc-timer        { left: 3%;  top: 8%;  width: 40%; height: 42%; }
+    body.broadcast-run #bc-overall      { left: 3%;  top: 52%; width: 40%; height: 8%;  }
+    body.broadcast-run .run-block-label { left: 3%;  top: 64%; width: 40%; height: 10%; }
     body.broadcast-run #run-logo        { left: 3%;  top: 78%; width: 14%; height: 14%; }
+    body.broadcast-run #bc-exname       { left: 46%; top: 8%;  width: 51%; height: 14%; }
+    body.broadcast-run #bc-spring       { left: 46%; top: 24%; width: 51%; height: 8%;  }
+    body.broadcast-run #bc-note         { left: 46%; top: 34%; width: 51%; height: 10%; }
+    body.broadcast-run #run-next        { left: 46%; top: 46%; width: 51%; height: 10%; }
+    body.broadcast-run #run-order       { left: 46%; top: 58%; width: 51%; height: 34%; }
 
     /* Text scales with its own box (container query units), not the viewport). Every
        rule below caps on BOTH cqw and cqh (not just cqh) — Pass 1's boxes were a fixed
@@ -617,7 +628,10 @@
     /* Every size below is × var(--bc-text-scale) — the per-piece "Text size" the editor
        sets on each element (default 1), so an instructor can push the timer bigger or the
        running order smaller than the box alone would auto-fit. */
-    body.broadcast-run .run-dial { --dial: calc(min(78cqw, 78cqh) * var(--bc-text-scale, 1)); margin: 0; }
+    /* The dial already fills 78% of its (now dial-only) box at 100% text size — the
+       tightest fit of any piece. A 3rd/4th bound (92cqw/92cqh, independent of scale)
+       stops it growing past its own edge at high text-size settings instead of clipping. */
+    body.broadcast-run .run-dial { --dial: min(calc(78cqw * var(--bc-text-scale, 1)), calc(78cqh * var(--bc-text-scale, 1)), 92cqw, 92cqh); margin: 0; }
     body.broadcast-run .run-type-pill { font-size: calc(min(3cqw, 6cqh) * var(--bc-text-scale, 1)); }
     body.broadcast-run .run-ex-name { font-size: calc(min(7cqw, 15cqh) * var(--bc-text-scale, 1)); margin: 2cqh 0; }
     body.broadcast-run .run-spring { font-size: calc(min(3cqw, 6cqh) * var(--bc-text-scale, 1)); gap: 3cqw; }
@@ -633,6 +647,15 @@
     body.broadcast-run #run-order .ro-row { font-size: calc(min(4cqw, 5.5cqh) * var(--bc-text-scale, 1)); padding: 1cqh 1.5cqw; }
     body.broadcast-run #run-order .ro-row.ro-rest { font-size: calc(min(3.5cqw, 4.5cqh) * var(--bc-text-scale, 1)); }
     body.broadcast-run #run-order .ro-more { font-size: calc(min(4cqw, 4.5cqh) * var(--bc-text-scale, 1)); }
+    /* The current-step row's solid tinted fill is a useful "you are here" cue on the
+       instructor's own screen (Standard/Wall), but on the audience-facing Broadcast output
+       it reads as leftover app chrome. Keep the accent bar + bold weight, drop the fill.
+       (.is-rest/.is-pause land on #run-overlay itself, not body — hence the selector shape.) */
+    body.broadcast-run #run-order .ro-row.current,
+    body.broadcast-run #run-overlay.is-rest #run-order .ro-row.current,
+    body.broadcast-run #run-overlay.is-pause #run-order .ro-row.current {
+      background: transparent;
+    }
   }
 
   /* ---------- Modal ---------- */
@@ -808,6 +831,10 @@
   .bc-pv-eyebrow { text-transform: uppercase; letter-spacing: .08em; color: var(--accent-text); font-weight: 700; font-size: calc(min(6.5cqw, 13cqh) * var(--bc-text-scale, 1)); }
   .bc-pv-name { font-family: var(--font-display); text-transform: uppercase; font-weight: 600; font-size: calc(min(11cqw, 22cqh) * var(--bc-text-scale, 1)); }
   .bc-pv-line { color: color-mix(in srgb, var(--text) 74%, transparent); font-size: calc(min(7.5cqw, 15cqh) * var(--bc-text-scale, 1)); padding: 0 4cqw; }
+  .bc-pv-overall, .bc-pv-spring { display: flex; gap: 4cqw; justify-content: center; flex-wrap: wrap;
+    color: color-mix(in srgb, var(--text) 74%, transparent); font-size: calc(min(5cqw, 10cqh) * var(--bc-text-scale, 1)); }
+  .bc-pv-overall b, .bc-pv-spring b { color: var(--accent-text); font-variant-numeric: tabular-nums; }
+  .bc-pv-note { font-style: italic; color: color-mix(in srgb, var(--text) 82%, transparent); font-size: calc(min(6cqw, 12cqh) * var(--bc-text-scale, 1)); padding: 0 4cqw; }
   .bc-pv-block { font-family: var(--font-display); text-transform: uppercase; color: var(--accent-text); font-weight: 600; letter-spacing: .04em; font-size: calc(min(11cqw, 26cqh) * var(--bc-text-scale, 1)); }
   /* Fill the box (contain) exactly like the real #run-logo on the broadcast, so the editor
      preview is truthful about how big the logo actually renders on the TV. */
@@ -1016,7 +1043,11 @@
         <div class="bc-el" id="bc-exname">
           <span class="run-type-pill" id="run-type">Exercise</span>
           <div class="run-ex-name" id="run-ex-name">—</div>
+        </div>
+        <div class="bc-el" id="bc-spring">
           <div class="run-spring" id="run-spring"></div>
+        </div>
+        <div class="bc-el" id="bc-note">
           <div class="run-note" id="run-note"></div>
         </div>
         <div class="bc-el" id="bc-timer">
@@ -1027,6 +1058,8 @@
             </svg>
             <div class="run-time" id="run-time">0:00</div>
           </div>
+        </div>
+        <div class="bc-el" id="bc-overall">
           <div class="run-overall">
             <span>Elapsed <b id="run-elapsed">0:00</b></span>
             <span>Remaining <b id="run-remaining">0:00</b></span>
@@ -1314,26 +1347,34 @@
   // where the box actually renders; the CSS defaults (Pass 1) are the fallback for a
   // device that has never opened the editor.
   var BROADCAST_KEY = "tempo.broadcastLayout.v1";
-  var BROADCAST_ELEMENTS = ["timer", "exname", "next", "order", "blockLabel", "logo"];
+  // Timer and Exercise name used to each be ONE box holding several different things
+  // (dial+stats; label+name+cadence/resistance+note) — resizing or text-sizing one part
+  // could push a DIFFERENT part in the same box past the edge, where it got clipped. Each
+  // piece is now its own independent box, so nothing shares space with a neighbor.
+  var BROADCAST_ELEMENTS = ["timer", "overall", "exname", "spring", "note", "next", "order", "blockLabel", "logo"];
   var BROADCAST_LABELS = {
-    timer: "Timer / countdown", exname: "Exercise name", next: "Up next preview",
+    timer: "Timer / countdown", overall: "Elapsed / remaining", exname: "Exercise name",
+    spring: "Cadence / resistance", note: "Coaching note", next: "Up next preview",
     order: "Running order", blockLabel: "Block / round label", logo: "Studio logo"
   };
   var BROADCAST_SELECTORS = {
-    timer: "#bc-timer", exname: "#bc-exname", next: "#run-next",
-    order: "#run-order", blockLabel: ".run-block-label", logo: "#run-logo"
+    timer: "#bc-timer", overall: "#bc-overall", exname: "#bc-exname", spring: "#bc-spring", note: "#bc-note",
+    next: "#run-next", order: "#run-order", blockLabel: ".run-block-label", logo: "#run-logo"
   };
   // textScale multiplies each piece's auto-fit text size (1 = default). Lets an instructor
   // make, say, the timer bigger or the running order smaller than the box alone dictates.
   var BC_TEXT_MIN = 0.5, BC_TEXT_MAX = 2;
   function defaultBroadcastLayout() {
     return {
-      timer:      { left: 3,  top: 10, width: 40, height: 54, visible: true, textScale: 1 },
-      exname:     { left: 46, top: 10, width: 51, height: 24, visible: true, textScale: 1 },
-      next:       { left: 46, top: 36, width: 51, height: 12, visible: true, textScale: 1 },
-      order:      { left: 46, top: 50, width: 51, height: 40, visible: true, textScale: 1 },
-      blockLabel: { left: 3,  top: 66, width: 40, height: 10, visible: true, textScale: 1 },
-      logo:       { left: 3,  top: 78, width: 14, height: 14, visible: true, textScale: 1 }
+      timer:      { left: 3,  top: 8,  width: 40, height: 42, visible: true, textScale: 1 },
+      overall:    { left: 3,  top: 52, width: 40, height: 8,  visible: true, textScale: 1 },
+      blockLabel: { left: 3,  top: 64, width: 40, height: 10, visible: true, textScale: 1 },
+      logo:       { left: 3,  top: 78, width: 14, height: 14, visible: true, textScale: 1 },
+      exname:     { left: 46, top: 8,  width: 51, height: 14, visible: true, textScale: 1 },
+      spring:     { left: 46, top: 24, width: 51, height: 8,  visible: true, textScale: 1 },
+      note:       { left: 46, top: 34, width: 51, height: 10, visible: true, textScale: 1 },
+      next:       { left: 46, top: 46, width: 51, height: 10, visible: true, textScale: 1 },
+      order:      { left: 46, top: 58, width: 51, height: 34, visible: true, textScale: 1 }
     };
   }
   function clampPct(v) { return Math.max(0, Math.min(100, v)); }
@@ -3426,7 +3467,10 @@
   function bcPreviewHTML(k) {
     switch (k) {
       case "timer":      return '<div class="bc-pv bc-pv-timer">0:45</div>';
+      case "overall":    return '<div class="bc-pv bc-pv-overall"><span>Elapsed <b>0:12</b></span><span>Remaining <b>0:33</b></span></div>';
       case "exname":     return '<div class="bc-pv bc-pv-eyebrow">Exercise</div><div class="bc-pv bc-pv-name">Standing Climb</div>';
+      case "spring":     return '<div class="bc-pv bc-pv-spring"><span>Cadence <b>85</b></span><span>Resistance <b>60</b></span></div>';
+      case "note":       return '<div class="bc-pv bc-pv-note">Keep your core tight and drive through the heels.</div>';
       case "next":       return '<div class="bc-pv bc-pv-line">Next: Seated Flat</div>';
       case "blockLabel": return '<div class="bc-pv bc-pv-block">Block 1</div>';
       case "logo":       return '<img class="bc-pv-logo" src="' + ECHELON_LOGO + '" alt="">';
