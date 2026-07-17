@@ -124,6 +124,9 @@
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     /* Type scale (one ladder so the same level looks the same in every view) */
     --t-h1: 1.6rem; --t-h2: 1.25rem; --t-card: 1.15rem; --t-body: 1rem; --t-label: .78rem; --t-note: .9rem;
+    /* Added consolidating ~21 one-off sizes scattered across the file (several were the
+       same value spelled two ways, like 0.72rem and .72rem) into 4 more named steps. */
+    --t-eyebrow: .72rem; --t-small: .85rem; --t-note-lg: .95rem; --t-body-lg: 1.1rem;
     --track-label: .08em; --track-pill: .12em;
     /* Spacing scale (4-based rhythm) */
     --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
@@ -179,11 +182,13 @@
   button:hover { filter: brightness(1.14); }
   button:active { filter: brightness(0.95); }
   /* AA-tuned: white label needs the top gradient stop ≥ ~#0079a8 against #fff */
-  button.gold { background: linear-gradient(180deg, #0079a8, var(--gold-dim)); border-color: transparent; color: var(--gold-ink); font-weight: 700; }
+  /* Full pill on the primary action only — matches the tag-chip convention already used
+     elsewhere, and keeps secondary/ghost actions visually quieter by contrast. */
+  button.gold { background: linear-gradient(180deg, #0079a8, var(--gold-dim)); border-color: transparent; color: var(--gold-ink); font-weight: 700; border-radius: 999px; }
   button.ghost { background: transparent; }
   button.danger { background: transparent; color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
   button.danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
-  button.small { padding: 5px 10px; font-size: 0.85rem; }
+  button.small { padding: 5px 10px; font-size: var(--t-small); }
   /* Disabled reads flat + desaturated, not just dim (so it never looks tappable) */
   button:disabled { opacity: .5; cursor: not-allowed; filter: none; background: var(--panel); color: var(--muted); border-color: var(--line); }
   button.gold:disabled { background: var(--panel); }
@@ -223,7 +228,7 @@
   .brand { display: flex; align-items: center; gap: 9px; }
   .brand .logo { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
   .brand .logo .accent { color: var(--accent-text); }
-  .brand .studio { color: var(--muted); font-size: 0.9rem; }
+  .brand .studio { color: var(--muted); font-size: var(--t-note); }
   .topbar .spacer { flex: 1; }
 
   /* segmented mode toggle */
@@ -241,7 +246,7 @@
   .filters { display: flex; gap: var(--s2); flex-wrap: wrap; margin: 10px 0 var(--s5); align-items: center; }
   .tag-chip {
     border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
-    border-radius: 999px; padding: 4px 12px; font-size: 0.82rem; cursor: pointer;
+    border-radius: 999px; padding: 4px 12px; font-size: var(--t-small); cursor: pointer;
   }
   .tag-chip.active { background: var(--gold-soft); color: var(--accent-text); border-color: var(--gold-dim); }
   .routine-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: var(--s4); }
@@ -249,15 +254,15 @@
   .routine-card { padding: var(--s4); display: flex; flex-direction: column; gap: var(--s3); cursor: pointer; position: relative; box-shadow: var(--shadow); }
   .routine-card:hover { border-color: var(--gold-dim); }
   .routine-card h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: var(--t-card); letter-spacing: .3px; }
-  .routine-card .desc { color: var(--muted); font-size: 0.9rem; }
+  .routine-card .desc { color: var(--muted); font-size: var(--t-note); }
   /* Format badge(s) — the class type, the thing that distinguishes one card from the next */
   .routine-card .fmts { display: flex; gap: 6px; flex-wrap: wrap; }
-  .routine-card .fmt-badge { font-size: 0.72rem; font-weight: 600; letter-spacing: .02em; color: var(--accent-text);
+  .routine-card .fmt-badge { font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: .02em; color: var(--accent-text);
     background: var(--gold-soft); border: 1px solid color-mix(in srgb, var(--gold-dim) 50%, transparent); border-radius: 7px; padding: 2px 8px; }
   .routine-card .tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .routine-card .tags span { font-size: 0.72rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
+  .routine-card .tags span { font-size: var(--t-eyebrow); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 9px; }
   /* Duration is the stat instructors scan → lead it; the rest stay quiet */
-  .routine-card .meta { display: flex; align-items: baseline; gap: 6px var(--s3); color: var(--muted); font-size: 0.82rem; flex-wrap: wrap; }
+  .routine-card .meta { display: flex; align-items: baseline; gap: 6px var(--s3); color: var(--muted); font-size: var(--t-small); flex-wrap: wrap; }
   .routine-card .meta .lead { font-family: var(--font-display); font-weight: 600; font-size: 1.5rem; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1; }
   .routine-card .meta b { color: var(--text); font-variant-numeric: tabular-nums; }
   .routine-card .row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; margin-top: auto; }
@@ -266,7 +271,7 @@
   .kebab-wrap { position: relative; }
   .kebab-menu { position: absolute; right: 0; bottom: calc(100% + 6px); min-width: 150px; z-index: 5;
     background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 5px; }
-  .kebab-menu button { display: flex; align-items: center; gap: 10px; justify-content: flex-start; width: 100%; text-align: left; border: none; background: transparent; border-radius: 7px; padding: 9px 11px; font-size: 0.9rem; }
+  .kebab-menu button { display: flex; align-items: center; gap: 10px; justify-content: flex-start; width: 100%; text-align: left; border: none; background: transparent; border-radius: 7px; padding: 9px 11px; font-size: var(--t-note); }
   .kebab-menu button:hover { background: var(--panel-2); filter: none; }
   .kebab-menu button.danger { color: var(--danger); }
   .empty { text-align: center; padding: 64px 20px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
@@ -283,17 +288,17 @@
   .block-head { display: flex; align-items: center; gap: 10px; padding: 6px 4px; flex-wrap: wrap; }
   .block-head .block-badge {
     width: 26px; height: 26px; border-radius: 7px; background: var(--gold-soft); color: var(--accent-text);
-    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--t-small); flex-shrink: 0;
   }
   .block-head input.block-name { font-weight: 600; background: transparent; border-color: transparent; flex: 1 1 140px; min-width: 120px; }
   .block-head input.block-name:hover { border-color: var(--line); }
-  .block-head select.block-format { flex-shrink: 0; width: auto; max-width: 170px; padding: 4px 8px; font-size: 0.82rem; color: var(--muted); }
+  .block-head select.block-format { flex-shrink: 0; width: auto; max-width: 170px; padding: 4px 8px; font-size: var(--t-small); color: var(--muted); }
   .block-head .block-repeat { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-  .block-head .block-repeat-label { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+  .block-head .block-repeat-label { color: var(--muted); font-size: var(--t-small); white-space: nowrap; }
   .block-head .block-repeat-input { width: 46px; text-align: center; padding: 4px 2px; }
-  .block-head .block-dur { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .block-head .block-dur { color: var(--muted); font-size: var(--t-small); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .block-head .block-actions { display: flex; gap: 4px; }
-  .block-head .block-actions button { padding: 4px 8px; font-size: 0.82rem; }
+  .block-head .block-actions button { padding: 4px 8px; font-size: var(--t-small); }
 
   .ex-head, .ex-row {
     display: grid;
@@ -303,7 +308,7 @@
     grid-template-columns: var(--ex-cols, 28px minmax(110px,1.4fr) 92px 80px 70px 94px 58px 80px);
     gap: 8px; align-items: center;
   }
-  .ex-head { padding: 4px 12px; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: .04em; }
+  .ex-head { padding: 4px 12px; color: var(--muted); font-size: var(--t-eyebrow); text-transform: uppercase; letter-spacing: .04em; }
   .ex-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ex-row { padding: 7px 12px; border-top: 1px solid var(--line); }
   .ex-row .idx { width: 24px; height: 24px; border-radius: 50%; background: var(--panel-2); color: var(--muted);
@@ -316,14 +321,14 @@
     font-variant-numeric: tabular-nums; -webkit-appearance: none; -moz-appearance: textfield; }
   .dur-input input::-webkit-outer-spin-button,
   .dur-input input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .dur-input span { color: var(--muted); font-size: 0.8rem; }
+  .dur-input span { color: var(--muted); font-size: var(--t-small); }
   .ex-row input.spring { text-align: center; }
   /* Optional coaching-note row: spans the full width on its own grid line. */
   .ex-row > .cell.note-cell { grid-column: 1 / -1; margin-top: 2px; }
-  .ex-row > .cell.note-cell input { width: 100%; font-size: 0.9rem; }
+  .ex-row > .cell.note-cell input { width: 100%; font-size: var(--t-note); }
   .ex-actions button.has-note { color: var(--accent-text); border-color: var(--gold-dim); }
   .ex-actions { display: flex; gap: 3px; justify-content: flex-end; }
-  .ex-actions button { padding: 4px 7px; font-size: 0.8rem; }
+  .ex-actions button { padding: 4px 7px; font-size: var(--t-small); }
   .block-add { padding: 10px 12px; display: flex; gap: 6px; }
   /* A Pause row: no metric grid, just an icon + optional label — tinted so it reads
      as a flow marker rather than a timed move. */
@@ -334,7 +339,7 @@
 
   .builder-foot { display: flex; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
   .builder-foot .total { color: var(--muted); }
-  .builder-foot .total b { color: var(--text); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+  .builder-foot .total b { color: var(--text); font-size: var(--t-body-lg); font-variant-numeric: tabular-nums; }
   .builder-foot .spacer { flex: 1; }
   .hint { color: var(--muted); font-size: var(--t-note); margin: 12px 2px 0; }
 
@@ -356,9 +361,9 @@
      flex-basis:100% and the highest order, so it wraps to its own centered line BELOW the
      top row (standard + phone). Wall mode overrides this to sit it inline, centered. */
   .run-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .run-top .run-routine { font-size: 1rem; color: var(--muted); flex: 1; order: 1; }
+  .run-top .run-routine { font-size: var(--t-body); color: var(--muted); flex: 1; order: 1; }
   .run-top-actions { display: flex; align-items: center; gap: 12px; order: 2; }
-  .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: .82rem; margin-top: 6px; order: 3; flex: 1 0 100%; }
+  .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: var(--t-small); margin-top: 6px; order: 3; flex: 1 0 100%; }
   .is-rest .run-block-label { color: var(--rest); }
   .is-pause .run-block-label { color: var(--muted); }
   /* min-height:0 lets the stage shrink inside the flex column so the controls below it
@@ -390,12 +395,12 @@
   #run-type { order: 1; } #run-ex-name { order: 2; } #run-spring { order: 3; }
   .run-dial { order: 4; } #run-note { order: 5; } #run-next { order: 6; } .run-overall { order: 7; }
   /* Phase label: a tracked uppercase signpost (not a pill — pills are for interactive chips) */
-  .run-type-pill { text-transform: uppercase; letter-spacing: var(--track-pill); font-size: .82rem; font-weight: 700; color: var(--accent-text); }
+  .run-type-pill { text-transform: uppercase; letter-spacing: var(--track-pill); font-size: var(--t-small); font-weight: 700; color: var(--accent-text); }
   .is-rest .run-type-pill { color: var(--rest); }
   .is-pause .run-type-pill { color: var(--muted); }
   .run-ex-name { font-family: var(--font-display); font-weight: 600; text-transform: uppercase; letter-spacing: .01em;
     font-size: clamp(1.9rem, 6vw, 3.8rem); line-height: 1.04; margin: 2px 0; }
-  .run-spring { display: flex; gap: 18px; align-items: baseline; justify-content: center; color: var(--muted); font-size: 1.05rem; min-height: 1.4em; flex-wrap: wrap; }
+  .run-spring { display: flex; gap: 18px; align-items: baseline; justify-content: center; color: var(--muted); font-size: var(--t-body-lg); min-height: 1.4em; flex-wrap: wrap; }
   .run-spring b { color: var(--accent-text); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
   .is-rest .run-spring b { color: var(--rest); }
   /* The pause screen repurposes .run-spring (normally metric chips) for a big static icon. */
@@ -419,19 +424,19 @@
   /* Size the number from the dial diameter (not the viewport) so it always sits cleanly
      inside the ring with margin — at ~0.33× the dial even a 5-char "10:00" clears the ring. */
   .run-time { font-family: var(--font-display); font-size: calc(var(--dial, 320px) * 0.33); font-weight: 600;
-    font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: 0; }
+    font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.02em; }
   /* Final-seconds cue: color + bold reads in any theme and survives reduced-motion /
      a paused clock; the scale pulse is layered on only while actively counting. */
   .run-time.warn { color: var(--warn); font-weight: 800; }   /* distinct alert amber (not the teal work color) + bold survives reduced-motion */
   .run-time.warn-anim { animation: tick 1s ease-in-out infinite; }
   .is-rest .run-time.warn { color: var(--warn); }
   /* Coaching note for the current exercise (empty for rest steps). */
-  .run-note { color: color-mix(in srgb, var(--text) 82%, transparent); font-style: italic; font-size: 1.05rem;
+  .run-note { color: color-mix(in srgb, var(--text) 82%, transparent); font-style: italic; font-size: var(--t-body-lg);
     max-width: 34ch; margin-top: 12px; line-height: 1.35; }
   .run-note:empty { display: none; }
-  .run-next { color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 10px; font-size: 1.12rem; min-height: 1.3em; }
+  .run-next { color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 10px; font-size: var(--t-body-lg); min-height: 1.3em; }
   .run-next b { color: var(--text); }
-  .run-overall { display: flex; gap: 26px; justify-content: center; color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 4px; font-size: 1.04rem; font-variant-numeric: tabular-nums; }
+  .run-overall { display: flex; gap: 26px; justify-content: center; color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 4px; font-size: var(--t-body-lg); font-variant-numeric: tabular-nums; }
   .run-overall b { color: var(--text); }
   /* Step-change reveal (per interval) + final-5s pulse. Both auto-disabled by reduced-motion. */
   @keyframes stepIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -439,8 +444,8 @@
   @keyframes tick { 0%, 100% { transform: none; } 50% { transform: scale(1.05); } }
   .run-controls { display: flex; gap: 12px; justify-content: center; align-items: center; padding: 14px 0 4px; flex-wrap: wrap; }
   .run-controls button { min-height: 48px; }   /* touch-first: comfortable targets mid-class */
-  button.big { font-size: 1.1rem; padding: 14px 26px; }   /* global "big" modifier (e.g. the sign-in CTA); run controls override the padding below */
-  .run-controls .big { font-size: 1.1rem; padding: 14px 30px; }
+  button.big { font-size: var(--t-body-lg); padding: 14px 26px; }   /* global "big" modifier (e.g. the sign-in CTA); run controls override the padding below */
+  .run-controls .big { font-size: var(--t-body-lg); padding: 14px 30px; }
   .run-done-msg { text-align: center; }
   /* Match .run-ex-name's voice — this headline is the payoff of the whole class,
      it shouldn't drop to the system font the one time it matters most. */
@@ -454,23 +459,23 @@
   .run-order { width: 360px; flex-shrink: 0; overflow-y: auto; padding-right: 4px;
     border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent); padding-left: 22px; }
   .run-order .ro-title { font-family: var(--font-display); text-transform: uppercase; letter-spacing: var(--track-label);
-    font-size: .95rem; color: color-mix(in srgb, var(--text) 80%, transparent); position: sticky; top: 0;
+    font-size: var(--t-note-lg); color: color-mix(in srgb, var(--text) 80%, transparent); position: sticky; top: 0;
     background: linear-gradient(var(--bg), rgba(4,22,30,0)); padding: 2px 0 8px; }
   .run-order .ro-routine { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .04em;
-    font-size: .82rem; color: var(--accent-text); margin: 14px 0 4px; }
+    font-size: var(--t-small); color: var(--accent-text); margin: 14px 0 4px; }
   /* Secondary run-order text (block headers, durations, rest/pause rows) shares one
      mix — 65%, not the 45-55% this used to vary across — because 45-55% measured under
      4.5:1 (WCAG AA for small text) against the light theme's white run backdrop:
      .ro-rest was 2.82:1, .ro-block/.ro-dur/.ro-pause were 3.77:1. 65% clears AA in both
      themes (light 5.17:1, dark 7.38:1) with real margin, and reading this list from
      across a room is exactly the case where under-AA text bites hardest. */
-  .run-order .ro-block { text-transform: uppercase; letter-spacing: var(--track-label); font-size: .72rem;
+  .run-order .ro-block { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--t-eyebrow);
     color: color-mix(in srgb, var(--text) 65%, transparent); margin: 12px 0 4px; }
   .run-order .ro-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: 8px;
     color: color-mix(in srgb, var(--text) 78%, transparent); }
   .run-order .ro-row .ro-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .run-order .ro-row .ro-dur { font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--text) 65%, transparent); flex-shrink: 0; }
-  .run-order .ro-row.ro-rest { font-size: .85rem; color: color-mix(in srgb, var(--text) 65%, transparent); padding: 4px 10px; }
+  .run-order .ro-row.ro-rest { font-size: var(--t-small); color: color-mix(in srgb, var(--text) 65%, transparent); padding: 4px 10px; }
   .run-order .ro-row.ro-pause { font-style: italic; color: color-mix(in srgb, var(--text) 65%, transparent); }
   /* .62 (not .42) — the old value combined with the row's own 78%-alpha text dropped to
      ~2.7:1 (light) / ~2.9:1 (dark). .62 clears 3:1 in both themes; the strikethrough
@@ -618,14 +623,14 @@
   .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; box-shadow: var(--shadow); }
   .modal h2 { margin: 0 0 14px; font-size: var(--t-h2); }   /* adopt the shared heading step */
   .modal .field { margin-bottom: 14px; }
-  .tips h3 { margin: 0 0 6px; font-size: 0.95rem; }
-  .tips ul { margin: 0 0 16px; padding-left: 18px; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+  .tips h3 { margin: 0 0 6px; font-size: var(--t-note-lg); }
+  .tips ul { margin: 0 0 16px; padding-left: 18px; color: var(--muted); font-size: var(--t-note); line-height: 1.5; }
   .tips li { margin-bottom: 7px; }
   .tips b { color: var(--text); font-weight: 600; }
   /* Settings section headings (This device / Backup & restore / Import from ClassFlow)
      are plain <label>s repurposed as headers — give them the same weight as the "Quick
      tips" heading above them, instead of inheriting the fine-print `label` size below. */
-  .section-label { font-size: 0.95rem; font-weight: 600; color: var(--text); }
+  .section-label { font-size: var(--t-note-lg); font-weight: 600; color: var(--text); }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
   /* Stacked export options are a list, so left-align their icon+label (like the kebab menu)
      rather than centering it (the base button rule centers content). */
@@ -635,7 +640,7 @@
      should read at body size, not the fine-print `label` default, since that default
      made every setting's own name smaller than both the help text above it and the
      control beside it. */
-  .toggle-row label { margin: 0; color: var(--text); font-size: 1rem; }
+  .toggle-row label { margin: 0; color: var(--text); font-size: var(--t-body); }
   .toggle-row input { width: auto; }
 
   /* Centered via left:0;right:0;margin:auto — NOT left:50%+translateX(-50%). With only
@@ -703,7 +708,7 @@
     .ex-row > .cell { flex-direction: column; align-items: stretch; gap: 3px; }
     .ex-row > .cell::before {
       display: block; content: attr(data-k);
-      font-size: .66rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
+      font-size: var(--t-eyebrow); text-transform: uppercase; letter-spacing: .04em; color: var(--muted);
     }
     .ex-row > .cell.name-cell { grid-column: 1 / -1; }
     .ex-row > .cell.idx-cell { display: none; }
@@ -714,7 +719,7 @@
     .field-row, .field-row.three { grid-template-columns: 1fr; }
     /* Touch targets: phone/tablet-first builder — clustered icon buttons + steppers clear ~44px. */
     .ex-actions { gap: 8px; }
-    .ex-actions button, .block-head .block-actions button { min-height: 44px; min-width: 44px; padding: 8px 12px; font-size: 0.95rem; }
+    .ex-actions button, .block-head .block-actions button { min-height: 44px; min-width: 44px; padding: 8px 12px; font-size: var(--t-note-lg); }
     .block-head .block-actions { gap: 8px; }
     .ex-row input, .ex-row select, .ex-row .dur-input input { min-height: 44px; }
     .block-head .block-repeat-input { min-height: 44px; }
@@ -754,7 +759,7 @@
   /* Actually match the top-bar wordmark (.brand .logo) — size, weight, and case, not just the typeface. */
   .signin-card h1 { font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
   .signin-card p { color: var(--muted); }
-  .signin-error { color: var(--danger); font-size: 0.9rem; }
+  .signin-error { color: var(--danger); font-size: var(--t-note); }
   .signin-error.signin-note { color: var(--muted); }   /* same slot, but this one isn't a failure */
   .account-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -764,7 +769,7 @@
   .bc-editor-canvas { position: relative; flex: 1 1 480px; max-width: 900px; width: 100%; aspect-ratio: 16/9;
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .bc-editor-canvas .bc-box { position: absolute; display: flex; align-items: center; justify-content: center;
-    padding: 4px; text-align: center; font-size: .85rem; font-weight: 600; color: var(--text);
+    padding: 4px; text-align: center; font-size: var(--t-small); font-weight: 600; color: var(--text);
     background: color-mix(in srgb, var(--accent-text) 16%, transparent);
     border: 1.5px dashed color-mix(in srgb, var(--accent-text) 55%, transparent);
     border-radius: 4px; cursor: move; user-select: none; }
@@ -777,7 +782,7 @@
   .bc-editor-panel { flex: 0 0 240px; min-width: 220px; }
   .bc-editor-panel .toggle-row.active { background: var(--gold-soft); border-radius: 6px; padding-left: 6px; padding-right: 6px; }
   .bc-editor-canvas .bc-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    text-align: center; padding: 20px; color: var(--muted); font-size: .95rem; }
+    text-align: center; padding: 20px; color: var(--muted); font-size: var(--t-note-lg); }
   .bc-editor-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
 </style>
 </head>
