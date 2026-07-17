@@ -49,7 +49,8 @@
     • Default brand name / logo .. defaultSettings() + the ECHELON_LOGO constant in <script>
     • Field labels / wording ..... mostly inline in the build* functions and the markup
     • Add a setting .............. defaultSettings(), normalizeState(), the Settings modal
-                                   markup, openSettings(), saveSettings()
+                                   markup, openSettings(), and an onchange handler that
+                                   calls commitSetting() (every setting applies instantly)
     • Timer behavior ............. the "Run mode" section (beginRun/tick/advanceStep...)
     • Exports (PDF/CSV/text) ..... exportPDF / exportCSV / buildText in <script>
   IMPORTANT: keep it dependency-free and single-file. Test by opening the file in a
@@ -65,7 +66,7 @@
      preconnect speeds the fetch; if offline the system stack is the graceful fallback. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700;800&display=swap" />
 <!-- Add-to-Home-Screen / installable app (icons + manifest live alongside this file when hosted) -->
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" href="icon-192.png" />
@@ -122,7 +123,7 @@
     --font-display: "Oswald", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     /* Type scale (one ladder so the same level looks the same in every view) */
-    --t-h1: 1.6rem; --t-h2: 1.25rem; --t-card: 1.15rem; --t-body: 1rem; --t-label: .78rem;
+    --t-h1: 1.6rem; --t-h2: 1.25rem; --t-card: 1.15rem; --t-body: 1rem; --t-label: .78rem; --t-note: .9rem;
     --track-label: .08em; --track-pill: .12em;
     /* Spacing scale (4-based rhythm) */
     --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
@@ -144,7 +145,7 @@
     --rest: #8f5800;            /* clears AA 4.5:1 as small text even on the amber rest overlay */
     --rest-soft: rgba(143,88,0,0.14);
     --warn: #b45309;            /* final-seconds alert (light): strong amber, clear on the light run bg */
-    --danger: #d4453d;
+    --danger: #c93a32;          /* darkened from #d4453d — that failed AA 4.5:1 as small text (4.14:1 on the sign-in bg, 4.45:1 on white panels) */
     --shadow: 0 8px 26px rgba(13,46,64,0.12);
     --shadow-sm: 0 1px 3px rgba(13,46,64,0.10);
   }
@@ -332,7 +333,7 @@
   .builder-foot .total { color: var(--muted); }
   .builder-foot .total b { color: var(--text); font-size: 1.1rem; font-variant-numeric: tabular-nums; }
   .builder-foot .spacer { flex: 1; }
-  .hint { color: var(--muted); font-size: 0.8rem; margin: 12px 2px 0; }
+  .hint { color: var(--muted); font-size: var(--t-note); margin: 12px 2px 0; }
 
   /* ---------- Run (immersive tap-to-run) ---------- */
   .run-overlay { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; padding: 20px;
@@ -368,7 +369,11 @@
      stays reachable from the top. */
   .run-stage { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 4px; }
   #run-live, .run-done-msg { margin-top: auto; margin-bottom: auto; }
-  #run-live { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; }
+  /* gap:5px (not 6px) reclaims a few px of the stage's tight vertical budget — with a
+     coaching note + metrics + next-preview all showing on a common laptop height
+     (1280×800), content overflowed .run-stage by 6px and triggered a scrollbar on what's
+     meant to read as a full, contained screen. */
+  #run-live { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; }
   /* Phase label: a tracked uppercase signpost (not a pill — pills are for interactive chips) */
   .run-type-pill { text-transform: uppercase; letter-spacing: var(--track-pill); font-size: .82rem; font-weight: 700; color: var(--accent-text); }
   .is-rest .run-type-pill { color: var(--rest); }
@@ -409,7 +414,7 @@
   .run-note { color: color-mix(in srgb, var(--text) 82%, transparent); font-style: italic; font-size: 1.05rem;
     max-width: 34ch; margin-top: 12px; line-height: 1.35; }
   .run-note:empty { display: none; }
-  .run-next { color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 14px; font-size: 1.12rem; min-height: 1.3em; }
+  .run-next { color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 10px; font-size: 1.12rem; min-height: 1.3em; }
   .run-next b { color: var(--text); }
   .run-overall { display: flex; gap: 26px; justify-content: center; color: color-mix(in srgb, var(--text) 70%, transparent); margin-top: 4px; font-size: 1.04rem; font-variant-numeric: tabular-nums; }
   .run-overall b { color: var(--text); }
@@ -422,7 +427,10 @@
   button.big { font-size: 1.1rem; padding: 14px 26px; }   /* global "big" modifier (e.g. the sign-in CTA); run controls override the padding below */
   .run-controls .big { font-size: 1.1rem; padding: 14px 30px; }
   .run-done-msg { text-align: center; }
-  .run-done-msg h2 { font-size: 2.4rem; margin: 0 0 6px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  /* Match .run-ex-name's voice — this headline is the payoff of the whole class,
+     it shouldn't drop to the system font the one time it matters most. */
+  .run-done-msg h2 { font-family: var(--font-display); font-weight: 600; text-transform: uppercase;
+    font-size: 2.4rem; margin: 0 0 6px; display: flex; align-items: center; justify-content: center; gap: 10px; }
   .run-done-msg .done-check { color: var(--accent-text); display: inline-flex; }
   .run-done-msg .done-check .ic { width: 1em; height: 1em; }
 
@@ -435,15 +443,25 @@
     background: linear-gradient(var(--bg), rgba(4,22,30,0)); padding: 2px 0 8px; }
   .run-order .ro-routine { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .04em;
     font-size: .82rem; color: var(--accent-text); margin: 14px 0 4px; }
+  /* Secondary run-order text (block headers, durations, rest/pause rows) shares one
+     mix — 65%, not the 45-55% this used to vary across — because 45-55% measured under
+     4.5:1 (WCAG AA for small text) against the light theme's white run backdrop:
+     .ro-rest was 2.82:1, .ro-block/.ro-dur/.ro-pause were 3.77:1. 65% clears AA in both
+     themes (light 5.17:1, dark 7.38:1) with real margin, and reading this list from
+     across a room is exactly the case where under-AA text bites hardest. */
   .run-order .ro-block { text-transform: uppercase; letter-spacing: var(--track-label); font-size: .72rem;
-    color: color-mix(in srgb, var(--text) 55%, transparent); margin: 12px 0 4px; }
+    color: color-mix(in srgb, var(--text) 65%, transparent); margin: 12px 0 4px; }
   .run-order .ro-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: 8px;
     color: color-mix(in srgb, var(--text) 78%, transparent); }
   .run-order .ro-row .ro-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .run-order .ro-row .ro-dur { font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--text) 55%, transparent); flex-shrink: 0; }
-  .run-order .ro-row.ro-rest { font-size: .85rem; color: color-mix(in srgb, var(--text) 45%, transparent); padding: 4px 10px; }
-  .run-order .ro-row.ro-pause { font-style: italic; color: color-mix(in srgb, var(--text) 55%, transparent); }
-  .run-order .ro-row.done { opacity: .42; }
+  .run-order .ro-row .ro-dur { font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--text) 65%, transparent); flex-shrink: 0; }
+  .run-order .ro-row.ro-rest { font-size: .85rem; color: color-mix(in srgb, var(--text) 65%, transparent); padding: 4px 10px; }
+  .run-order .ro-row.ro-pause { font-style: italic; color: color-mix(in srgb, var(--text) 65%, transparent); }
+  /* .62 (not .42) — the old value combined with the row's own 78%-alpha text dropped to
+     ~2.7:1 (light) / ~2.9:1 (dark). .62 clears 3:1 in both themes; the strikethrough
+     above still carries the bulk of the "this one's done" signal, so full 4.5:1 isn't
+     needed and would fight the intentional de-emphasis of completed steps. */
+  .run-order .ro-row.done { opacity: .62; }
   .run-order .ro-row.done .ro-name { text-decoration: line-through; }
   .run-order .ro-row.current { background: var(--gold-soft); color: var(--text); box-shadow: inset 3px 0 0 var(--gold); font-weight: 600; }
   .is-rest .run-order .ro-row.current { background: var(--rest-soft); box-shadow: inset 3px 0 0 var(--rest); }
@@ -481,6 +499,14 @@
        whole line it used to occupy, so the exercise/dial content moves up. */
     body.wall-run .run-block-label { order: 2; flex: 0 1 auto; margin-top: 0; font-size: clamp(1rem, 2.4vh, 2rem); }
     body.wall-run .run-top-actions { order: 3; flex: 1; justify-content: flex-end; }
+    /* The routine name + step counter sharing that row were the only text left at the
+       standard 1rem size — scale them too, just more modestly than the headline text. */
+    body.wall-run .run-top .run-routine { font-size: clamp(1rem, 1.8vh, 1.5rem); }
+    body.wall-run .run-top-actions .muted { font-size: clamp(.9rem, 1.6vh, 1.3rem); }
+    /* The done screen is the payoff moment at the end of class — it should read at
+       least as large as the exercise names that led up to it, not collapse back down. */
+    body.wall-run .run-done-msg h2 { font-size: clamp(2.4rem, 9vh, 7rem); }
+    body.wall-run .run-done-msg p { font-size: clamp(1.1rem, 2.6vh, 2.2rem); }
     body.wall-run .run-spring { font-size: clamp(1.4rem, 3.2vh, 2.6rem); gap: clamp(20px, 2.4vw, 40px); }
     body.wall-run .run-spring b { font-size: clamp(1.8rem, 4.2vh, 3.4rem); }
     /* 35vh: moving the block label into the top row (above) freed ~a line of height in
@@ -503,8 +529,9 @@
     /* Rolling style: only ~5 rows, so they can be huge; rests stay slim between them. */
     body.wall-order-rolling .run-order.ro-rolling .ro-row { font-size: clamp(1.6rem, 4.2vh, 3.4rem); padding: clamp(12px, 2vh, 26px) 14px; }
     body.wall-order-rolling .run-order.ro-rolling .ro-row.ro-rest { font-size: clamp(1.1rem, 2.4vh, 2rem); padding: clamp(6px, 1vh, 12px) 14px; }
-    body.wall-order-rolling .run-order.ro-rolling .ro-row.done { opacity: .32; }
-    .run-order .ro-more { color: color-mix(in srgb, var(--text) 40%, transparent); font-size: clamp(.9rem, 1.8vh, 1.5rem); padding: 8px 14px; }
+    /* No rolling-specific override — the base .ro-row.done opacity (.62, chosen above
+       for AA contrast) already applies; the old .32 here dropped well under 2:1. */
+    .run-order .ro-more { color: color-mix(in srgb, var(--text) 65%, transparent); font-size: clamp(.9rem, 1.8vh, 1.5rem); padding: 8px 14px; }
   }
 
   /* ---------- Modal ---------- */
@@ -516,22 +543,37 @@
   .tips ul { margin: 0 0 16px; padding-left: 18px; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
   .tips li { margin-bottom: 7px; }
   .tips b { color: var(--text); font-weight: 600; }
+  /* Settings section headings (This device / Backup & restore / Import from ClassFlow)
+     are plain <label>s repurposed as headers — give them the same weight as the "Quick
+     tips" heading above them, instead of inheriting the fine-print `label` size below. */
+  .section-label { font-size: 0.95rem; font-weight: 600; color: var(--text); }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
   /* Stacked export options are a list, so left-align their icon+label (like the kebab menu)
      rather than centering it (the base button rule centers content). */
   #btn-exp-pdf, #btn-exp-csv, #btn-exp-txt, #btn-exp-txt-file { justify-content: flex-start; }
   .toggle-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .toggle-row label { margin: 0; color: var(--text); }
+  /* These labels name an actual control (a checkbox/select right next to them) — they
+     should read at body size, not the fine-print `label` default, since that default
+     made every setting's own name smaller than both the help text above it and the
+     control beside it. */
+  .toggle-row label { margin: 0; color: var(--text); font-size: 1rem; }
   .toggle-row input { width: auto; }
 
-  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+  /* Centered via left:0;right:0;margin:auto — NOT left:50%+translateX(-50%). With only
+     `left` set (not `right`), a shrink-to-fit box's available width for wrapping is
+     computed from the 50% mark to the containing block's edge — i.e. capped at 50% of
+     the viewport — regardless of any max-width, which only clips from above and can't
+     force the box wider. Spanning the full width with left/right:0 and centering the
+     content via auto margins avoids that cap entirely. */
+  #toast { position: fixed; bottom: 24px; left: 0; right: 0; margin: 0 auto; transform: translateY(20px);
+    width: fit-content; max-width: min(90vw, 480px);
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 12px 20px;
     border-radius: 10px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 300; }
-  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.show { opacity: 1; transform: translateY(0); }
   /* Sticky banner shown when a save actually fails (storage full) — unlike the toast,
      it stays put so the user can't keep editing unaware that changes aren't persisting. */
   #save-warning { position: fixed; top: 0; left: 0; right: 0; z-index: 320; background: #7f1d1d; color: #fff;
-    text-align: center; font-size: 0.92rem; box-shadow: var(--shadow);
+    text-align: center; font-size: var(--t-note); box-shadow: var(--shadow);
     padding: calc(10px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left)); }
 
   .hidden { display: none !important; }
@@ -629,7 +671,8 @@
   body.signed-out header.topbar, body.signed-out .app { display: none !important; }
   .signin-card { text-align: center; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .signin-card #signin-logo { height: 40px; }
-  .signin-card h1 { font-family: var(--font-display); letter-spacing: .5px; }   /* match the top-bar wordmark */
+  /* Actually match the top-bar wordmark (.brand .logo) — size, weight, and case, not just the typeface. */
+  .signin-card h1 { font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
   .signin-card p { color: var(--muted); }
   .signin-error { color: var(--danger); font-size: 0.9rem; }
   .signin-error.signin-note { color: var(--muted); }   /* same slot, but this one isn't a failure */
@@ -823,8 +866,8 @@
       </select>
     </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
-    <label>This device</label>
-    <p class="muted" style="margin:4px 0 8px; font-size:0.86rem;">Saved on this screen only, never synced — set the studio TV to Wall display once and it keeps that choice (if the TV's browser data ever gets cleared, just set it again here). Wall display needs a large landscape screen; phones and portrait tablets always use the standard run screen.</p>
+    <label class="section-label">This device</label>
+    <p class="muted" style="margin:4px 0 8px; font-size:var(--t-note);">Saved on this screen only, never synced — set the studio TV to Wall display once and it keeps that choice (if the TV's browser data ever gets cleared, just set it again here). Wall display needs a large landscape screen; phones and portrait tablets always use the standard run screen.</p>
     <div class="toggle-row">
       <label for="set-runmode" style="flex:1;">Run screen on this device</label>
       <select id="set-runmode" style="width:auto;">
@@ -840,7 +883,7 @@
       </select>
     </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
-    <label>Backup &amp; restore all routines</label>
+    <label class="section-label">Backup &amp; restore all routines</label>
     <div style="display:flex; gap:10px; margin-top:6px; flex-wrap:wrap;">
       <button id="btn-backup" data-ic="download">Download backup</button>
       <button id="btn-restore" data-ic="upload">Restore from file</button>
@@ -848,12 +891,11 @@
       <input type="file" id="restore-file" accept="application/json" class="hidden" />
     </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
-    <label>Import from ClassFlow</label>
-    <p class="muted" style="margin:4px 0 8px; font-size:0.86rem;">Bring your older ClassFlow workouts in as Cycle routines. Your ClassFlow data is left untouched.</p>
+    <label class="section-label">Import from ClassFlow</label>
+    <p class="muted" style="margin:4px 0 8px; font-size:var(--t-note);">Bring your older ClassFlow workouts in as Cycle routines. Your ClassFlow data is left untouched.</p>
     <button id="btn-import-classflow" data-ic="importF">Import from ClassFlow</button>
     <div class="modal-actions">
       <button class="ghost" id="btn-settings-close">Close</button>
-      <button class="gold" id="btn-settings-save">Save</button>
     </div>
   </div>
 </div>
@@ -1456,7 +1498,17 @@
     actions.forEach(function (a) {
       var b = el("button", a.danger ? "danger" : null);
       b.innerHTML = ic(a.icon) + "<span>" + escapeHtml(a.label) + "</span>";
-      b.onclick = function (ev) { ev.stopPropagation(); closeKebabs(); a.fn(); };
+      b.onclick = function (ev) {
+        ev.stopPropagation();
+        closeKebabs();
+        // closeKebabs() hides this menu (and the button ev.target itself), which would
+        // otherwise leave document.activeElement on <body> by the time a.fn() opens an
+        // overlay (openOverlay reads document.activeElement to know what to restore focus
+        // to on close). The trigger button stays visible after closeKebabs(), so re-focus
+        // it first — that's also the natural place for focus to land back after the action.
+        try { btn.focus(); } catch (e) {}
+        a.fn();
+      };
       menu.appendChild(b);
     });
     btn.onclick = function (ev) {
@@ -1495,19 +1547,14 @@
     routines.forEach(function (r) {
       var card = el("div", "card routine-card");
       var runnable = exerciseCount(r) > 0;
-      // tapping the card body starts the routine (tap-to-run); keyboard-operable too.
-      // Even a 0-exercise card runs openRun, which toasts "Add an exercise first" (feedback, not silence).
-      var runCard = function () { openRun(r.id); };
-      card.onclick = function (ev) { if (ev.target.closest("button")) return; runCard(); };
-      if (runnable) {
-        card.setAttribute("role", "button");
-        card.setAttribute("tabindex", "0");
-        card.setAttribute("aria-label", "Run " + (r.name || "Untitled routine"));
-        card.onkeydown = function (ev) {
-          if (ev.target.closest("button")) return;
-          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); runCard(); }
-        };
-      }
+      // Tapping the card body is a mouse/touch convenience only — it is NOT a keyboard/
+      // screen-reader control. It used to also be role="button" + tabindex, but that put
+      // a focusable "button" around the card's own real Start/⋯ buttons, an invalid nested-
+      // interactive pattern whose aria-label also hid the format/description/tags/meta
+      // text from screen readers (the label replaces the whole subtree's accessible name).
+      // The real Start button below is the actual accessible control; it gets its own
+      // specific name (not just "Start") so it's unambiguous outside the card's context.
+      card.onclick = function (ev) { if (ev.target.closest("button")) return; openRun(r.id); };
 
       card.appendChild(el("h3", null, r.name || "Untitled routine"));
 
@@ -1533,6 +1580,10 @@
       // Primary action loud; the rest demoted into a "⋯" overflow menu.
       var row = el("div", "row");
       var startBtn = iconBtn("play", "gold small", "Start");
+      // A plain "Start" label is ambiguous once a screen reader user is tabbing button-by-
+      // button across several cards (unlike sighted users, who see it under this card's own
+      // heading) — give it the routine's name too, same as the card's old aria-label did.
+      startBtn.setAttribute("aria-label", "Start " + (r.name || "Untitled routine"));
       startBtn.disabled = !runnable;
       startBtn.onclick = function () { openRun(r.id); };
       row.appendChild(startBtn);
@@ -1717,7 +1768,7 @@
   }
 
   function buildBlock(block, bi, r) {
-    var wrap = el("div", "block card");   /* padding comes from the .block.card CSS rule */
+    var wrap = el("div", "block card"); wrap.dataset.id = block.id;   /* padding comes from the .block.card CSS rule */
     var fields = disciplineFields(block);   // metric columns for THIS block's format
     var cols = exGridCols(fields);
 
@@ -1740,6 +1791,7 @@
       block.discipline = fsel.value;
       state.settings.lastDiscipline = block.discipline; // remember for the next new block
       markDirty(); renderBlocks();                       // rebuild columns for the new format
+      focusInBlock(block.id, "select.block-format");
     };
     head.appendChild(fsel);
     var dur = el("div", "block-dur", fmtTime(blockDuration(block)));
@@ -1832,10 +1884,13 @@
     name.oninput = function () { ex.name = name.value; markDirty(); };
     name.onchange = function () {
       // If the typed/picked name matches a saved move of the SAME format and this
-      // exercise is still at its defaults, auto-fill its metrics/time/rest.
+      // exercise is still at its defaults, auto-fill its metrics/time/rest. A match
+      // that DOESN'T autofill (because the row already has real values) still gets a
+      // toast — silently doing nothing was indistinguishable from "no move by that name".
       var mv = findMoveByName(ex.name, disciplineKey(block));
-      if (mv && exerciseIsDefault(ex)) {
-        applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from catalog: " + mv.name);
+      if (mv) {
+        if (exerciseIsDefault(ex)) { applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from catalog: " + mv.name); }
+        else toast("Matches a saved move, but this row already has values — clear them first to autofill");
       }
     };
     row.appendChild(fieldCell(name, "Exercise", "name-cell"));
@@ -1876,6 +1931,23 @@
   // All follow the same shape: mutate state.routines[..].blocks[..], then
   // markDirty() (autosave) + renderBlocks() (redraw). Delete asks for confirmation
   // only when there's real data to lose.
+  // renderBlocks() rebuilds the ENTIRE builder DOM, so the control the user just used
+  // (reorder/duplicate/delete/format-select) is destroyed every time — without this,
+  // focus silently drops to <body> after every single edit. Re-locate an equivalent
+  // control in the fresh DOM by data-id (set on both .block and every exercise/pause
+  // row) + a title/selector that's stable across row types, and refocus it.
+  function focusInRow(rowId, selector) {
+    var row = document.querySelector('[data-id="' + rowId + '"]');
+    var btn = row && row.querySelector(selector);
+    if (btn && !btn.disabled) { btn.focus(); return true; }
+    return false;
+  }
+  function focusInBlock(blockId, selector) {
+    var blk = document.querySelector('.block[data-id="' + blockId + '"]');
+    var el = blk && blk.querySelector(selector);
+    if (el && !el.disabled) { el.focus(); return true; }
+    return false;
+  }
   function findBlock(r, blockId) {
     for (var i = 0; i < r.blocks.length; i++) if (r.blocks[i].id === blockId) return r.blocks[i];
     return null;
@@ -1893,6 +1965,9 @@
     var j = i + dir; if (j < 0 || j >= r.blocks.length) return;
     var tmp = r.blocks[i]; r.blocks[i] = r.blocks[j]; r.blocks[j] = tmp;
     markDirty(); renderBlocks();
+    var primary = dir < 0 ? '[title="Move block up"]' : '[title="Move block down"]';
+    var fallback = dir < 0 ? '[title="Move block down"]' : '[title="Move block up"]';
+    if (!focusInBlock(blockId, primary)) focusInBlock(blockId, fallback);
   }
   function deleteBlock(blockId) {
     var r = findRoutine(currentEditId);
@@ -1900,8 +1975,11 @@
     var b = findBlock(r, blockId);
     var hasData = b && b.exercises.some(function (e) { return (e.name || "").trim() || exerciseHasMetrics(e); });
     if (hasData && !confirm('Delete block "' + (b.name || "Untitled") + '" and its exercises?')) return;
+    var idx = r.blocks.findIndex(function (x) { return x.id === blockId; });
+    var neighborId = (r.blocks[idx + 1] || r.blocks[idx - 1] || {}).id;   // the block that will sit where this one was, or the one before it
     r.blocks = r.blocks.filter(function (x) { return x.id !== blockId; });
     markDirty(); renderBlocks();
+    if (!neighborId || !focusInBlock(neighborId, "input.block-name")) { var ab = $("btn-add-block"); if (ab) ab.focus(); }
   }
   function addExercise(blockId) {
     var r = findRoutine(currentEditId);
@@ -1939,12 +2017,16 @@
     var j = i + dir; if (j < 0 || j >= b.exercises.length) return;
     var tmp = b.exercises[i]; b.exercises[i] = b.exercises[j]; b.exercises[j] = tmp;
     markDirty(); renderBlocks();
+    var primary = dir < 0 ? '[title="Move up"]' : '[title="Move down"]';
+    var fallback = dir < 0 ? '[title="Move down"]' : '[title="Move up"]';
+    if (!focusInRow(exId, primary)) focusInRow(exId, fallback);
   }
   function duplicateExercise(blockId, exId) {
     var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
     var i = b.exercises.findIndex(function (e) { return e.id === exId; }); if (i < 0) return;
     var copy = JSON.parse(JSON.stringify(b.exercises[i])); copy.id = uid();
     b.exercises.splice(i + 1, 0, copy); markDirty(); renderBlocks(); toast("Exercise duplicated");
+    focusInRow(exId, '[title="Duplicate"]');
   }
   function deleteExercise(blockId, exId) {
     var r = findRoutine(currentEditId); var b = findBlock(r, blockId); if (!b) return;
@@ -1952,8 +2034,11 @@
     var isPause = ex && ex.type === "pause";
     var hasData = ex && (isPause ? (ex.name || "").trim() : ((ex.name || "").trim() || exerciseHasMetrics(ex)));
     if (hasData && !confirm('Delete ' + (isPause ? "pause" : "exercise") + ' "' + (ex.name || (isPause ? "Pause" : "(unnamed)")) + '"?')) return;
+    var idx = b.exercises.findIndex(function (e) { return e.id === exId; });
+    var neighborId = (b.exercises[idx + 1] || b.exercises[idx - 1] || {}).id;   // the row that will fill the gap, or the one before it
     b.exercises = b.exercises.filter(function (e) { return e.id !== exId; });
     markDirty(); renderBlocks();
+    if (!neighborId || !focusInRow(neighborId, '[title="Delete"]')) focusInBlock(blockId, "input.block-name");
   }
 
   // Recompute the footer totals, enable/disable Start+Export (need >=1 exercise),
@@ -2284,6 +2369,8 @@
     // Retrigger the per-step reveal animation (remove → reflow → add).
     live.classList.remove("step-in"); void live.offsetWidth; live.classList.add("step-in");
     $("run-done").classList.add("hidden");
+    // Undo the done-screen's control hiding (renderRunDone) — Back can return here from Complete.
+    $("btn-run-next").classList.remove("hidden"); $("btn-run-restart").classList.remove("hidden");
 
     // In a plan, prefix the block label with the current routine name.
     $("run-block-label").textContent = (st.routine ? st.routine + (st.block ? " · " + st.block : "") : (st.block || ""));
@@ -2566,7 +2653,24 @@
   // zero-length steps). lastTick is reset so the next tick doesn't lose elapsed time.
 
   function prevStep() {
-    if (run.lead > 0) return;   // "Back" is a no-op during the get-ready lead-in (nothing precedes the first step)
+    if (run.lead > 0) {
+      // The TRUE pre-class lead-in (before the very first step) has nothing before it —
+      // Back stays a no-op there. But resumeFromPause() reuses this same run.lead
+      // countdown mid-class, where a previous step (the pause itself) really does exist;
+      // run.index is only 0 during the genuine pre-class case (a resume lead always
+      // starts from advanceIndex() having moved past the pause, so index is already >0).
+      if (run.index === 0) return;
+      run.lead = 0; run.running = false; stopTicker();
+      // Reverse the same forward skip resumeFromPause's advanceIndex did: step back over
+      // any zero-duration steps, stopping at the pause we resumed from.
+      do {
+        run.index--;
+        run.elapsedBefore -= (curStep().duration || 0);
+      } while (run.index > 0 && (curStep().duration || 0) <= 0 && curStep().kind !== "pause");
+      run.remaining = curStep().duration || 0;
+      renderRun(); announce(announceText(curStep())); setPlayLabel();
+      return;
+    }
     if (run.index >= run.steps.length) {
       run.index = run.steps.length - 1;
       run.elapsedBefore -= (curStep().duration || 0);
@@ -2608,6 +2712,10 @@
     var d = $("run-done"); d.classList.remove("hidden");
     d.innerHTML = "<h2><span class='done-check'>" + ic("check") + "</span> Complete</h2><p class='muted'>" +
       escapeHtml(run.title || "") + " · total " + fmtTime(run.total) + "</p>";
+    // The main button already becomes "Restart" here (setPlayLabel), and Skip has nothing
+    // left to skip to — showing the dedicated Restart button alongside it just duplicates
+    // the primary action, and a live Skip button that silently does nothing.
+    $("btn-run-next").classList.add("hidden"); $("btn-run-restart").classList.add("hidden");
     buildRunOrder();   // refresh the panel so every step shows as done
     setPlayLabel();
   }
@@ -2846,9 +2954,10 @@
   // ===========================================================================
   // Settings, branding, theme, backup/restore
   // ---------------------------------------------------------------------------
-  //   openSettings/saveSettings  the Settings dialog holds only the per-user
+  //   openSettings/commitSetting  the Settings dialog holds only the per-user
   //                            toggles (beeps, auto-start, lead-in) + tips +
   //                            backup/restore + ClassFlow import; branding is fixed.
+  //                            Every toggle applies instantly via commitSetting().
   //   updateBrand ............ paints the (fixed) Echelon icon + name in the top bar.
   //   applyTheme/toggleTheme . switch the data-theme attribute (dark/light).
   //   backup/restore/undoRestore  export/import the whole state as a .json file.
@@ -2861,7 +2970,7 @@
     $("set-beeps").checked = !!state.settings.beeps;
     $("set-autostart").checked = !!state.settings.autostart;
     $("set-leadin").value = String(state.settings.leadIn);
-    $("set-runmode").value = displayPrefs.runMode;        // per-device (not synced, not saved by Save)
+    $("set-runmode").value = displayPrefs.runMode;        // per-device (not synced)
     $("set-orderstyle").value = displayPrefs.orderStyle;
     $("set-orderstyle").disabled = displayPrefs.runMode !== "wall";
     var hasUndo = false;
@@ -2870,12 +2979,13 @@
     openOverlay("settings-modal", "set-beeps");
   }
   function closeSettings() { closeOverlay("settings-modal"); }
-  function saveSettings() {
-    state.settings.beeps = $("set-beeps").checked;
-    state.settings.autostart = $("set-autostart").checked;
-    var li = parseInt($("set-leadin").value, 10); state.settings.leadIn = [0, 3, 5, 10].indexOf(li) >= 0 ? li : 5;
+  // Every control in this modal applies the moment it's changed (matching the device
+  // dropdowns below it) — there is nothing left to commit, so Close/Escape/the backdrop
+  // can never silently discard an edit the way a separate "Save" button used to allow.
+  function commitSetting(mutate) {
+    mutate(state.settings);
     state.settings.updatedAt = Date.now();
-    save(); pushSettings(); closeSettings(); toast("Settings saved");
+    save(); pushSettings();
   }
   // Paint the (fixed Echelon) brand: the icon + studio-name lockup in the top bar.
   function updateBrand() {
@@ -3050,11 +3160,16 @@
 
   // When navigating away from the builder/plan editor, discard a never-filled draft
   // so blank "Untitled" cards don't pile up (the in-page Back buttons already do this).
+  // Gated on currentEditId, NOT on whether the builder view happens to be visible right
+  // now — a detour through the Moves catalog hides the builder without ever "leaving" the
+  // routine, so a visibility check here let an abandoned blank draft skip this prune
+  // entirely (builder → Moves → Home) and sit in the library forever as "Untitled routine".
   function leaveCurrentEditor() {
-    if (!$("view-builder").classList.contains("hidden")) {
+    if (currentEditId) {
       saveBuilder(false);
       var r = findRoutine(currentEditId);
       if (r && routineIsEmpty(r)) { syncDiscard("routines", r.id); state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); }
+      currentEditId = null;
     }
     clearTimeout(autosaveTimer); save();
     drainSyncDeferred();   // apply any cloud updates that arrived while this item was open
@@ -3077,9 +3192,12 @@
   brandLogo.onclick = function () { leaveCurrentEditor(); showLibrary(); };
   brandLogo.onkeydown = function (e) { if (e.key === "Enter" || e.code === "Space") { e.preventDefault(); brandLogo.click(); } };
   $("btn-catalog-back").onclick = function () {
-    clearTimeout(autosaveTimer); save();
-    if (catalogReturnView === "builder" && findRoutine(currentEditId)) showBuilder(currentEditId);
-    else showLibrary();
+    if (catalogReturnView === "builder" && findRoutine(currentEditId)) {
+      clearTimeout(autosaveTimer); save(); showBuilder(currentEditId);
+    } else {
+      leaveCurrentEditor();   // going to the library — prune an abandoned blank draft, if any
+      showLibrary();
+    }
   };
   $("btn-add-move").onclick = addMove;
   $("btn-add-move-2").onclick = addMove;
@@ -3096,9 +3214,13 @@
 
   $("btn-settings").onclick = openSettings;
   $("btn-settings-close").onclick = closeSettings;
-  $("btn-settings-save").onclick = saveSettings;
-  // Per-device display prefs apply INSTANTLY (independent of the Save button, which
-  // commits only the synced account settings above it).
+  $("set-beeps").onchange = function () { var v = this.checked; commitSetting(function (s) { s.beeps = v; }); };
+  $("set-autostart").onchange = function () { var v = this.checked; commitSetting(function (s) { s.autostart = v; }); };
+  $("set-leadin").onchange = function () {
+    var li = parseInt(this.value, 10); li = [0, 3, 5, 10].indexOf(li) >= 0 ? li : 5;
+    commitSetting(function (s) { s.leadIn = li; });
+  };
+  // Per-device display prefs also apply instantly.
   $("set-runmode").onchange = function () {
     displayPrefs.runMode = this.value === "wall" ? "wall" : "standard";
     $("set-orderstyle").disabled = displayPrefs.runMode !== "wall";
@@ -3133,7 +3255,13 @@
 
   document.addEventListener("keydown", function (e) {
     if (!$("run-overlay").classList.contains("hidden")) {
-      if (e.code === "Space") { e.preventDefault(); playPause(); }
+      // Let Space activate a focused control normally (Back/Skip/Restart/Exit) instead of
+      // always toggling play/pause out from under it — only hijack Space when focus is
+      // elsewhere (the overlay background, or nothing in particular).
+      if (e.code === "Space") {
+        if (e.target && e.target.closest && e.target.closest("button, input, select, a, [tabindex]")) return;
+        e.preventDefault(); playPause();
+      }
       else if (e.code === "ArrowRight") skipStep();
       else if (e.code === "ArrowLeft") prevStep();
       else if (e.code === "Escape") closeRun();
@@ -3144,6 +3272,17 @@
   });
   $("settings-modal").addEventListener("click", function (e) { if (e.target === this) closeSettings(); });
   $("export-modal").addEventListener("click", function (e) { if (e.target === this) closeExport(); });
+  // #print-area only gets filled by exportPDF(). Without this, a plain browser Cmd+P at
+  // any other moment either prints a blank page (never exported this session) or a STALE
+  // run sheet (from whatever routine was exported earlier) — neither tells the user what
+  // happened. Fill it with an honest placeholder if nothing was just exported, and clear
+  // it after every print job so it can never outlive the export that created it.
+  window.addEventListener("beforeprint", function () {
+    if (!$("print-area").innerHTML.trim()) {
+      $("print-area").innerHTML = "<p>Nothing to print here — open a routine and choose <b>Export → PDF run sheet</b> to get a print-ready class sheet.</p>";
+    }
+  });
+  window.addEventListener("afterprint", function () { $("print-area").innerHTML = ""; });
   window.addEventListener("beforeunload", function () {
     if (currentEditId && !$("view-builder").classList.contains("hidden")) saveBuilder(false);
     else { clearTimeout(autosaveTimer); save(); } // flush any pending catalog/edit autosave
@@ -3410,6 +3549,15 @@
   function setCachedIdentity(id) {
     try { id ? localStorage.setItem(AUTH_KEY, JSON.stringify(id)) : localStorage.removeItem(AUTH_KEY); } catch (e) {}
   }
+  // Separate from AUTH_KEY on purpose: AUTH_KEY is cleared on sign-out (so a reload shows
+  // the sign-in wall), but a signed-out device still holds that user's routines locally
+  // ("Your routines stay on this device"). This key tracks WHOSE data that is, survives
+  // sign-out, and is the only thing startAuthGate trusts to detect a genuine account
+  // switch — comparing against AUTH_KEY instead let a sign-out+different-sign-in silently
+  // merge the previous user's library into the new account's cloud storage.
+  var LOCAL_OWNER_KEY = "tempo.localOwner.v1";
+  function localOwnerUid() { try { return localStorage.getItem(LOCAL_OWNER_KEY) || null; } catch (e) { return null; } }
+  function setLocalOwnerUid(uid) { try { uid ? localStorage.setItem(LOCAL_OWNER_KEY, uid) : localStorage.removeItem(LOCAL_OWNER_KEY); } catch (e) {} }
   function emailDomain(email) { return (email || "").toLowerCase().split("@")[1] || ""; }
   function showApp() { document.body.classList.remove("signed-out"); }
   function showSignIn(msg, isNote) {
@@ -3450,12 +3598,13 @@
   function startAuthGate() {
     window.EchelonSync.onAuthChange(async function (user) {
       if (user && user.emailVerified && emailDomain(user.email) === window.EchelonSync.domain) {
-        var prev = cachedIdentity();
-        if (prev && prev.uid && prev.uid !== user.uid) {       // a different account on this device
+        var priorOwner = localOwnerUid();
+        if (priorOwner && priorOwner !== user.uid) {           // a genuinely different account's data occupies this device
           flushSyncPush();                                     // flush the OUTGOING user's queued edits first (identity still valid)
           stopSync();                                          // then tear down (stopSync would otherwise discard them)
           resetLocalForNewUser();                              // clear local before syncing as the new user
         }
+        setLocalOwnerUid(user.uid);                            // this device's local data now belongs to this account
         setCachedIdentity({ uid: user.uid, email: user.email, displayName: user.displayName || user.email });
         me = { uid: user.uid, email: user.email, displayName: user.displayName || user.email };
         updateAccountUI(user); showApp();
