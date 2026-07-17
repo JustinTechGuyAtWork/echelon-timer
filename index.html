@@ -288,6 +288,9 @@
   .block-head input.block-name { font-weight: 600; background: transparent; border-color: transparent; flex: 1 1 140px; min-width: 120px; }
   .block-head input.block-name:hover { border-color: var(--line); }
   .block-head select.block-format { flex-shrink: 0; width: auto; max-width: 170px; padding: 4px 8px; font-size: 0.82rem; color: var(--muted); }
+  .block-head .block-repeat { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+  .block-head .block-repeat-label { color: var(--muted); font-size: 0.82rem; white-space: nowrap; }
+  .block-head .block-repeat-input { width: 46px; text-align: center; padding: 4px 2px; }
   .block-head .block-dur { color: var(--muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .block-head .block-actions { display: flex; gap: 4px; }
   .block-head .block-actions button { padding: 4px 8px; font-size: 0.82rem; }
@@ -638,6 +641,7 @@
     .ex-actions button, .block-head .block-actions button { min-height: 44px; min-width: 44px; padding: 8px 12px; font-size: 0.95rem; }
     .block-head .block-actions { gap: 8px; }
     .ex-row input, .ex-row select, .ex-row .dur-input input { min-height: 44px; }
+    .block-head .block-repeat-input { min-height: 44px; }
     .block-head select.block-format { min-height: 44px; }
   }
   /* Short landscape (phones turned sideways): the tall single-column timer doesn't fit,
@@ -1354,9 +1358,7 @@
   // Total routine length in seconds = sum of every exercise's work + rest, across all blocks.
   function routineDuration(r) {
     var t = 0;
-    r.blocks.forEach(function (b) {
-      b.exercises.forEach(function (e) { t += (e.duration || 0) + (e.rest || 0); });
-    });
+    r.blocks.forEach(function (b) { t += blockDuration(b); });
     return t;
   }
   function exerciseCount(r) {                                        // how many REAL exercises in a routine (pauses don't count)
@@ -1696,7 +1698,8 @@
   }
 
   function blockDuration(b) {
-    var t = 0; b.exercises.forEach(function (e) { t += (e.duration || 0) + (e.rest || 0); }); return t;
+    var t = 0; b.exercises.forEach(function (e) { t += (e.duration || 0) + (e.rest || 0); });
+    return t * (b.repeat || 1);
   }
 
   // --- Shared metric-field renderers (used by BOTH the builder and the catalog) ---
@@ -1794,6 +1797,24 @@
       focusInBlock(block.id, "select.block-format");
     };
     head.appendChild(fsel);
+    // Repeat this block's exercises N times in the run (a circuit), without retyping
+    // them. Changing it only ever affects displayed durations — never the exercise
+    // rows/columns — so it just refreshes the totals in place instead of a full
+    // renderBlocks(), which would otherwise steal focus back out of this input.
+    var repWrap = el("div", "block-repeat");
+    repWrap.appendChild(el("span", "block-repeat-label", "Repeat ×"));
+    var repInput = document.createElement("input");
+    repInput.type = "number"; repInput.min = "1"; repInput.max = "20";
+    repInput.className = "block-repeat-input"; repInput.value = block.repeat || 1;
+    repInput.setAttribute("aria-label", "Number of times to repeat this block");
+    repInput.oninput = function () {
+      var v = parseInt(repInput.value, 10);
+      if (isNaN(v) || v < 1) v = 1; else if (v > 20) v = 20;
+      block.repeat = v; markDirty(); updateBuilderTotals();
+    };
+    repInput.onchange = function () { repInput.value = block.repeat || 1; };
+    repWrap.appendChild(repInput);
+    head.appendChild(repWrap);
     var dur = el("div", "block-dur", fmtTime(blockDuration(block)));
     head.appendChild(dur);
     var ba = el("div", "block-actions");
@@ -1801,9 +1822,11 @@
     bUp.disabled = bi === 0; bUp.onclick = function () { moveBlock(block.id, -1); };
     var bDown = el("button", "ghost"); bDown.innerHTML = ic("down"); bDown.title = "Move block down"; bDown.setAttribute("aria-label", "Move block down");
     bDown.disabled = bi === r.blocks.length - 1; bDown.onclick = function () { moveBlock(block.id, 1); };
+    var bDup = el("button", "ghost"); bDup.innerHTML = ic("copy"); bDup.title = "Duplicate block"; bDup.setAttribute("aria-label", "Duplicate block");
+    bDup.onclick = function () { duplicateBlock(block.id); };
     var bDel = el("button", "danger"); bDel.innerHTML = ic("x"); bDel.title = "Delete block"; bDel.setAttribute("aria-label", "Delete block");
     bDel.onclick = function () { deleteBlock(block.id); };
-    [bUp, bDown, bDel].forEach(function (b) { ba.appendChild(b); });
+    [bUp, bDown, bDup, bDel].forEach(function (b) { ba.appendChild(b); });
     head.appendChild(ba);
     wrap.appendChild(head);
 
@@ -1968,6 +1991,16 @@
     var primary = dir < 0 ? '[title="Move block up"]' : '[title="Move block down"]';
     var fallback = dir < 0 ? '[title="Move block down"]' : '[title="Move block up"]';
     if (!focusInBlock(blockId, primary)) focusInBlock(blockId, fallback);
+  }
+  function duplicateBlock(blockId) {
+    var r = findRoutine(currentEditId);
+    var i = r.blocks.findIndex(function (b) { return b.id === blockId; }); if (i < 0) return;
+    var copy = JSON.parse(JSON.stringify(r.blocks[i]));
+    copy.id = uid();
+    copy.exercises.forEach(function (e) { e.id = uid(); });
+    r.blocks.splice(i + 1, 0, copy);
+    markDirty(); renderBlocks(); toast("Block duplicated");
+    focusInBlock(blockId, '[title="Duplicate block"]');
   }
   function deleteBlock(blockId) {
     var r = findRoutine(currentEditId);
@@ -2286,21 +2319,31 @@
     var steps = [];
     r.blocks.forEach(function (b) {
       var fields = disciplineFields(b);   // metric fields for THIS block's format
-      b.exercises.forEach(function (ex) {
-        if (ex.type === "pause") {
-          // A pause is its own step kind — untimed, and it never gets a following
-          // rest step (that only applies to a worked exercise).
-          steps.push({ kind: "pause", block: b.name, name: ex.name || "", duration: 0 });
-          return;
-        }
-        // Always emit a work step so the exercise (name + metrics) is shown, even if
-        // its work time is 0 (e.g. a reps-only move). Zero-duration steps are passed
-        // through by the timer's auto-advance.
-        steps.push({ kind: "work", block: b.name, name: ex.name, meta: stepMeta(ex, fields), duration: ex.duration || 0, note: ex.note || "" });
-        if (ex.rest > 0) {
-          steps.push({ kind: "rest", block: b.name, name: "Rest", meta: [], duration: ex.rest });
-        }
-      });
+      var rounds = b.repeat || 1;
+      for (var round = 1; round <= rounds; round++) {
+        // Fold the round number into the block label itself (rather than a separate
+        // field) so everything that already displays st.block — the run screen, the
+        // running-order list's block grouping, wall mode — shows "Round 2 of 5" for
+        // free, and the running order gets a fresh group header each time it changes.
+        var blockLabel = rounds > 1
+          ? (b.name ? b.name + " · Round " + round + " of " + rounds : "Round " + round + " of " + rounds)
+          : b.name;
+        b.exercises.forEach(function (ex) {
+          if (ex.type === "pause") {
+            // A pause is its own step kind — untimed, and it never gets a following
+            // rest step (that only applies to a worked exercise).
+            steps.push({ kind: "pause", block: blockLabel, name: ex.name || "", duration: 0 });
+            return;
+          }
+          // Always emit a work step so the exercise (name + metrics) is shown, even if
+          // its work time is 0 (e.g. a reps-only move). Zero-duration steps are passed
+          // through by the timer's auto-advance.
+          steps.push({ kind: "work", block: blockLabel, name: ex.name, meta: stepMeta(ex, fields), duration: ex.duration || 0, note: ex.note || "" });
+          if (ex.rest > 0) {
+            steps.push({ kind: "rest", block: blockLabel, name: "Rest", meta: [], duration: ex.rest });
+          }
+        });
+      }
     });
     return steps;
   }
@@ -2775,14 +2818,22 @@
   function exportRows(r) {
     var rows = [], startAt = 0;
     r.blocks.forEach(function (b, bi) {
+      var rounds = b.repeat || 1;
+      var blockStart = startAt;
+      // A repeated block's moves print once (not once per round) — annotated with the
+      // round count — so blockStart + the FULL repeated duration is what the next
+      // block's Start times must carry forward, even though only one round's worth
+      // of rows is being emitted here.
+      var blockLabel = (b.name || ("Block " + (bi + 1))) + (rounds > 1 ? " (× " + rounds + " rounds)" : "");
       b.exercises.forEach(function (e, ei) {
         rows.push({
-          block: b.name || ("Block " + (bi + 1)), blockIndex: bi, n: ei + 1,
+          block: blockLabel, blockIndex: bi, n: ei + 1,
           name: e.name || "(unnamed)", ex: e, discipline: disciplineKey(b),
-          duration: e.duration || 0, rest: e.rest || 0, startAt: startAt
+          duration: e.duration || 0, rest: e.rest || 0, startAt: startAt, rounds: rounds
         });
         startAt += (e.duration || 0) + (e.rest || 0);
       });
+      if (rounds > 1) startAt = blockStart + blockDuration(b);
     });
     return rows;
   }
@@ -2805,8 +2856,11 @@
     var startAt = 0;
     r.blocks.forEach(function (b, bi) {
       var fields = disciplineFields(b);   // each block prints its own format's columns
+      var rounds = b.repeat || 1;
+      var blockStart = startAt;
       html += "<h2>" + (bi + 1) + ". " + escapeHtml(b.name || "Block " + (bi + 1)) +
-        " <span style='font-weight:normal;color:#666'>(" + escapeHtml(DISCIPLINES[disciplineKey(b)].label) + " · " + fmtTime(blockDuration(b)) + ")</span></h2>";
+        " <span style='font-weight:normal;color:#666'>(" + escapeHtml(DISCIPLINES[disciplineKey(b)].label) + " · " + fmtTime(blockDuration(b)) +
+        (rounds > 1 ? " · × " + rounds + " rounds" : "") + ")</span></h2>";
       var ths = "<th>#</th><th>Exercise</th>" +
         fields.map(function (f) { return "<th>" + escapeHtml(f.label) + "</th>"; }).join("") +
         "<th>Start</th><th>Work</th><th>Rest</th>";
@@ -2834,6 +2888,7 @@
         startAt += (e.duration || 0) + (e.rest || 0);
       });
       html += "</tbody></table>";
+      if (rounds > 1) startAt = blockStart + blockDuration(b);
     });
     html += "<p class='ps-foot'>Total " + fmtTime(routineDuration(r)) + " · Generated by " + escapeHtml(studio) + " · " + new Date().toLocaleString() + "</p>";
     $("print-area").innerHTML = html;
@@ -2868,7 +2923,10 @@
     lines.push(head.map(csv).join(","));
     var totWork = 0, totRest = 0;
     rows.forEach(function (x) {
-      totWork += x.duration; totRest += x.rest;   // both 0 for a pause row, so this stays correct unconditionally
+      // A repeated block's rows are printed once but its rounds all still cost time —
+      // × x.rounds recovers the true total (both durations are 0 for a pause row, so
+      // this stays correct unconditionally there too).
+      totWork += x.duration * x.rounds; totRest += x.rest * x.rounds;
       var isPause = x.ex.type === "pause";
       // Only fill a metric cell if that field belongs to THIS row's block format.
       // (Switching a block's format keeps the old values on the exercise so you can
@@ -2903,7 +2961,10 @@
     var startAt = 0;
     r.blocks.forEach(function (b, bi) {
       var fields = disciplineFields(b);   // each block lists its own format's metrics
-      out.push("── " + (bi + 1) + ". " + (b.name || "Block " + (bi + 1)) + "  [" + DISCIPLINES[disciplineKey(b)].label + "]  (" + fmtTime(blockDuration(b)) + ")");
+      var rounds = b.repeat || 1;
+      var blockStart = startAt;
+      out.push("── " + (bi + 1) + ". " + (b.name || "Block " + (bi + 1)) + "  [" + DISCIPLINES[disciplineKey(b)].label + "]  (" + fmtTime(blockDuration(b)) +
+        (rounds > 1 ? " · × " + rounds + " rounds" : "") + ")");
       b.exercises.forEach(function (e, ei) {
         if (e.type === "pause") {
           out.push("  " + pad((ei + 1) + ".", 4) + pad("[" + fmtTime(startAt) + "]", 9) + " " +
@@ -2919,6 +2980,7 @@
         out.push(line);
         startAt += (e.duration || 0) + (e.rest || 0);
       });
+      if (rounds > 1) startAt = blockStart + blockDuration(b);
       out.push("");
     });
     return out.join("\n").replace(/\n+$/, "");
