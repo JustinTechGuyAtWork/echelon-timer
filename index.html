@@ -475,6 +475,13 @@
      across a room is exactly the case where under-AA text bites hardest. */
   .run-order .ro-block { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--t-eyebrow);
     color: color-mix(in srgb, var(--text) 65%, transparent); margin: 12px 0 4px; }
+  /* A repeated block gets a bordered "card" grouping — the same visual language as a block
+     in the builder — so its rounds read as one repeating unit, not a plain list entry.
+     A single-round block stays a plain list item (no wrapper), so this never applies there. */
+  .run-order .ro-group { border: 1px solid color-mix(in srgb, var(--accent-text) 32%, var(--line));
+    border-radius: 10px; padding: 10px 10px 6px; margin: 14px 0; background: color-mix(in srgb, var(--panel) 45%, transparent); }
+  .run-order .ro-group.active { border-color: var(--accent-text); }
+  .run-order .ro-group .ro-block { margin-top: 0; }
   .run-order .ro-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: 8px;
     color: color-mix(in srgb, var(--text) 78%, transparent); }
   .run-order .ro-row .ro-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -550,6 +557,7 @@
     body.wall-run .run-order .ro-block { font-size: clamp(.9rem, 1.8vh, 1.5rem); }
     body.wall-run .run-order .ro-row { font-size: clamp(1.3rem, 3vh, 2.4rem); padding: clamp(10px, 1.6vh, 20px) 12px; }
     body.wall-run .run-order .ro-row.ro-rest { font-size: clamp(1rem, 2.2vh, 1.8rem); padding: clamp(6px, 1vh, 12px) 12px; }
+    body.wall-run .run-order .ro-group { padding: clamp(10px, 1.6vh, 18px) clamp(10px, 1.6vh, 18px) clamp(6px, 1vh, 10px); }
     /* Rolling style: only ~5 rows, so they can be huge; rests stay slim between them. */
     body.wall-order-rolling .run-order.ro-rolling .ro-row { font-size: clamp(1.6rem, 4.2vh, 3.4rem); padding: clamp(12px, 2vh, 26px) 14px; }
     body.wall-order-rolling .run-order.ro-rolling .ro-row.ro-rest { font-size: clamp(1.1rem, 2.4vh, 2rem); padding: clamp(6px, 1vh, 12px) 14px; }
@@ -2560,7 +2568,12 @@
       } else {
         header = g.blockName;   // "" for an unnamed single-round block → no header (unchanged)
       }
-      if (header) panel.appendChild(el("div", "ro-block", header));
+      // A repeated block gets a bordered "card" grouping — same visual language as a block
+      // in the builder — so it reads as one repeating unit rather than a plain list entry.
+      // A block that only runs once stays a plain list item, exactly as before.
+      var dest = panel;
+      if (g.roundsTotal > 1) { dest = el("div", "ro-group" + (isActive ? " active" : "")); panel.appendChild(dest); }
+      if (header) dest.appendChild(el("div", "ro-block", header));
       g.rows.forEach(function (st) {
         var state;
         if (complete || cur.blockId > g.blockId) state = "done";        // whole block already behind us
@@ -2568,7 +2581,7 @@
         else state = st.posInRound < cur.posInRound ? "done"             // within the active block: this round's progress
           : (st.posInRound === cur.posInRound ? "current" : "");
         var row = makeRow(st, state);
-        panel.appendChild(row);
+        dest.appendChild(row);
         if (state === "current") currentRow = row;
       });
     });
