@@ -374,6 +374,7 @@
   /* Left column holds the whole timer; on phones/portrait it IS the view. */
   .run-col { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
   .run-order { display: none; }   /* the running-order panel only appears on large landscape (media query) */
+  .run-notepanel { display: none; }   /* the Wall-mode coaching-note column only appears on wide screens (media query) */
   /* The block label is a flex sibling of the routine name + actions. By default it has
      flex-basis:100% and the highest order, so it wraps to its own centered line BELOW the
      top row (standard + phone). Wall mode overrides this to sit it inline, centered. */
@@ -591,6 +592,43 @@
     /* No rolling-specific override — the base .ro-row.done opacity (.62, chosen above
        for AA contrast) already applies; the old .32 here dropped well under 2:1. */
     .run-order .ro-more { color: color-mix(in srgb, var(--text) 65%, transparent); font-size: clamp(.9rem, 1.8vh, 1.5rem); padding: 8px 14px; }
+  }
+
+  /* ===== Wall mode, wide displays: coaching note gets its own left column =====
+     (Notes · Timer · Order). Gated at ≥1280px so three columns never crowd the
+     timer — below this, Wall mode keeps the note in the center stack. The panel's
+     width is FIXED, so on steps with no note it stays reserved (blank) and the
+     centered timer never shifts between steps. */
+  @media (min-width: 1280px) {
+    body.wall-run .run-notepanel {
+      display: flex; flex-direction: column;
+      width: clamp(300px, 22vw, 460px); flex-shrink: 0;
+      overflow-y: auto; padding-right: 6px;
+    }
+    /* The in-stage note is redundant in this mode — the left panel owns it. */
+    body.wall-run #run-note { display: none; }
+    /* Keep the centered timer rock-steady between steps: reserve the stage's scrollbar
+       gutter on BOTH sides, so a taller step (which triggers the overflow scrollbar)
+       doesn't nudge the centered dial sideways vs a shorter step that doesn't. */
+    body.wall-run .run-stage { scrollbar-gutter: stable both-edges; }
+    /* Its own tall column lets the note read much larger than the center-stack cap
+       it used to share with the dial. Left-aligned ragged-right for multi-line. */
+    /* Auto vertical margins center the note when it fits but collapse to 0 on
+       overflow (pinning it to the top so its START stays readable — a wall can't
+       scroll), the same overflow-safe pattern .run-stage uses. */
+    body.wall-run .run-notepanel .run-note {
+      font-size: clamp(1.5rem, 3.6vh, 3rem); line-height: 1.3;
+      max-width: none; margin: auto 0; text-align: left;
+    }
+    /* A small labeled eyebrow so the detached note reads as an intentional zone —
+       only when there's actually a note (empty steps leave the column blank). */
+    body.wall-run .run-notepanel .run-note:not(:empty):not(.is-system)::before {
+      content: "Coaching note"; display: block;
+      font-family: var(--font-display); text-transform: uppercase;
+      letter-spacing: var(--track-label); font-style: normal; font-weight: 600;
+      font-size: clamp(.9rem, 1.8vh, 1.4rem); color: var(--accent-text);
+      margin-bottom: clamp(10px, 1.6vh, 20px);
+    }
   }
 
   /* ---------- Modal ---------- */
@@ -847,7 +885,15 @@
 
 <!-- ===== Run Overlay ===== -->
 <div id="run-overlay" class="run-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="run-routine">
-  <!-- Left column: the timer itself. On large landscape screens the running-order
+  <!-- Left column (Wall mode on wide screens only): the current exercise's coaching
+       note in its own panel, so it reads large from across the room. Reserved width —
+       it stays put (blank) on steps with no note so the centered timer never shifts.
+       Filled by setRunNote() in parallel with the in-stage note; CSS shows one or the
+       other per display mode. -->
+  <aside class="run-notepanel" id="run-notepanel" aria-label="Coaching note">
+    <div class="run-note" id="run-note-wall"></div>
+  </aside>
+  <!-- Center column: the timer itself. On large landscape screens the running-order
        panel (below) sits to its right; on phones/portrait this column is the whole view. -->
   <div class="run-col">
     <div class="run-top">
@@ -2505,6 +2551,16 @@
   }
   function curStep() { return run.steps[run.index]; }
 
+  // Write the coaching note to both the in-stage note (Standard/phone) and the
+  // Wall-mode left-column note. CSS shows whichever the current display mode uses;
+  // keeping both filled means switching modes mid-run needs no extra bookkeeping.
+  // isSystem=true marks a control message (e.g. the pause "Tap Resume" hint) so the
+  // Wall panel doesn't stamp a "Coaching note" eyebrow on text that isn't a cue.
+  function setRunNote(text, isSystem) {
+    $("run-note").textContent = text;
+    var w = $("run-note-wall");
+    if (w) { w.textContent = text; w.classList.toggle("is-system", !!isSystem); }
+  }
   function renderRun() {
     if (run.index >= run.steps.length) { renderRunDone(); return; }
     var st = curStep();
@@ -2530,7 +2586,7 @@
       $("run-type").textContent = "Pause";
       $("run-ex-name").textContent = st.name || "Paused";
       $("run-spring").innerHTML = "<span class='run-pause-icon'>" + ic("pause") + "</span>";
-      $("run-note").textContent = "Tap Resume when you're ready to continue.";
+      setRunNote("Tap Resume when you're ready to continue.", true);
       $("run-next").innerHTML = "";
       buildRunOrder();
       updateRunTime();
@@ -2547,7 +2603,7 @@
     $("run-spring").innerHTML = sp.join("");
 
     // Coaching note for the current exercise (rest steps carry none → cleared → CSS hides it).
-    $("run-note").textContent = st.note || "";
+    setRunNote(st.note || "");
 
     // Preview the next step the timer will actually land on — skip past any
     // zero-duration steps (e.g. reps-only moves), which advanceStep auto-advances,
@@ -2687,7 +2743,7 @@
     $("run-spring").innerHTML = (st.meta || []).map(function (mt) {
       return "<span>" + escapeHtml(mt.label) + " <b>" + escapeHtml(mt.value) + "</b></span>";
     }).join("");
-    $("run-note").textContent = st.note || "";
+    setRunNote(st.note || "");
     $("run-next").innerHTML = "Starting…";
     $("run-position").textContent = "Get ready";
     buildRunOrder();
@@ -2894,6 +2950,10 @@
     $("run-position").textContent = "Complete"; $("run-block-label").textContent = "";
     $("run-stage").className = "run-stage";
     $("run-live").classList.add("hidden");
+    // Hiding #run-live clears the center note, but the Wall-mode note lives in a
+    // separate panel outside it — clear both so the Complete screen doesn't leave a
+    // stale coaching note in the left column.
+    setRunNote("");
     var d = $("run-done"); d.classList.remove("hidden");
     d.innerHTML = "<h2><span class='done-check'>" + ic("check") + "</span> Complete</h2><p class='muted'>" +
       escapeHtml(run.title || "") + " · total " + fmtTime(run.total) + "</p>";
