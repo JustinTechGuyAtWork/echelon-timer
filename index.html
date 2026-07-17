@@ -374,7 +374,12 @@
   /* The block label is a flex sibling of the routine name + actions. By default it has
      flex-basis:100% and the highest order, so it wraps to its own centered line BELOW the
      top row (standard + phone). Wall mode overrides this to sit it inline, centered. */
-  .run-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  /* position+z-index: in Broadcast mode, every piece is position:fixed and freely
+     draggable anywhere on screen — CSS stacking rules paint position:fixed elements above
+     static content REGARDLESS of DOM order, so a piece dragged over this corner would
+     silently swallow clicks on Exit (as happened). An explicit z-index above their
+     (implicit, z-index:auto) stacking keeps Exit clickable no matter how pieces are arranged. */
+  .run-top { position: relative; z-index: 10; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .run-top .run-routine { font-size: var(--t-body); color: var(--muted); flex: 1; order: 1; }
   .run-top-actions { display: flex; align-items: center; gap: 12px; order: 2; }
   .run-block-label { text-align: center; color: var(--accent-text); font-weight: 600; letter-spacing: var(--track-label); text-transform: uppercase; font-size: var(--t-small); margin-top: 6px; order: 3; flex: 1 0 100%; }
@@ -634,14 +639,28 @@
     body.broadcast-run .run-dial { --dial: min(calc(78cqw * var(--bc-text-scale, 1)), calc(78cqh * var(--bc-text-scale, 1)), 92cqw, 92cqh); margin: 0; }
     body.broadcast-run .run-type-pill { font-size: calc(min(3cqw, 6cqh) * var(--bc-text-scale, 1)); }
     body.broadcast-run .run-ex-name { font-size: calc(min(7cqw, 15cqh) * var(--bc-text-scale, 1)); margin: 2cqh 0; }
-    body.broadcast-run .run-spring { font-size: calc(min(3cqw, 6cqh) * var(--bc-text-scale, 1)); gap: 3cqw; }
-    body.broadcast-run .run-spring b { font-size: calc(min(3.5cqw, 7cqh) * var(--bc-text-scale, 1)); }
+    /* Cadence/Resistance now has its own dedicated (short, wide) box — the old 6cqh ceiling
+       was tuned for when this shared a much taller box with the exercise name. A box this
+       short caps cqh-based sizing hard regardless of the text-size slider, so it stayed
+       "tiny" even at 200%. A far more generous cqh lets the slider actually make it
+       prominent — the 55/60cqh outer ceiling was tuned empirically (measured against actual
+       rendered text) as the largest size that still fits BOTH label+value phrases on one
+       line at 200% scale in the default box width; higher wraps the phrase onto 2 lines,
+       which then overflows the (short) box height instead. */
+    body.broadcast-run .run-spring { font-size: min(calc(8cqw * var(--bc-text-scale, 1)), calc(45cqh * var(--bc-text-scale, 1)), 55cqh); gap: 3cqw; }
+    body.broadcast-run .run-spring b { font-size: min(calc(9cqw * var(--bc-text-scale, 1)), calc(52cqh * var(--bc-text-scale, 1)), 60cqh); }
     body.broadcast-run .run-note { font-size: calc(min(2.5cqw, 5.5cqh) * var(--bc-text-scale, 1)); max-width: 90cqw; margin-top: 1.5cqh; }
-    body.broadcast-run .run-overall { font-size: calc(min(3cqw, 7cqh) * var(--bc-text-scale, 1)); gap: 4cqw; margin-top: 1cqh; }
-    body.broadcast-run .run-overall b { font-size: calc(min(3.5cqw, 8cqh) * var(--bc-text-scale, 1)); }
+    /* Same fix as .run-spring above — Elapsed/Remaining now has its own dedicated short box. */
+    body.broadcast-run .run-overall { font-size: min(calc(8cqw * var(--bc-text-scale, 1)), calc(45cqh * var(--bc-text-scale, 1)), 55cqh); gap: 4cqw; margin-top: 1cqh; }
+    body.broadcast-run .run-overall b { font-size: min(calc(9cqw * var(--bc-text-scale, 1)), calc(52cqh * var(--bc-text-scale, 1)), 60cqh); }
     body.broadcast-run #run-next { font-size: calc(3.2vh * var(--bc-text-scale, 1)); line-height: 1.3; }
     body.broadcast-run .run-block-label { font-size: calc(5.5vh * var(--bc-text-scale, 1)); }
-    body.broadcast-run #run-order .ro-title { font-size: calc(min(5cqw, 6cqh) * var(--bc-text-scale, 1)); }
+    /* The sticky title's fade-gradient (base rule, above) fades FROM --bg — a flat color
+       that matches the app's own normal background but NOT the broadcast screen's actual
+       backdrop (a radial gradient, .run-overlay above), so it rendered as a visibly
+       mismatched rectangle sitting over "RUNNING ORDER". Drop the fade in broadcast mode —
+       the title stays pinned while scrolling, it just doesn't try to fade content under it. */
+    body.broadcast-run #run-order .ro-title { font-size: calc(min(5cqw, 6cqh) * var(--bc-text-scale, 1)); background: transparent; }
     body.broadcast-run #run-order .ro-routine { font-size: calc(min(4cqw, 5cqh) * var(--bc-text-scale, 1)); }
     body.broadcast-run #run-order .ro-block { font-size: calc(min(4cqw, 4.5cqh) * var(--bc-text-scale, 1)); }
     body.broadcast-run #run-order .ro-row { font-size: calc(min(4cqw, 5.5cqh) * var(--bc-text-scale, 1)); padding: 1cqh 1.5cqw; }
@@ -1373,8 +1392,10 @@
       exname:     { left: 46, top: 8,  width: 51, height: 14, visible: true, textScale: 1 },
       spring:     { left: 46, top: 24, width: 51, height: 8,  visible: true, textScale: 1 },
       note:       { left: 46, top: 34, width: 51, height: 10, visible: true, textScale: 1 },
-      next:       { left: 46, top: 46, width: 51, height: 10, visible: true, textScale: 1 },
-      order:      { left: 46, top: 58, width: 51, height: 34, visible: true, textScale: 1 }
+      // "Next: <name> · <duration>" can wrap to 3 lines for a long exercise name — 10%
+      // wasn't tall enough and the top or bottom line got clipped. 14% fits 3 lines cleanly.
+      next:       { left: 46, top: 46, width: 51, height: 14, visible: true, textScale: 1 },
+      order:      { left: 46, top: 62, width: 51, height: 30, visible: true, textScale: 1 }
     };
   }
   function clampPct(v) { return Math.max(0, Math.min(100, v)); }
