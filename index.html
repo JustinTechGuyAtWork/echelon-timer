@@ -257,6 +257,9 @@
   .routine-card:hover { border-color: var(--accent-text); transform: translateY(-2px); }
   .routine-card h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: var(--t-card); letter-spacing: .3px; }
   .routine-card .desc { color: var(--muted); font-size: var(--t-note); }
+  /* Distinct from the muted, pill-shaped tags below — this is an identity ("who teaches
+     it"), not a generic label, so it gets the brand teal and plain (non-pill) text. */
+  .routine-card .instructors { color: var(--accent-text); font-size: var(--t-note); font-weight: 600; }
   /* Format badge(s) — the class type, the thing that distinguishes one card from the next */
   .routine-card .fmts { display: flex; gap: 6px; flex-wrap: wrap; }
   .routine-card .fmt-badge { font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: .02em; color: var(--accent-text);
@@ -473,8 +476,11 @@
      .ro-rest was 2.82:1, .ro-block/.ro-dur/.ro-pause were 3.77:1. 65% clears AA in both
      themes (light 5.17:1, dark 7.38:1) with real margin, and reading this list from
      across a room is exactly the case where under-AA text bites hardest. */
+  /* Bolder + on-brand teal (was a small, 65%-muted gray) — legible from across a room. This
+     label carries the live round ("Round 2 of 4"), which matters more now that it's the
+     one changing, moving piece of info inside a repeated block's box. */
   .run-order .ro-block { text-transform: uppercase; letter-spacing: var(--track-label); font-size: var(--t-eyebrow);
-    color: color-mix(in srgb, var(--text) 65%, transparent); margin: 12px 0 4px; }
+    color: var(--accent-text); font-weight: 700; margin: 12px 0 4px; }
   /* A repeated block gets a bordered "card" grouping — the same visual language as a block
      in the builder — so its rounds read as one repeating unit, not a plain list entry.
      A single-round block stays a plain list item (no wrapper), so this never applies there. */
@@ -513,7 +519,7 @@
     .run-order { width: clamp(360px, 26vw, 520px); }
     .run-order .ro-title { font-size: clamp(.95rem, 1.7vh, 1.4rem); }
     .run-order .ro-routine { font-size: clamp(.82rem, 1.5vh, 1.2rem); }
-    .run-order .ro-block { font-size: clamp(.72rem, 1.3vh, 1.05rem); }
+    .run-order .ro-block { font-size: clamp(.85rem, 1.5vh, 1.2rem); }
     .run-order .ro-row { font-size: clamp(1rem, 2vh, 1.6rem); padding: clamp(7px, 1.1vh, 13px) 10px; }
     /* .ro-rest carries its own padding at base, which outranks .ro-row's — so restate it here. */
     .run-order .ro-row.ro-rest { font-size: clamp(.85rem, 1.6vh, 1.25rem); padding: clamp(4px, .6vh, 7px) 10px; }
@@ -554,7 +560,7 @@
     body.wall-run .run-order { width: clamp(420px, 32vw, 660px); }
     body.wall-run .run-order .ro-title { font-size: clamp(1.1rem, 2.2vh, 1.8rem); }
     body.wall-run .run-order .ro-routine { font-size: clamp(1rem, 2vh, 1.6rem); }
-    body.wall-run .run-order .ro-block { font-size: clamp(.9rem, 1.8vh, 1.5rem); }
+    body.wall-run .run-order .ro-block { font-size: clamp(1.1rem, 2.2vh, 1.9rem); }
     body.wall-run .run-order .ro-row { font-size: clamp(1.3rem, 3vh, 2.4rem); padding: clamp(10px, 1.6vh, 20px) 12px; }
     body.wall-run .run-order .ro-row.ro-rest { font-size: clamp(1rem, 2.2vh, 1.8rem); padding: clamp(6px, 1vh, 12px) 12px; }
     body.wall-run .run-order .ro-group { padding: clamp(10px, 1.6vh, 18px) clamp(10px, 1.6vh, 18px) clamp(6px, 1vh, 10px); }
@@ -745,6 +751,7 @@
       <h1 id="lib-title">Class Library</h1>
       <button class="gold" id="btn-new" data-ic="plus"><span>New Routine</span></button>
     </div>
+    <div class="filters" id="instructor-filters"></div>
     <div class="filters" id="tag-filters"></div>
     <div id="routine-list"></div>
   </section>
@@ -772,6 +779,10 @@
           <label for="routine-tags">Tags (comma separated)</label>
           <input id="routine-tags" placeholder="full body, intermediate" />
         </div>
+      </div>
+      <div>
+        <label for="routine-instructors">Instructor(s) (comma separated)</label>
+        <input id="routine-instructors" placeholder="Sarah T., Alex M." style="width:100%;" />
       </div>
     </div>
 
@@ -1240,6 +1251,7 @@
         r.name = typeof r.name === "string" ? r.name : "";
         r.description = typeof r.description === "string" ? r.description : "";
         if (!Array.isArray(r.tags)) r.tags = [];
+        if (!Array.isArray(r.instructors)) r.instructors = [];
         if (!Array.isArray(r.blocks)) r.blocks = [];
         r.blocks = r.blocks
           .filter(function (b) { return b && typeof b === "object"; })
@@ -1515,6 +1527,26 @@
       wrap.appendChild(chip);
     });
   }
+  // Same mechanism as tags (above), for the "who teaches it" field — its own filter row,
+  // sitting above the Tags row since it's the more common way to browse. A routine can list
+  // several instructors, so — exactly like tags — it can show up under more than one chip.
+  var activeInstructor = null;
+  function allInstructors() {           // unique, sorted list of every instructor used across routines
+    var set = {};
+    state.routines.forEach(function (r) { (r.instructors || []).forEach(function (t) { if (t) set[t] = true; }); });
+    return Object.keys(set).sort();
+  }
+  function renderInstructorFilters() {
+    var wrap = $("instructor-filters");
+    wrap.innerHTML = "";
+    var names = allInstructors();
+    if (names.length === 0) return;
+    wrap.appendChild(makeChip("All", activeInstructor === null, function () { activeInstructor = null; renderLibrary(); }));
+    names.forEach(function (t) {
+      var chip = makeChip(t, activeInstructor === t, function () { activeInstructor = (activeInstructor === t ? null : t); renderLibrary(); });
+      wrap.appendChild(chip);
+    });
+  }
   // Short format name for compact card badges ("Cycle / Spin" -> "Cycle").
   function disciplineShort(k) { return DISCIPLINES[k] ? DISCIPLINES[k].label.split(" / ")[0] : ""; }
   // Close every open overflow (kebab) menu. Wired to a document click in Events.
@@ -1557,13 +1589,17 @@
 
   function renderLibrary() {
     $("lib-title").textContent = "Class Library";
-    // If the active tag no longer exists (its routine was edited/deleted), drop it
-    // so the library doesn't silently show an empty, unexplained list.
+    // If the active tag/instructor no longer exists (its routine was edited/deleted), drop
+    // it so the library doesn't silently show an empty, unexplained list.
     if (activeTag && allTags().indexOf(activeTag) < 0) activeTag = null;
+    if (activeInstructor && allInstructors().indexOf(activeInstructor) < 0) activeInstructor = null;
+    renderInstructorFilters();
     renderTagFilters();
     var list = $("routine-list");
     list.innerHTML = "";
     var routines = state.routines.slice();
+    // Instructor and tag are independent filters — both apply together (AND) when set.
+    if (activeInstructor) routines = routines.filter(function (r) { return (r.instructors || []).indexOf(activeInstructor) >= 0; });
     if (activeTag) routines = routines.filter(function (r) { return (r.tags || []).indexOf(activeTag) >= 0; });
 
     if (state.routines.length === 0) {
@@ -1597,6 +1633,10 @@
       routineDisciplines(r).forEach(function (k) { fmts.appendChild(el("span", "fmt-badge", disciplineShort(k))); });
       card.appendChild(fmts);
 
+      // Instructor(s) — who teaches it, shown ahead of the description/tags since it's
+      // usually the more useful thing to see first (distinct teal text, not a tag pill,
+      // so it doesn't read as just another generic label).
+      if ((r.instructors || []).length) card.appendChild(el("div", "instructors", "with " + r.instructors.join(", ")));
       if (r.description) card.appendChild(el("div", "desc", r.description));
       if ((r.tags || []).length) {
         var tagWrap = el("div", "tags");
@@ -1641,7 +1681,7 @@
   // typing anything, routineIsEmpty()/leaveCurrentEditor() prune it (see Events).
   function createRoutine() {
     var r = {
-      id: uid(), name: "", description: "", tags: [],
+      id: uid(), name: "", description: "", tags: [], instructors: [],
       discipline: disciplineKey({ discipline: state.settings.lastDiscipline }), // default to the last format used
       createdAt: Date.now(), updatedAt: Date.now(),
       blocks: [ newBlock("Block 1") ]
@@ -1666,7 +1706,7 @@
   // True if a routine is still in its just-created, untouched state (used to auto-discard
   // abandoned blank routines so the library doesn't fill with "Untitled" junk).
   function routineIsEmpty(r) {
-    if ((r.name || "").trim() || (r.description || "").trim() || (r.tags || []).length) return false;
+    if ((r.name || "").trim() || (r.description || "").trim() || (r.tags || []).length || (r.instructors || []).length) return false;
     if (r.blocks.length === 0) return true;
     if (r.blocks.length === 1) {
       var b = r.blocks[0];
@@ -1714,6 +1754,7 @@
     $("routine-name").value = r.name;
     $("routine-desc").value = r.description;
     $("routine-tags").value = (r.tags || []).join(", ");
+    $("routine-instructors").value = (r.instructors || []).join(", ");
     // Class format is chosen per block (in each block's header), not per routine,
     // so a routine can mix formats. The name-autocomplete lists moves from every
     // format; picking one still autofills using the block's own format.
@@ -2142,6 +2183,7 @@
     r.name = $("routine-name").value.trim();
     r.description = $("routine-desc").value.trim();
     r.tags = parseTags($("routine-tags").value);
+    r.instructors = parseTags($("routine-instructors").value);
     r.updatedAt = Date.now();
     clearTimeout(autosaveTimer); save(); enqueueSync("routines", r.id);
     if (showMsg) toast("Routine saved");
@@ -2929,6 +2971,7 @@
     html += "<h1>" + escapeHtml(r.name || "Untitled routine") + "</h1>";
     html += "<p class='ps-sub'>" + escapeHtml(studio) +
       (r.description ? " — " + escapeHtml(r.description) : "") +
+      ((r.instructors || []).length ? " · with " + escapeHtml(r.instructors.join(", ")) : "") +
       " · " + escapeHtml(routineFormatLabel(r)) +
       " · " + fmtTime(routineDuration(r)) + " total · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises" +
       ((r.tags || []).length ? " · " + escapeHtml(r.tags.join(", ")) : "") + "</p>";
@@ -3035,6 +3078,7 @@
     out.push(studio + (r.description ? " — " + r.description : ""));
     out.push(routineFormatLabel(r) + " · Total " + fmtTime(routineDuration(r)) +
       " · " + r.blocks.length + " blocks · " + exerciseCount(r) + " exercises");
+    if ((r.instructors || []).length) out.push("Instructor(s): " + r.instructors.join(", "));
     if ((r.tags || []).length) out.push("Tags: " + r.tags.join(", "));
     out.push("");
     var startAt = 0;
@@ -3302,6 +3346,7 @@
   $("routine-name").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.name = $("routine-name").value; markDirty(); } };
   $("routine-desc").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.description = $("routine-desc").value; markDirty(); } };
   $("routine-tags").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.tags = parseTags($("routine-tags").value); markDirty(); } };
+  $("routine-instructors").oninput = function () { var r = findRoutine(currentEditId); if (r) { r.instructors = parseTags($("routine-instructors").value); markDirty(); } };
   $("btn-run-from-builder").onclick = function () { saveBuilder(false); openRun(currentEditId); };
   $("btn-export-builder").onclick = function () { saveBuilder(false); openExport(currentEditId); };
 
