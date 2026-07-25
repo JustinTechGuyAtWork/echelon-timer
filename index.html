@@ -245,6 +245,17 @@
   .lib-head h1 { font-size: var(--t-h1); margin: 0; flex: 1; }
   .lib-sort-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: var(--t-note); color: var(--muted); }
   .lib-sort-row select { width: auto; }
+  /* Underline tabs (not pills) — the two libraries are peer views of the same screen,
+     so they read as navigation rather than as another filter chip row below them. */
+  .lib-tabs { display: flex; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--line); }
+  .lib-tabs button { background: transparent; border: none; border-radius: 0; padding: 9px 14px;
+    color: var(--muted); font-weight: 600; font-size: var(--t-note); border-bottom: 2px solid transparent; min-height: 44px; }
+  .lib-tabs button:hover { background: transparent; color: var(--text); filter: none; }
+  .lib-tabs button.active { color: var(--accent-text); border-bottom-color: var(--accent-text); }
+  /* Who put this class in the shared library — an attribution line, deliberately quieter
+     than .instructors (who teaches it), which is the more useful fact on the card. */
+  .routine-card .shared-by { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--t-eyebrow); }
+  .routine-card .shared-by .ic { width: 1em; height: 1em; flex-shrink: 0; }
   .filters { display: flex; gap: var(--s2); flex-wrap: wrap; margin: 10px 0 var(--s5); align-items: center; }
   .tag-chip {
     border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
@@ -650,6 +661,8 @@
      are plain <label>s repurposed as headers — give them the same weight as the "Quick
      tips" heading above them, instead of inheriting the fine-print `label` size below. */
   .section-label { font-size: var(--t-note-lg); font-weight: 600; color: var(--text); }
+  .admin-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: var(--t-note); }
+  .admin-row span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
   .modal-actions .spacer { flex: 1; }   /* separates a leading destructive/reset action (e.g. Clear) from Cancel/Save */
   /* Stacked export options are a list, so left-align their icon+label (like the kebab menu)
@@ -816,6 +829,12 @@
     <div class="lib-head">
       <h1 id="lib-title">Class Library</h1>
       <button class="gold" id="btn-new" data-ic="plus"><span>New Routine</span></button>
+    </div>
+    <!-- My Classes = your private library (syncs to your devices only).
+         Team Library = the shared library everyone signed in can see. -->
+    <div class="lib-tabs" role="tablist" aria-label="Which library">
+      <button id="tab-mine" role="tab" aria-selected="true" class="active">My Classes</button>
+      <button id="tab-team" role="tab" aria-selected="false">Team Library</button>
     </div>
     <div class="lib-sort-row">
       <label for="lib-sort">Sort</label>
@@ -1016,6 +1035,17 @@
         <option value="rolling">Rolling</option>
       </select>
     </div>
+    <!-- Only the hardcoded owner sees this (see OWNER_EMAIL); everyone else gets .hidden. -->
+    <div id="admin-section" class="hidden">
+      <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
+      <label class="section-label">Team admins</label>
+      <p class="muted" style="margin:4px 0 8px; font-size:var(--t-note);">Admins can edit and delete <b>any</b> class in the team library — use it for people you trust to tidy up the shared library. You are always an admin and can't be removed.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input id="admin-email" type="email" placeholder="coworker@echelonfit.com" style="flex:1; min-width:200px;" />
+        <button id="btn-add-admin" data-ic="plus">Add admin</button>
+      </div>
+      <div id="admin-list" style="margin-top:10px;"></div>
+    </div>
     <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
     <label class="section-label">Backup &amp; restore all routines</label>
     <div style="display:flex; gap:10px; margin-top:6px; flex-wrap:wrap;">
@@ -1131,6 +1161,36 @@
       onDoc(snap.exists() ? snap.data() : null, snap.metadata.hasPendingWrites);
     });
   }
+  // The shared Team library: ONE flat collection every company user can read. Reported
+  // under the pseudo-collection name "team" so the app can merge it into the same
+  // state.routines array its private routines live in (ids are unique across both).
+  function subTeam(onChanges, onError) {
+    return onSnapshot(collection(db, "teamRoutines"), { includeMetadataChanges: true }, function (snap) {
+      onChanges("team", mapChanges(snap));
+    }, function (err) { if (onError) onError(err); });
+  }
+  // The admin allow-list: one doc per admin, doc id = lowercased company email.
+  // Readable by any company user (so the app knows whether to show Edit on a
+  // teammate's class); writable only by the hardcoded owner (see the rules).
+  function subAdmins(onList) {
+    return onSnapshot(collection(db, "admins"), function (snap) {
+      onList(snap.docs.map(function (d) { return d.id; }));
+    });
+  }
+  // Share / Make-private are MOVES between two collections, done as ONE writeBatch so
+  // the class can never end up in both places (a duplicate) or neither (data loss).
+  function shareToTeam(uid, id, data) {
+    var batch = writeBatch(db);
+    batch.set(doc(db, "teamRoutines", id), Object.assign({}, data, { serverUpdatedAt: serverTimestamp() }));
+    batch.delete(doc(db, "users", uid, "routines", id));
+    return batch.commit();
+  }
+  function makePrivate(uid, id, data) {
+    var batch = writeBatch(db);
+    batch.set(doc(db, "users", uid, "routines", id), Object.assign({}, data, { serverUpdatedAt: serverTimestamp() }));
+    batch.delete(doc(db, "teamRoutines", id));
+    return batch.commit();
+  }
   async function bulkUpload(uid, perColl, userPatch) {
     var ops = [];
     ["routines", "catalog"].forEach(function (name) {
@@ -1156,8 +1216,17 @@
       cb(u ? { uid: u.uid, email: u.email, displayName: u.displayName, emailVerified: u.emailVerified } : null)),
     subscribeUser:    subUser,
     subscribeUserDoc: subUserDoc,
+    subscribeTeam:    subTeam,
+    subscribeAdmins:  subAdmins,
     pushItem:    (uid, coll, id, data) => setDoc(doc(db, "users", uid, coll, id), Object.assign({}, data, { serverUpdatedAt: serverTimestamp() })),
     deleteItem:  (uid, coll, id) => deleteDoc(doc(db, "users", uid, coll, id)),
+    pushTeamItem:   (id, data) => setDoc(doc(db, "teamRoutines", id), Object.assign({}, data, { serverUpdatedAt: serverTimestamp() })),
+    deleteTeamItem: (id) => deleteDoc(doc(db, "teamRoutines", id)),
+    shareToTeam: shareToTeam,
+    makePrivate: makePrivate,
+    setAdmin:    (email, byEmail) => setDoc(doc(db, "admins", String(email).toLowerCase()),
+                   { email: String(email).toLowerCase(), addedBy: byEmail || "", addedAt: serverTimestamp() }),
+    removeAdmin: (email) => deleteDoc(doc(db, "admins", String(email).toLowerCase())),
     setUserDoc:  (uid, data) => setDoc(doc(db, "users", uid), data, { merge: true }),
     getUserDocOnce: (uid) => getDoc(doc(db, "users", uid)).then((s) => s.exists() ? s.data() : null),
     bulkUpload:  bulkUpload,
@@ -1470,7 +1539,9 @@
     check:   '<circle cx="12" cy="12" r="9"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
     arrowLeft:'<path d="M19 12H5M12 19l-7-7 7-7"/>',
     plus:    '<path d="M12 5v14M5 12h14"/>',
-    calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>'
+    calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+    users:   '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    lock:    '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
   };
   function ic(name) {
     return '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
@@ -1607,6 +1678,18 @@
     renderLibrary();
   }
   function showBuilder(id) {
+    // The edit boundary for shared classes. Guarding HERE (rather than by hiding the
+    // kebab's Edit entry) covers every way into the builder — kebab, card, deep link —
+    // so a teammate's class can never be edited in place. You get your own copy instead.
+    var r = findRoutine(id);
+    if (r && isTeam(r) && !canEditRoutine(r)) {
+      if (!confirm('"' + (r.name || "Untitled routine") + '" was shared by ' +
+        (r.ownerName || r.ownerEmail || "a teammate") + '.\n\nSave your own copy to edit it?')) return;
+      var copy = saveCopyToMine(id, true);
+      if (!copy) return;
+      id = copy.id; libraryTab = "mine";
+      toast("Editing your own copy");
+    }
     currentEditId = id;
     hideAllViews();
     $("view-builder").classList.remove("hidden");
@@ -1626,9 +1709,16 @@
   //   the currently selected filter chip (null = show all).
   // ===========================================================================
   var activeTag = null;
-  function allTags() {                  // unique, sorted list of every tag used across routines
+  // Which library is showing: your private classes, or the shared team library.
+  // Everything below (filter chips, sort, empty state) derives from THIS list, so the
+  // two tabs behave like two independent libraries rather than one filtered list.
+  var libraryTab = "mine";
+  function scopedRoutines() {
+    return state.routines.filter(function (r) { return libraryTab === "team" ? isTeam(r) : !isTeam(r); });
+  }
+  function allTags() {                  // unique, sorted list of every tag used in the ACTIVE library
     var set = {};
-    state.routines.forEach(function (r) { (r.tags || []).forEach(function (t) { if (t) set[t] = true; }); });
+    scopedRoutines().forEach(function (r) { (r.tags || []).forEach(function (t) { if (t) set[t] = true; }); });
     return Object.keys(set).sort();
   }
   // Keyboard-accessible filter chip (button semantics on a styled span).
@@ -1656,9 +1746,9 @@
   // sitting above the Tags row since it's the more common way to browse. A routine can list
   // several instructors, so — exactly like tags — it can show up under more than one chip.
   var activeInstructor = null;
-  function allInstructors() {           // unique, sorted list of every instructor used across routines
+  function allInstructors() {           // unique, sorted list of every instructor in the ACTIVE library
     var set = {};
-    state.routines.forEach(function (r) { (r.instructors || []).forEach(function (t) { if (t) set[t] = true; }); });
+    scopedRoutines().forEach(function (r) { (r.instructors || []).forEach(function (t) { if (t) set[t] = true; }); });
     return Object.keys(set).sort();
   }
   // "recent" (default) = most-recently-edited first, unchanged from before scheduling
@@ -1719,6 +1809,11 @@
 
   function renderLibrary() {
     $("lib-title").textContent = "Class Library";
+    ["mine", "team"].forEach(function (t) {
+      var b = $("tab-" + t); if (!b) return;
+      b.classList.toggle("active", libraryTab === t);
+      b.setAttribute("aria-selected", libraryTab === t ? "true" : "false");
+    });
     // If the active tag/instructor no longer exists (its routine was edited/deleted), drop
     // it so the library doesn't silently show an empty, unexplained list.
     if (activeTag && allTags().indexOf(activeTag) < 0) activeTag = null;
@@ -1727,15 +1822,30 @@
     renderTagFilters();
     var list = $("routine-list");
     list.innerHTML = "";
-    var routines = state.routines.slice();
+    var base = scopedRoutines();
+    var routines = base.slice();
     // Instructor and tag are independent filters — both apply together (AND) when set.
     if (activeInstructor) routines = routines.filter(function (r) { return (r.instructors || []).indexOf(activeInstructor) >= 0; });
     if (activeTag) routines = routines.filter(function (r) { return (r.tags || []).indexOf(activeTag) >= 0; });
 
-    if (state.routines.length === 0) {
+    if (base.length === 0) {
       var empty = el("div", "empty");
-      if (me && !firstRoutinesSnapshot) {   // signed in but the cloud hasn't answered yet — don't imply "you have nothing"
-        empty.innerHTML = '<div class="spinner" aria-hidden="true"></div><h2>Loading your classes…</h2><p>Fetching your routines from the cloud.</p>';
+      // Signed in but the cloud hasn't answered for THIS library yet — don't imply "you have nothing".
+      if (me && (libraryTab === "team" ? !firstTeamSnapshot : !firstRoutinesSnapshot)) {
+        empty.innerHTML = '<div class="spinner" aria-hidden="true"></div><h2>Loading' +
+          (libraryTab === "team" ? " team classes…</h2><p>Fetching the shared library." : " your classes…</h2><p>Fetching your routines from the cloud.") + '</p>';
+        list.appendChild(empty); return;
+      }
+      if (libraryTab === "team" && teamLoadError) {
+        empty.innerHTML = '<div class="empty-icon" aria-hidden="true">' + ic("users") + '</div><h2>Can’t load the team library</h2>' +
+          '<p>The shared library couldn’t be read. Reload the page — if it keeps happening, the team library may not be switched on in Firebase yet.</p>';
+        list.appendChild(empty); return;
+      }
+      if (libraryTab === "team") {
+        // No "create" button here on purpose — you can't build straight into the shared
+        // library; a class gets there by being shared, which keeps ownership unambiguous.
+        empty.innerHTML = '<div class="empty-icon" aria-hidden="true">' + ic("users") + '</div><h2>No shared classes yet</h2>' +
+          '<p>Open one of your own classes’ ⋯ menu and choose <b>Share with team</b> to put it here for everyone.</p>';
         list.appendChild(empty); return;
       }
       empty.innerHTML = '<div class="empty-icon" aria-hidden="true">' + ic("dumbbell") + '</div><h2>No routines yet</h2><p>Build your first routine — blocks of timed exercises, each with its own class format.</p>';
@@ -1766,6 +1876,15 @@
       var fmts = el("div", "fmts");
       routineDisciplines(r).forEach(function (k) { fmts.appendChild(el("span", "fmt-badge", disciplineShort(k))); });
       card.appendChild(fmts);
+
+      // Attribution for shared classes — makes it obvious whose class this is (and so
+      // why Edit may be missing) without having to open the ⋯ menu to find out.
+      if (isTeam(r)) {
+        var who = ownsRoutine(r) ? "Shared by you" : ("Shared by " + (r.ownerName || r.ownerEmail || "a teammate"));
+        var sb = el("div", "shared-by");
+        sb.innerHTML = ic("users") + "<span>" + escapeHtml(who) + "</span>";
+        card.appendChild(sb);
+      }
 
       // Scheduled date/time — glanceable, right under the format badges since that's
       // the top of the card. Nothing automatic happens once it's past (see fmtSchedule).
@@ -1804,14 +1923,20 @@
       startBtn.onclick = function () { openRun(r.id); };
       row.appendChild(startBtn);
       row.appendChild(el("div", "spacer"));
-      var menu = kebabMenu([
-        { label: "Edit", icon: "pencil", fn: function () { showBuilder(r.id); } },
-        { label: "Set schedule…", icon: "calendar", fn: function () { openScheduleModal(r.id); } },
-        { label: "Export", icon: "download", fn: function () { openExport(r.id); } },   // openExport toasts if there's nothing to export
-        { label: "Share link", icon: "link", fn: function () { shareRoutineLink(r.id); } },
-        { label: "Duplicate", icon: "copy", fn: function () { duplicateRoutine(r.id); } },
-        { label: "Delete", icon: "trash", danger: true, fn: function () { deleteRoutine(r.id); } }
-      ]);
+      // Scope-aware actions. On a teammate's shared class you can run, export and take
+      // your own copy — but not change theirs. Admins get the full set.
+      var mayEdit = canEditRoutine(r);
+      var acts = [];
+      if (mayEdit) acts.push({ label: "Edit", icon: "pencil", fn: function () { showBuilder(r.id); } });
+      else acts.push({ label: "Save a copy to my classes", icon: "copy", fn: function () { saveCopyToMine(r.id); } });
+      if (mayEdit) acts.push({ label: "Set schedule…", icon: "calendar", fn: function () { openScheduleModal(r.id); } });
+      acts.push({ label: "Export", icon: "download", fn: function () { openExport(r.id); } });   // openExport toasts if there's nothing to export
+      acts.push({ label: "Share link", icon: "link", fn: function () { shareRoutineLink(r.id); } });
+      if (!isTeam(r)) acts.push({ label: "Share with team", icon: "users", fn: function () { shareWithTeam(r.id); } });
+      if (isTeam(r) && ownsRoutine(r)) acts.push({ label: "Make private", icon: "lock", fn: function () { makeRoutinePrivate(r.id); } });
+      if (mayEdit) acts.push({ label: "Duplicate", icon: "copy", fn: function () { duplicateRoutine(r.id); } });
+      if (mayEdit) acts.push({ label: "Delete", icon: "trash", danger: true, fn: function () { deleteRoutine(r.id); } });
+      var menu = kebabMenu(acts);
       row.appendChild(menu);
       card.appendChild(row);
       grid.appendChild(card);
@@ -1825,6 +1950,11 @@
   function createRoutine() {
     var r = {
       id: uid(), name: "", description: "", tags: [], instructors: [], scheduledAt: null,
+      // Stamp scope + owner up front so a brand-new class is unambiguously private and
+      // yours from the moment it's created — rather than relying on normalizeState to
+      // infer it on some later load.
+      scope: "mine",
+      ownerEmail: me ? me.email : "", ownerName: me ? (me.displayName || me.email) : "",
       discipline: disciplineKey({ discipline: state.settings.lastDiscipline }), // default to the last format used
       createdAt: Date.now(), updatedAt: Date.now(),
       blocks: [ newBlock("Block 1") ]
@@ -1865,21 +1995,89 @@
     }
     return false;
   }
-  function duplicateRoutine(id) {
-    var src = findRoutine(id); if (!src) return;
+  // THE one ownership-resetting copy. Both Duplicate and "Save a copy to my classes" go
+  // through it, so a copy can never inherit the original's team scope or someone else's
+  // ownership — it is always a fresh, private class belonging to whoever made it.
+  function copyRoutineAsMine(src, nameSuffix) {
     var copy = JSON.parse(JSON.stringify(src));
-    copy.id = uid(); copy.name = (src.name || "Untitled routine") + " (copy)";
+    copy.id = uid(); copy.name = (src.name || "Untitled routine") + (nameSuffix || "");
     copy.createdAt = Date.now(); copy.updatedAt = Date.now();
-    copy.scheduledAt = null;   // a scheduled date/time is tied to a specific occurrence — don't carry it onto a duplicate
+    copy.scope = "mine";
+    copy.ownerEmail = me ? me.email : "";
+    copy.ownerName  = me ? (me.displayName || me.email) : "";
+    copy.scheduledAt = null;   // a scheduled date/time is tied to a specific occurrence — don't carry it onto a copy
     copy.blocks.forEach(function (b) { b.id = uid(); b.exercises.forEach(function (e) { e.id = uid(); }); });
     delete copy._syncedAt;                          // fresh item — no cloud sync state yet
+    return copy;
+  }
+  function duplicateRoutine(id) {
+    var src = findRoutine(id); if (!src) return;
+    var copy = copyRoutineAsMine(src, " (copy)");
     state.routines.push(copy); save(); enqueueSync("routines", copy.id); renderLibrary(); toast("Routine duplicated");
+  }
+  // Take a teammate's shared class into your own private library as an independent copy.
+  function saveCopyToMine(id, quiet) {
+    var src = findRoutine(id); if (!src) return null;
+    var copy = copyRoutineAsMine(src, "");
+    state.routines.push(copy); save(); enqueueSync("routines", copy.id);
+    if (!quiet) { renderLibrary(); toast('Saved "' + (copy.name || "Untitled routine") + '" to your classes'); }
+    return copy;
+  }
+  function shareWithTeam(id) {
+    var r = findRoutine(id); if (!r) return;
+    if (!me || !window.EchelonSync) { toast("Sign in to share with your team"); return; }
+    if (isTeam(r)) { toast("Already in the team library"); return; }
+    if (exerciseCount(r) === 0) { toast("Add an exercise first"); return; }
+    if (!confirm('Share "' + (r.name || "Untitled routine") + '" with the team?\n\n' +
+      'Everyone signed in can see and run it. You stay the only one who can edit or delete it (plus admins).')) return;
+    var prev = { scope: r.scope || "mine", ownerEmail: r.ownerEmail, ownerName: r.ownerName };
+    r.scope = "team";                                            // optimistic flip so the UI responds instantly
+    r.ownerEmail = me.email; r.ownerName = me.displayName || me.email;
+    r.updatedAt = Date.now();
+    save(); libraryTab = "team"; renderLibrary(); toast("Shared with the team");
+    // Offline this promise simply stays pending until reconnect (Firestore queues the
+    // batch) — it only rejects on a real refusal, which is when we roll the flip back.
+    window.EchelonSync.shareToTeam(me.uid, r.id, stripMeta(r)).catch(function (err) {
+      var cur = findRoutine(id);
+      if (cur) { cur.scope = prev.scope; cur.ownerEmail = prev.ownerEmail; cur.ownerName = prev.ownerName; save(); renderLibrary(); }
+      try { console.error("share to team failed", err); } catch (e) {}
+      toast(err && err.code === "permission-denied"
+        ? "The team library isn't switched on in Firebase yet"
+        : "Couldn't share that class — check your connection");
+    });
+  }
+  function makeRoutinePrivate(id) {
+    var r = findRoutine(id); if (!r || !isTeam(r)) return;
+    if (!me || !window.EchelonSync) { toast("Sign in first"); return; }
+    // Deliberately OWNER-only, not admin: making a class private moves it into the
+    // caller's own private space, so letting an admin do it to someone else's class
+    // would quietly transfer that class to the admin. Admins get Edit/Delete instead.
+    if (!ownsRoutine(r)) { toast("Only the person who shared it can make it private"); return; }
+    if (!confirm('Remove "' + (r.name || "Untitled routine") + '" from the team library?\n\n' +
+      'It moves back to your own classes. Teammates will no longer see it.')) return;
+    r.scope = "mine"; r.updatedAt = Date.now();
+    save(); libraryTab = "mine"; renderLibrary(); toast("Moved back to your classes");
+    window.EchelonSync.makePrivate(me.uid, r.id, stripMeta(r)).catch(function (err) {
+      var cur = findRoutine(id);
+      if (cur) { cur.scope = "team"; save(); renderLibrary(); }
+      try { console.error("make private failed", err); } catch (e) {}
+      toast("Couldn't make that private — check your connection");
+    });
   }
   function deleteRoutine(id) {
     var r = findRoutine(id); if (!r) return;
-    if (!confirm('Delete "' + (r.name || "Untitled routine") + '"? This cannot be undone.')) return;
+    if (isTeam(r) && !canEditRoutine(r)) { toast("Only " + (r.ownerName || r.ownerEmail || "its owner") + " can delete that"); return; }
+    var warn = isTeam(r) ? '\n\nThis removes it from the TEAM library — for everyone.' : "";
+    if (!confirm('Delete "' + (r.name || "Untitled routine") + '"?' + warn + ' This cannot be undone.')) return;
     addTombstone(id, r._syncedAt);                               // cloud sync: keep it deleted across devices
-    if (me && window.EchelonSync) window.EchelonSync.deleteItem(me.uid, "routines", id).catch(function () {});
+    if (me && window.EchelonSync) {
+      // Delete BOTH possible homes. A device that queued a write before it heard about
+      // a share / make-private can re-create the copy in the collection this class has
+      // left; clearing only the one the local scope points at leaves that ghost behind.
+      // Ids are unique across the two collections, and deleting a missing doc is a no-op.
+      window.EchelonSync.deleteTeamItem(id).catch(function () {});
+      window.EchelonSync.deleteItem(me.uid, "routines", id).catch(function () {});
+    }
     state.routines = state.routines.filter(function (x) { return x.id !== id; });
     save(); renderLibrary(); toast("Routine deleted");
   }
@@ -3351,6 +3549,7 @@
     $("set-runmode").value = displayPrefs.runMode;        // per-device (not synced)
     $("set-orderstyle").value = displayPrefs.orderStyle;
     syncRunModeUI();
+    renderAdminSettings();               // owner-only section; hidden for everyone else
     var hasUndo = false;
     try { hasUndo = !!localStorage.getItem(STORE_KEY + ".prerestore"); } catch (e) {}
     $("btn-undo-restore").classList.toggle("hidden", !hasUndo);
@@ -3398,8 +3597,30 @@
     toast(state.settings.theme === "light" ? "Light theme" : "Dark theme");
   }
   function backup() {                   // download the entire state as echelon-backup.json
-    downloadFile("echelon-backup.json", JSON.stringify(state, null, 2), "application/json");
-    toast("Backup downloaded");
+    // YOUR OWN classes only. Team classes belong to the shared library and to whoever
+    // shared them — putting them in a personal file means a later restore would push a
+    // stale copy back over everyone else's edits, company-wide.
+    var personal = { settings: state.settings, sequences: state.sequences, catalog: state.catalog,
+                     routines: state.routines.filter(function (r) { return !isTeam(r); }) };
+    downloadFile("echelon-backup.json", JSON.stringify(personal, null, 2), "application/json");
+    toast("Backup downloaded (your own classes)");
+  }
+  // Shared by restore() and undoRestore(). A personal snapshot only ever replaces YOUR
+  // OWN classes: the live team library is carried across untouched, and everything out
+  // of the file is forced private + owned by whoever is restoring — so a file that
+  // somehow contains team classes can't republish them or claim someone's ownership.
+  function adoptPersonalSnapshot(clean) {
+    var liveTeam = state.routines.filter(function (r) { return isTeam(r); });
+    var teamIds = {}; liveTeam.forEach(function (r) { teamIds[r.id] = 1; });
+    (clean.routines || []).forEach(function (r) {
+      r.scope = "mine";
+      r.ownerEmail = me ? me.email : "";
+      r.ownerName  = me ? (me.displayName || me.email) : "";
+    });
+    // Drop any restored class whose id is already live in the team library (you shared
+    // it after taking the backup) — keeping both would put one id in the list twice.
+    clean.routines = liveTeam.concat((clean.routines || []).filter(function (r) { return !teamIds[r.id]; }));
+    return clean;
   }
   // Load a backup file: validate + normalize it, confirm with the user, stash the
   // CURRENT data under a ".prerestore" key (so undoRestore can bring it back), then
@@ -3416,15 +3637,25 @@
             ("settings" in parsed && (typeof parsed.settings !== "object" || parsed.settings === null || Array.isArray(parsed.settings)))) throw new Error("bad");
         clean = normalizeState(parsed);
       } catch (e) { toast("That file isn't a valid Echelon backup"); return; }
-      if (!confirm("Restore will REPLACE your current " + state.routines.length +
-        " routine(s) with " + clean.routines.length + " from the backup. Continue?")) return;
+      var myCount = state.routines.filter(function (x) { return !isTeam(x); }).length;
+      if (!confirm("Restore will REPLACE your own " + myCount +
+        " class(es) with " + clean.routines.length + " from the backup.\n\nThe team library is not affected. Continue?")) return;
       // Remember the current ids so we can delete-from-cloud anything the restore drops.
-      var oldIds = { routines: state.routines.map(function (x) { return x.id; }),
+      // Team ids are excluded — a personal restore must never delete a shared class.
+      var oldIds = { routines: state.routines.filter(function (x) { return !isTeam(x); }).map(function (x) { return x.id; }),
                      catalog: state.catalog.map(function (x) { return x.id; }) };
       var snapshotted = false;
-      try { localStorage.setItem(STORE_KEY + ".prerestore", JSON.stringify(state)); snapshotted = true; } catch (e) {}
+      // Snapshot only the personal side, so Undo can't later re-adopt team classes as private ones.
+      try {
+        localStorage.setItem(STORE_KEY + ".prerestore", JSON.stringify({
+          settings: state.settings, sequences: state.sequences, catalog: state.catalog,
+          routines: state.routines.filter(function (x) { return !isTeam(x); })
+        }));
+        snapshotted = true;
+      } catch (e) {}
       // Restored items are fresh for sync — drop any stale _syncedAt cursor carried in the file.
       [clean.routines, clean.sequences, clean.catalog].forEach(function (list) { (list || []).forEach(function (x) { delete x._syncedAt; }); });
+      clean = adoptPersonalSnapshot(clean);
       state = clean;
       var ok = save();
       reconcileRestoreToCloud(oldIds);     // when signed in: push restored items + delete dropped ones from the cloud
@@ -3440,10 +3671,11 @@
     if (!prev) { toast("Nothing to undo"); return; }
     if (!confirm("Undo the last restore and bring back your previous routines?")) return;
     try {
-      var oldIds = { routines: state.routines.map(function (x) { return x.id; }),
+      var oldIds = { routines: state.routines.filter(function (x) { return !isTeam(x); }).map(function (x) { return x.id; }),
                      catalog: state.catalog.map(function (x) { return x.id; }) };
-      state = normalizeState(JSON.parse(prev));
-      [state.routines, state.sequences, state.catalog].forEach(function (list) { (list || []).forEach(function (x) { delete x._syncedAt; }); });
+      var undone = normalizeState(JSON.parse(prev));
+      [undone.routines, undone.sequences, undone.catalog].forEach(function (list) { (list || []).forEach(function (x) { delete x._syncedAt; }); });
+      state = adoptPersonalSnapshot(undone);      // same rule as restore: personal only, team library untouched
       save();
       localStorage.removeItem(STORE_KEY + ".prerestore");
       reconcileRestoreToCloud(oldIds);   // make the cloud follow the undo too (when signed in)
@@ -3525,6 +3757,13 @@
   // ===========================================================================
   $("btn-new").onclick = createRoutine;
   $("lib-sort").onchange = function () { librarySort = this.value; renderLibrary(); };
+  // Switching library resets the filter chips — they're built from the tab's own list,
+  // so a tag that only exists in the other library would otherwise show an empty grid.
+  function setLibraryTab(t) { libraryTab = t; activeTag = null; activeInstructor = null; renderLibrary(); }
+  $("tab-mine").onclick = function () { setLibraryTab("mine"); };
+  $("tab-team").onclick = function () { setLibraryTab("team"); };
+  $("btn-add-admin").onclick = addTeamAdmin;
+  $("admin-email").onkeydown = function (e) { if (e.key === "Enter") { e.preventDefault(); addTeamAdmin(); } };
   // Any click that isn't on an open kebab dismisses it (the kebab button stops its
   // own propagation while opening, so this won't immediately re-close it).
   document.addEventListener("click", closeKebabs);
@@ -3558,7 +3797,11 @@
     if (currentEditId) {
       saveBuilder(false);
       var r = findRoutine(currentEditId);
-      if (r && routineIsEmpty(r)) { syncDiscard("routines", r.id); state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); }
+      // Only ever auto-discard YOUR OWN private draft. A shared class must never be
+      // swept away by this cleanup — syncDiscard writes to users/{uid}/routines, which
+      // isn't even where a team class lives, so it would delete it locally for you while
+      // leaving it in the team library for everyone else.
+      if (r && routineIsEmpty(r) && !isTeam(r)) { syncDiscard("routines", r.id); state.routines = state.routines.filter(function (x) { return x.id !== r.id; }); }
       currentEditId = null;
     }
     clearTimeout(autosaveTimer); save();
@@ -3711,8 +3954,27 @@
   var syncPushTimer = null;
   var syncDeferred = [];         // cloud updates for the open editor, applied on close
   var firstRoutinesSnapshot = false;  // false until the cloud's first routines snapshot lands (drives the library "Loading…" state)
+  var firstTeamSnapshot = false;      // same, for the shared Team library
+  var teamLoadError = false;          // the team read was refused/failed — show why instead of a spinner
 
-  function syncArr(coll) { return coll === "routines" ? state.routines : coll === "catalog" ? state.catalog : null; }
+  // ---- Team library identity + permissions -------------------------------
+  //   OWNER_EMAIL is hardcoded here AND in the Firestore rules: it is the permanent
+  //   admin, so an empty/broken /admins list can never lock everyone out, and it is
+  //   the only account allowed to change that list. Everyone else becomes an admin by
+  //   having a doc in /admins. The app's buttons are only the polite layer — the rules
+  //   are what actually enforce all of this.
+  var OWNER_EMAIL = "jgonzalez@echelonfit.com";
+  var teamAdmins = [];                // lowercased emails mirrored from the /admins collection
+  function myEmail()   { return (me && me.email) ? me.email.toLowerCase() : ""; }
+  function isOwnerMe() { return !!myEmail() && myEmail() === OWNER_EMAIL; }
+  function isAdminMe() { return isOwnerMe() || teamAdmins.indexOf(myEmail()) >= 0; }
+  function isTeam(r)   { return !!r && (r.scope || "mine") === "team"; }
+  function ownsRoutine(r) { return !!r && !!myEmail() && String(r.ownerEmail || "").toLowerCase() === myEmail(); }
+  // Private classes are always yours to edit. A shared class is editable only by whoever
+  // shared it, or by an admin.
+  function canEditRoutine(r) { return !!r && (!isTeam(r) || ownsRoutine(r) || isAdminMe()); }
+
+  function syncArr(coll) { return (coll === "routines" || coll === "team") ? state.routines : coll === "catalog" ? state.catalog : null; }
   function stripMeta(item) { var c = {}; for (var k in item) { if (k !== "_syncedAt") c[k] = item[k]; } return c; }
   function findSyncItem(coll, id) { var a = syncArr(coll); if (a) for (var i = 0; i < a.length; i++) if (a[i].id === id) return a[i]; return null; }
 
@@ -3725,16 +3987,41 @@
       firstRoutinesSnapshot = true;
       if (!$("view-library").classList.contains("hidden")) setTimeout(renderLibrary, 0);
     }
+    if (coll === "team" && !firstTeamSnapshot) {
+      firstTeamSnapshot = true;
+      if (!$("view-library").classList.contains("hidden")) setTimeout(renderLibrary, 0);
+    }
     // Only defer an incoming change if its editor is ACTUALLY OPEN — otherwise a stale
     // currentEditId would wrongly park updates while you're back in the library.
-    var openId = (coll === "routines" && !$("view-builder").classList.contains("hidden")) ? currentEditId : null;
+    var openId = ((coll === "routines" || coll === "team") && !$("view-builder").classList.contains("hidden")) ? currentEditId : null;
     var touched = false;
     changes.forEach(function (c) {
       if (c.hasPendingWrites) return;                          // our own un-acked write — ignore (echo guard)
       var idx = -1; for (var i = 0; i < arr.length; i++) { if (arr[i].id === c.id) { idx = i; break; } }
       if (c.type === "removed") {
-        if (idx >= 0) { arr.splice(idx, 1); touched = true; }
-        addTombstone(c.id, c.serverMs);                        // remember it's gone so a stale re-add can't resurrect it
+        // Saved Moves never move between collections, so a removal there is always a
+        // real delete — keep the original splice-and-tombstone behaviour for them.
+        // (The move-aware logic below is only meaningful for routines.)
+        if (coll === "catalog") {
+          if (idx >= 0) { arr.splice(idx, 1); touched = true; }
+          addTombstone(c.id, c.serverMs);
+          return;
+        }
+        // Sharing / making-private MOVES a class between users/{uid}/routines and
+        // teamRoutines, so the collection it LEFT reports "removed" — that is a move,
+        // not a delete. The local copy's own scope says where it lives now: if it no
+        // longer claims this collection, ignore the event (deleting here would destroy
+        // the class we just moved).
+        if (idx >= 0) {
+          if ((isTeam(arr[idx]) ? "team" : "routines") !== coll) return;
+          arr.splice(idx, 1); touched = true;
+        }
+        // NO tombstone here. Tombstones exist to stop an in-flight cloud snapshot from
+        // resurrecting a delete made LOCALLY (deleteRoutine/syncDiscard write those).
+        // Writing one for a REMOTE removal breaks moves: share/make-private commit both
+        // halves in one batch, so both carry the same server timestamp — the tombstone
+        // would suppress the arriving half on every OTHER device (the class would just
+        // vanish for teammates), since suppression needs a strictly-newer write.
         return;
       }
       if (isTombstoned(c.id, c.serverMs)) return;              // locally deleted & the cloud copy isn't newer
@@ -3743,14 +4030,76 @@
       var local = arr[idx];
       var newer = c.serverMs ? (c.serverMs > (local._syncedAt || 0)) : ((incoming.updatedAt || 0) > (local.updatedAt || 0));
       if (!newer) return;
-      if (openId && openId === c.id) { syncDeferred.push({ coll: coll, item: incoming }); return; }  // you're editing it — apply on close
+      if (openId && openId === c.id) {
+        // A share / make-private MOVE has to land even while the editor is open: the
+        // "removed" guard above reads the local copy's scope to tell a move from a
+        // delete, so parking the WHOLE update would let the other half splice the
+        // class out from under the person editing it. Apply just the move, defer the rest.
+        local.scope = incoming.scope || "mine";
+        local.ownerEmail = incoming.ownerEmail; local.ownerName = incoming.ownerName;
+        touched = true;
+        syncDeferred.push({ coll: coll, item: incoming }); return;   // rest applied on close
+      }
       arr[idx] = incoming; touched = true;
     });
     if (touched) { save(); rerenderAfterSync(coll); }          // keep localStorage in step; NEVER markDirty (would echo)
   }
   function rerenderAfterSync(coll) {
-    if (!$("view-library").classList.contains("hidden") && coll === "routines") renderLibrary();
+    if (!$("view-library").classList.contains("hidden") && (coll === "routines" || coll === "team")) renderLibrary();
     else if (!$("view-catalog").classList.contains("hidden") && coll === "catalog") renderCatalog();
+  }
+  // The admin list changed — who can edit which shared class may have just changed too.
+  function applyAdmins(list) {
+    teamAdmins = (list || []).map(function (e) { return String(e).toLowerCase(); });
+    if (!$("view-library").classList.contains("hidden")) renderLibrary();
+    renderAdminSettings();
+  }
+  // Owner-only admin management (Settings). The list itself lives in Firestore, so it
+  // updates live on every device via the /admins listener — no redeploy to change it.
+  function renderAdminSettings() {
+    var sec = $("admin-section"); if (!sec) return;
+    sec.classList.toggle("hidden", !isOwnerMe());
+    if (!isOwnerMe()) return;
+    var wrap = $("admin-list"); wrap.innerHTML = "";
+    var others = teamAdmins.filter(function (e) { return e !== OWNER_EMAIL; });
+    if (!others.length) { wrap.appendChild(el("p", "muted", "No extra admins yet — just you.")); return; }
+    others.forEach(function (email) {
+      var row = el("div", "admin-row");
+      row.appendChild(el("span", null, email));
+      var rm = el("button", "ghost small danger");
+      rm.innerHTML = ic("trash") + "<span>Remove</span>";
+      rm.onclick = function () { removeTeamAdmin(email); };
+      row.appendChild(rm);
+      wrap.appendChild(row);
+    });
+  }
+  function addTeamAdmin() {
+    if (!me || !window.EchelonSync) { toast("Sign in first"); return; }
+    var input = $("admin-email"), email = String(input.value || "").trim().toLowerCase();
+    if (!email) return;
+    var domain = window.EchelonSync.domain || "";
+    if (email.indexOf("@") < 0 || (domain && email.split("@")[1] !== domain)) {
+      toast("Use a company " + (domain ? "@" + domain + " " : "") + "email address"); return;
+    }
+    if (email === OWNER_EMAIL) { toast("You're already a permanent admin"); return; }
+    if (teamAdmins.indexOf(email) >= 0) { toast("They're already an admin"); return; }
+    window.EchelonSync.setAdmin(email, me.email).then(function () {
+      input.value = ""; toast(email + " can now edit any shared class");
+    }).catch(function (err) {
+      try { console.error("add admin failed", err); } catch (e) {}
+      toast(err && err.code === "permission-denied"
+        ? "Firebase hasn't been updated for team admins yet"
+        : "Couldn't add that admin — check your connection");
+    });
+  }
+  function removeTeamAdmin(email) {
+    if (!window.EchelonSync) return;
+    if (!confirm("Remove admin rights from " + email + "?\n\nThey keep their own classes and can still see and run the team library — they just can't edit or delete other people's shared classes any more.")) return;
+    window.EchelonSync.removeAdmin(email).then(function () { toast("Admin rights removed"); })
+      .catch(function (err) {
+        try { console.error("remove admin failed", err); } catch (e) {}
+        toast("Couldn't remove that admin — check your connection");
+      });
   }
   function applySettingsDoc(data, hasPending) {
     if (!data || hasPending || !data.settings) return;
@@ -3783,7 +4132,16 @@
     syncDirty.forEach(function (key) {
       var i = key.indexOf("/"), coll = key.slice(0, i), id = key.slice(i + 1);
       var item = findSyncItem(coll, id);
-      if (item) window.EchelonSync.pushItem(me.uid, coll, id, stripMeta(item)).catch(function () {});
+      if (!item) return;
+      // A routine's own scope decides WHERE it belongs. Resolving that here (rather than
+      // at enqueue time) keeps every existing enqueueSync("routines", …) call site correct
+      // even after the class has been shared to the team library.
+      if (coll !== "catalog" && isTeam(item)) {
+        if (!canEditRoutine(item)) return;                     // not ours to write; the rules would reject it anyway
+        window.EchelonSync.pushTeamItem(id, stripMeta(item)).catch(function () {});
+      } else {
+        window.EchelonSync.pushItem(me.uid, coll === "team" ? "routines" : coll, id, stripMeta(item)).catch(function () {});
+      }
     });
     syncDirty.clear();
   }
@@ -3807,14 +4165,21 @@
         // Cloud already holds this user's library (migrated on another device). Don't re-bulk-upload,
         // but push any items THIS device created before signing in so they aren't stranded local-only.
         claim(state.routines); save();
-        state.routines.forEach(function (r) { enqueueSync("routines", r.id); });
+        // NEVER migrate team classes: they already live in teamRoutines and belong to
+        // whoever shared them. Copying one into this user's private space would put the
+        // same id in BOTH collections — the invariant the move-aware removal handler
+        // depends on — leaving an undeletable ghost that keeps coming back.
+        state.routines.forEach(function (r) { if (!isTeam(r)) enqueueSync("routines", r.id); });
         state.catalog.forEach(function (m) { enqueueSync("catalog", m.id); });
         flushSyncPush();          // fire now — the startSync() call right after this returns tears down the 800ms debounce timer
         try { localStorage.setItem(flagKey, "1"); } catch (e) {}
         return;
       }
       claim(state.routines); save();
-      var perColl = { routines: state.routines.map(stripMeta), catalog: state.catalog.map(stripMeta) };
+      // Same rule as the deferred branch above — the bulk upload is this user's PRIVATE
+      // library only; team classes are never copied into users/{uid}/routines.
+      var perColl = { routines: state.routines.filter(function (r) { return !isTeam(r); }).map(stripMeta),
+                      catalog: state.catalog.map(stripMeta) };
       var patch = { email: user.email, displayName: user.displayName || user.email, settings: state.settings, migrationComplete: true };
       try { await window.EchelonSync.bulkUpload(user.uid, perColl, patch); } catch (e) { return; } // offline: leave flag unset, retry
       try { localStorage.setItem(flagKey, "1"); } catch (e) {} // only after the server ack
@@ -3825,11 +4190,20 @@
     stopSync();
     syncUnsub.push(window.EchelonSync.subscribeUser(user.uid, syncApply));
     syncUnsub.push(window.EchelonSync.subscribeUserDoc(user.uid, applySettingsDoc));
+    // If the team read is refused (rules not published yet) or fails, say so instead of
+    // spinning forever on "Loading team classes…".
+    syncUnsub.push(window.EchelonSync.subscribeTeam(syncApply, function (err) {
+      try { console.error("team library read failed", err); } catch (e) {}
+      teamLoadError = true; firstTeamSnapshot = true;
+      if (!$("view-library").classList.contains("hidden")) renderLibrary();
+    }));
+    syncUnsub.push(window.EchelonSync.subscribeAdmins(applyAdmins));
   }
   function stopSync() {
     syncUnsub.forEach(function (u) { try { u(); } catch (e) {} }); syncUnsub = [];
     clearTimeout(syncPushTimer); syncDirty.clear();
-    firstRoutinesSnapshot = false;
+    firstRoutinesSnapshot = false; firstTeamSnapshot = false; teamLoadError = false;
+    teamAdmins = [];
   }
   function resetLocalForNewUser() {                            // a different account signed in on this device
     state.routines = []; state.sequences = []; state.catalog = []; state.settings = defaultSettings();
@@ -3926,7 +4300,10 @@
   function reconcileRestoreToCloud(oldIds) {
     if (!me || !window.EchelonSync) return;
     function pushAll(list, coll) { (list || []).forEach(function (x) { x.updatedAt = Date.now(); enqueueSync(coll, x.id); }); }
-    pushAll(state.routines, "routines"); pushAll(state.catalog, "catalog"); pushSettings();
+    // Personal items only. Pushing a team class from here would overwrite the shared
+    // copy with whatever this backup happened to contain — for the whole company.
+    pushAll(state.routines.filter(function (x) { return !isTeam(x); }), "routines");
+    pushAll(state.catalog, "catalog"); pushSettings();
     function idSet(list) { var s = {}; (list || []).forEach(function (x) { s[x.id] = 1; }); return s; }
     var nr = idSet(state.routines), nc = idSet(state.catalog);
     (oldIds.routines || []).forEach(function (id) { if (!nr[id]) syncDiscard("routines", id); });
