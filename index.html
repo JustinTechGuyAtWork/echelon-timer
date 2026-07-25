@@ -101,6 +101,11 @@
      ================================================================ */
   /* ---------- Theme (Echelon: deep teal-navy + teal accent) ---------- */
   :root {
+    /* Tells the browser to draw its OWN chrome to match the theme — scrollbars, the
+       date-picker icon, dropdown popups, spinner arrows. Without it those render in
+       light mode regardless: a modal's scrollbar shows up as a bright white bar over
+       the dark UI, and the calendar icon is a dark glyph on a dark field. */
+    color-scheme: dark;
     --bg: #06202b;
     --panel: #0c2a37;
     --panel-2: #123542;
@@ -134,6 +139,7 @@
   }
   /* Light theme (matches echelonfit.com: white + navy + teal) */
   html[data-theme="light"] {
+    color-scheme: light;        /* flip the browser's own chrome back (see :root above) */
     --bg: #f4f7f9;
     --panel: #ffffff;
     --panel-2: #eef3f6;
@@ -156,10 +162,10 @@
   html[data-theme="light"] header.topbar { background: linear-gradient(var(--bg), rgba(244,247,249,0.88)); }
   html[data-theme="light"] input, html[data-theme="light"] select, html[data-theme="light"] textarea { background: #ffffff; }
   html[data-theme="light"] ::placeholder { color: #7d96a1; }
-  html[data-theme="light"] .run-overlay { background: radial-gradient(900px 640px at 50% -2%, #e6f3f9 0%, #ffffff 72%); }
-  html[data-theme="light"] .run-overlay.is-rest { background: radial-gradient(900px 640px at 50% -2%, #fdf1de 0%, #ffffff 72%); }
-  html[data-theme="light"] .run-overlay.is-pause { background: radial-gradient(900px 640px at 50% -2%, #eef1f3 0%, #ffffff 72%); }
-  html[data-theme="light"] .run-overlay.done { background: radial-gradient(900px 640px at 50% -2%, #e3f4ee 0%, #ffffff 72%); }
+  html[data-theme="light"] .run-overlay { background: radial-gradient(900px 640px at var(--run-glow-x, 50%) -2%, #e6f3f9 0%, #ffffff 72%); }
+  html[data-theme="light"] .run-overlay.is-rest { background: radial-gradient(900px 640px at var(--run-glow-x, 50%) -2%, #fdf1de 0%, #ffffff 72%); }
+  html[data-theme="light"] .run-overlay.is-pause { background: radial-gradient(900px 640px at var(--run-glow-x, 50%) -2%, #eef1f3 0%, #ffffff 72%); }
+  html[data-theme="light"] .run-overlay.done { background: radial-gradient(900px 640px at var(--run-glow-x, 50%) -2%, #e3f4ee 0%, #ffffff 72%); }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; overflow-x: hidden; }
   body {
@@ -256,7 +262,18 @@
      than .instructors (who teaches it), which is the more useful fact on the card. */
   .routine-card .shared-by { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--t-eyebrow); }
   .routine-card .shared-by .ic { width: 1em; height: 1em; flex-shrink: 0; }
-  .filters { display: flex; gap: var(--s2); flex-wrap: wrap; margin: 10px 0 var(--s5); align-items: center; }
+  /* Sort + the two filter rows form ONE control group, so they sit on a tight, even
+     rhythm; only the last row keeps a real gap before the cards begin. (Previously each
+     row carried 10px top + 24px bottom, which pushed two related rows visually apart.) */
+  .filters { display: flex; gap: var(--s2); flex-wrap: wrap; margin: 0 0 var(--s2); align-items: center; }
+  /* A row with no chips is left empty by its render function — collapse it so it can't
+     leave a phantom gap. The gap before the cards lives on the list itself, so it stays
+     the same whether none, one, or both filter rows are showing. */
+  .filters:empty { display: none; }
+  #routine-list { margin-top: var(--s4); }
+  /* Fixed width lines the chips up under each other and under the Sort control. */
+  .filter-label { color: var(--muted); font-size: var(--t-note); min-width: 68px; flex-shrink: 0; }
+  .lib-sort-row label { min-width: 68px; }
   .tag-chip {
     border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
     border-radius: 999px; padding: 4px 12px; font-size: var(--t-small); cursor: pointer;
@@ -317,6 +334,12 @@
 
   .block { margin-top: var(--s4); }
   .block.card { padding: var(--s2) 6px var(--s1); }   /* compact section padding (was an inline style) */
+  /* Drag handle. touch-action:none is what lets a finger drag the block instead of
+     scrolling the page — without it the gesture is stolen by the scroller on an iPad. */
+  .block-head .block-grip { cursor: grab; touch-action: none; flex-shrink: 0; padding: 4px 6px; color: var(--muted); }
+  .block-head .block-grip:hover { color: var(--text); }
+  .block.dragging { position: relative; z-index: 5; border-color: var(--accent-text); box-shadow: var(--shadow); }
+  body.dragging-block { user-select: none; -webkit-user-select: none; cursor: grabbing; }
   .block-head { display: flex; align-items: center; gap: 10px; padding: 6px 4px; flex-wrap: wrap; }
   .block-head .block-badge {
     width: 26px; height: 26px; border-radius: 7px; background: var(--gold-soft); color: var(--accent-text);
@@ -384,10 +407,10 @@
     padding-right: calc(20px + env(safe-area-inset-right));
     padding-bottom: calc(20px + env(safe-area-inset-bottom));
     padding-left: calc(20px + env(safe-area-inset-left));
-    background: radial-gradient(900px 620px at 50% -2%, #0a3a4a 0%, #04161e 72%); }
-  .run-overlay.is-rest { background: radial-gradient(900px 620px at 50% -2%, #34280c 0%, #04161e 72%); }
-  .run-overlay.is-pause { background: radial-gradient(900px 620px at 50% -2%, #1c242c 0%, #04161e 72%); }
-  .run-overlay.done { background: radial-gradient(900px 620px at 50% -2%, #0a3a44 0%, #04161e 72%); }
+    background: radial-gradient(900px 620px at var(--run-glow-x, 50%) -2%, #0a3a4a 0%, #04161e 72%); }
+  .run-overlay.is-rest { background: radial-gradient(900px 620px at var(--run-glow-x, 50%) -2%, #34280c 0%, #04161e 72%); }
+  .run-overlay.is-pause { background: radial-gradient(900px 620px at var(--run-glow-x, 50%) -2%, #1c242c 0%, #04161e 72%); }
+  .run-overlay.done { background: radial-gradient(900px 620px at var(--run-glow-x, 50%) -2%, #0a3a44 0%, #04161e 72%); }
   /* Left column holds the whole timer; on phones/portrait it IS the view. */
   .run-col { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; }
   .run-order { display: none; }   /* the running-order panel only appears on large landscape (media query) */
@@ -514,7 +537,12 @@
   .run-order .ro-group .ro-block { margin-top: 0; }
   .run-order .ro-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: 8px;
     color: color-mix(in srgb, var(--text) 78%, transparent); }
-  .run-order .ro-row .ro-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Wrap to two lines instead of cutting the name off. A single line ellipsised real
+     exercise names roughly in half ("Reverse Kneeling Crunch Left …"), which is worse
+     than useless mid-class — you can't tell Left from Right. Two lines fits the longest
+     realistic name; the clamp stops a pathological one from swallowing the panel. */
+  .run-order .ro-row .ro-name { flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
   .run-order .ro-row .ro-dur { font-variant-numeric: tabular-nums; color: color-mix(in srgb, var(--text) 65%, transparent); flex-shrink: 0; }
   .run-order .ro-row.ro-rest { font-size: var(--t-small); color: color-mix(in srgb, var(--text) 65%, transparent); padding: 4px 10px; }
   .run-order .ro-row.ro-pause { font-style: italic; color: color-mix(in srgb, var(--text) 65%, transparent); }
@@ -532,6 +560,11 @@
   /* The two-column "class dashboard" layout kicks in on large landscape screens. */
   @media (min-width: 980px) {
     .run-overlay { flex-direction: row; gap: 28px; align-items: stretch; }
+    /* Re-aim the background glow. It's centred at 50% of the whole overlay, but once the
+       running-order panel takes the right ~26vw the timer no longer sits at the middle —
+       the bright spot lands on the divider and washes the order panel instead of lighting
+       the dial. ~38% puts it back behind the timer at every width in this range. */
+    .run-overlay { --run-glow-x: 38%; }
     .run-col { min-width: 0; }
     .run-order { display: flex; flex-direction: column; }
     /* Pull the block label into the top row here too (same move Wall mode makes below) —
@@ -1541,6 +1574,7 @@
     plus:    '<path d="M12 5v14M5 12h14"/>',
     calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
     users:   '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    grip:    '<circle cx="9" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="6" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="9" cy="18" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="18" r="1.5" fill="currentColor" stroke="none"/>',
     lock:    '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'
   };
   function ic(name) {
@@ -1736,6 +1770,9 @@
     wrap.innerHTML = "";
     var tags = allTags();
     if (tags.length === 0) return;
+    // Instructor and Tag chips look identical and both lead with "All", so without a
+    // label the two rows are indistinguishable. Matches the "Sort" label beside them.
+    wrap.appendChild(el("span", "filter-label", "Tag"));
     wrap.appendChild(makeChip("All", activeTag === null, function () { activeTag = null; renderLibrary(); }));
     tags.forEach(function (t) {
       var chip = makeChip(t, activeTag === t, function () { activeTag = (activeTag === t ? null : t); renderLibrary(); });
@@ -1761,6 +1798,7 @@
     wrap.innerHTML = "";
     var names = allInstructors();
     if (names.length === 0) return;
+    wrap.appendChild(el("span", "filter-label", "Instructor"));
     wrap.appendChild(makeChip("All", activeInstructor === null, function () { activeInstructor = null; renderLibrary(); }));
     names.forEach(function (t) {
       var chip = makeChip(t, activeInstructor === t, function () { activeInstructor = (activeInstructor === t ? null : t); renderLibrary(); });
@@ -1897,7 +1935,12 @@
       // Instructor(s) — who teaches it, shown ahead of the description/tags since it's
       // usually the more useful thing to see first (distinct teal text, not a tag pill,
       // so it doesn't read as just another generic label).
-      if ((r.instructors || []).length) card.appendChild(el("div", "instructors", "with " + r.instructors.join(", ")));
+      // On a shared class the "Shared by X" line above already names them, so skip the
+      // near-identical "with X" line when the only instructor IS the person who shared it.
+      var instr = r.instructors || [];
+      var sameAsSharer = isTeam(r) && instr.length === 1 &&
+        instr[0].toLowerCase() === String(r.ownerName || "").toLowerCase();
+      if (instr.length && !sameAsSharer) card.appendChild(el("div", "instructors", "with " + instr.join(", ")));
       if (r.description) card.appendChild(el("div", "desc", r.description));
       if ((r.tags || []).length) {
         var tagWrap = el("div", "tags");
@@ -2194,6 +2237,13 @@
 
     // header (block name + per-block class format + reorder/delete)
     var head = el("div", "block-head");
+    // Drag handle — its own control so dragging can never be confused with editing the
+    // block name or nudging the repeat count. The up/down arrows still work as before.
+    var grip = el("button", "ghost block-grip");
+    grip.innerHTML = ic("grip");
+    grip.title = "Drag to reorder"; grip.setAttribute("aria-label", "Drag to reorder this block");
+    grip.onpointerdown = function (e) { beginBlockDrag(e, block, wrap); };
+    head.appendChild(grip);
     head.appendChild(el("div", "block-badge", String(bi + 1)));
     var bname = document.createElement("input");
     bname.className = "block-name"; bname.value = block.name; bname.placeholder = "Block name (e.g. Lower Body)";
@@ -2399,12 +2449,99 @@
     r.blocks.push(newBlock("Block " + (r.blocks.length + 1), prev && prev.discipline));
     markDirty(); renderBlocks();
   }
+  // ---- Reordering blocks: follow-along animation + drag handle ---------------
+  //   The arrows used to swap two blocks instantly, which on a long routine reads as
+  //   "something changed" without showing WHAT. These helpers animate a reorder from
+  //   the old layout to the new one (the FLIP technique: measure before, re-render,
+  //   then play each block from where it was to where it landed).
+  function prefersReducedMotion() {
+    try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; }
+  }
+  function blockTops() {   // current on-screen top of each block, keyed by id (includes any live drag transform)
+    var out = {}, wrap = $("blocks");
+    Array.prototype.forEach.call(wrap.children, function (c) { out[c.dataset.id] = c.getBoundingClientRect().top; });
+    return out;
+  }
+  function flipBlocksFrom(before) {
+    if (prefersReducedMotion()) return;
+    var moved = [];
+    Array.prototype.forEach.call($("blocks").children, function (c) {
+      var was = before[c.dataset.id]; if (was == null) return;
+      var dy = was - c.getBoundingClientRect().top;
+      if (!dy) return;
+      c.style.transition = "none"; c.style.transform = "translateY(" + dy + "px)";   // put it back where it was…
+      moved.push(c);
+    });
+    if (!moved.length) return;
+    requestAnimationFrame(function () {                                              // …then let it travel to its real place
+      moved.forEach(function (c) { c.style.transition = "transform .24s cubic-bezier(.2,.8,.2,1)"; c.style.transform = ""; });
+    });
+    setTimeout(function () { moved.forEach(function (c) { c.style.transition = ""; c.style.transform = ""; }); }, 340);
+  }
+
+  //   Pointer Events rather than HTML5 drag-and-drop: these classes get built on iPads,
+  //   and HTML5 dragging simply doesn't fire for touch.
+  var blockDrag = null;
+  function beginBlockDrag(ev, block, card) {
+    if (ev.button != null && ev.button > 0) return;          // left button / touch only
+    var cards = Array.prototype.slice.call($("blocks").children);
+    var from = cards.indexOf(card); if (from < 0) return;
+    var rects = cards.map(function (c) { return c.getBoundingClientRect(); });
+    // Measure the real gap between cards so displaced blocks move exactly one slot.
+    var gap = rects.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 0;
+    blockDrag = { card: card, cards: cards, rects: rects, from: from, to: from,
+                  startY: ev.clientY, slot: rects[from].height + gap };
+    card.classList.add("dragging");
+    card.style.transition = "none";                          // the dragged card tracks the finger 1:1
+    document.body.classList.add("dragging-block");
+    try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch (e) {}
+    ev.preventDefault();
+  }
+  function moveBlockDrag(ev) {
+    var d = blockDrag; if (!d) return;
+    var dy = ev.clientY - d.startY;
+    d.card.style.transform = "translateY(" + dy + "px)";
+    // Where the dragged block's middle now sits decides which slot it would land in.
+    var center = d.rects[d.from].top + d.rects[d.from].height / 2 + dy, to = d.from;
+    for (var i = 0; i < d.rects.length; i++) {
+      if (i === d.from) continue;
+      var mid = d.rects[i].top + d.rects[i].height / 2;
+      if (i < d.from && center < mid) to = Math.min(to, i);
+      else if (i > d.from && center > mid) to = Math.max(to, i);
+    }
+    if (to === d.to) return;
+    d.to = to;
+    d.cards.forEach(function (c, i) {                        // open a gap at the target slot
+      if (i === d.from) return;
+      var shift = 0;
+      if (d.to > d.from && i > d.from && i <= d.to) shift = -d.slot;
+      else if (d.to < d.from && i >= d.to && i < d.from) shift = d.slot;
+      c.style.transition = "transform .18s ease";
+      c.style.transform = shift ? "translateY(" + shift + "px)" : "";
+    });
+  }
+  function endBlockDrag() {
+    var d = blockDrag; if (!d) return;
+    blockDrag = null;
+    d.card.classList.remove("dragging");
+    document.body.classList.remove("dragging-block");
+    var before = blockTops();                                // where things LOOK right now, mid-drag
+    d.cards.forEach(function (c) { c.style.transition = ""; c.style.transform = ""; });
+    if (d.to !== d.from) {
+      var r = findRoutine(currentEditId);
+      if (r) { r.blocks.splice(d.to, 0, r.blocks.splice(d.from, 1)[0]); markDirty(); }
+    }
+    renderBlocks();
+    flipBlocksFrom(before);                                  // settle from the drop point into the final layout
+  }
+
   function moveBlock(blockId, dir) {
     var r = findRoutine(currentEditId);
     var i = r.blocks.findIndex(function (b) { return b.id === blockId; });
     var j = i + dir; if (j < 0 || j >= r.blocks.length) return;
+    var before = blockTops();
     var tmp = r.blocks[i]; r.blocks[i] = r.blocks[j]; r.blocks[j] = tmp;
-    markDirty(); renderBlocks();
+    markDirty(); renderBlocks(); flipBlocksFrom(before);
     var primary = dir < 0 ? '[title="Move block up"]' : '[title="Move block down"]';
     var fallback = dir < 0 ? '[title="Move block down"]' : '[title="Move block up"]';
     if (!focusInBlock(blockId, primary)) focusInBlock(blockId, fallback);
@@ -2981,8 +3118,40 @@
         if (state === "current") currentRow = row;
       });
     });
+    fitRunOrderNames(panel);
     // Keep the current step in view (only when the panel is actually visible).
     if (currentRow && panel.offsetParent !== null) currentRow.scrollIntoView({ block: "center", behavior: "auto" });
+  }
+
+  // Exercise names vary enormously — "Rest" next to "Standing Long-Range Cable Crunch
+  // Combo With Rotation". One fixed size can't serve both: it either wastes the panel on
+  // short names or cuts long ones off. So each name keeps the full row size when it fits,
+  // and only the ones that would spill past two lines step down until they read cleanly.
+  //
+  // Sizes are tried as a few discrete steps rather than a 1px-at-a-time loop: this runs on
+  // every step change during a class, and each measurement forces a layout. Names that fit
+  // (the common case) cost exactly one measurement and stop.
+  var RO_FIT_STEPS = [1, 0.92, 0.85, 0.78, 0.72];
+  function fitRunOrderNames(panel) {
+    // offsetParent is null when the panel is hidden (phones / narrow screens) — every
+    // measurement there would read 0, so there's nothing meaningful to fit.
+    if (!panel || panel.offsetParent === null) return;
+    var names = panel.querySelectorAll(".ro-row .ro-name");
+    for (var i = 0; i < names.length; i++) {
+      var el2 = names[i];
+      el2.style.fontSize = "";                                  // start from the row's own size
+      el2.style.webkitLineClamp = ""; el2.style.lineClamp = "";
+      var base = parseFloat(getComputedStyle(el2).fontSize);
+      if (!base) continue;
+      // scrollHeight beats clientHeight only while the 2-line clamp is actually cutting text.
+      for (var s = 1; s < RO_FIT_STEPS.length && el2.scrollHeight > el2.clientHeight + 1; s++) {
+        el2.style.fontSize = (base * RO_FIT_STEPS[s]).toFixed(2) + "px";
+      }
+      // Still cut off at the smallest step? Then it's a genuinely enormous name, and
+      // shrinking further would hurt more than it helps — give it a third line instead.
+      // (Two lines stays the norm; only these outliers ever get a third.)
+      if (el2.scrollHeight > el2.clientHeight + 1) { el2.style.webkitLineClamp = "3"; el2.style.lineClamp = "3"; }
+    }
   }
 
   function updateRunTime() {
@@ -3762,6 +3931,11 @@
   function setLibraryTab(t) { libraryTab = t; activeTag = null; activeInstructor = null; renderLibrary(); }
   $("tab-mine").onclick = function () { setLibraryTab("mine"); };
   $("tab-team").onclick = function () { setLibraryTab("team"); };
+  // Block dragging listens on the document so the gesture survives the pointer leaving
+  // the handle (or the card) mid-drag; both are no-ops unless a drag is actually running.
+  document.addEventListener("pointermove", moveBlockDrag);
+  document.addEventListener("pointerup", endBlockDrag);
+  document.addEventListener("pointercancel", endBlockDrag);
   $("btn-add-admin").onclick = addTeamAdmin;
   $("admin-email").onkeydown = function (e) { if (e.key === "Enter") { e.preventDefault(); addTeamAdmin(); } };
   // Any click that isn't on an open kebab dismisses it (the kebab button stops its
