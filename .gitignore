@@ -1,0 +1,6 @@
+
+# local tool state
+.superpowers/
+.claude/
+*.bak-*
+.DS_Store

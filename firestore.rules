@@ -1,0 +1,79 @@
+rules_version = '2';
+
+// ============================================================================
+// Echelon — Routine Builder & Timer : Firestore security rules
+//
+// These rules are what ACTUALLY enforce who can see and change what. The app's
+// buttons are only the polite layer — anyone can open a browser console, so any
+// rule that isn't written here does not exist.
+//
+// To update: Firebase console -> Firestore Database -> Rules -> paste all of
+// this over what's there -> Publish.
+//
+// If you ever change the owner address below, change it in index.html too
+// (search for OWNER_EMAIL) — the two must match.
+// ============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function companyUser() {
+      return request.auth != null
+          && request.auth.token.email_verified == true
+          && request.auth.token.email is string
+          && request.auth.token.email.lower().split('@')[1] == 'echelonfit.com';
+    }
+    function callerEmail() { return request.auth.token.email.lower(); }
+
+    // The permanent admin. Hardcoded so an empty or broken /admins list can never
+    // lock everyone out, and so only this account can hand out admin rights.
+    function isOwner() { return callerEmail() == 'jgonzalez@echelonfit.com'; }
+    // Anyone the owner has added to /admins, plus the owner.
+    function isAdmin() {
+      return isOwner()
+          || exists(/databases/$(database)/documents/admins/$(callerEmail()));
+    }
+
+    function validNewOwner() {
+      return request.resource.data.ownerEmail is string
+          && request.resource.data.ownerEmail.lower().split('@')[1] == 'echelonfit.com';
+    }
+    function ownsTeam() { return resource.data.ownerEmail is string && resource.data.ownerEmail.lower() == callerEmail(); }
+    function ownerIsSelf() { return request.resource.data.ownerEmail is string && request.resource.data.ownerEmail.lower() == callerEmail(); }
+    function validUpdatedAt() { return request.resource.data.updatedAt is number && request.resource.data.updatedAt <= request.time.toMillis() + 300000; }
+    function validTeamShape() { return request.resource.data.scope == 'team' && request.resource.data.keys().hasAll(['ownerEmail','scope','updatedAt']); }
+
+    match /users/{uid}/{document=**} {
+      allow read, write: if companyUser() && request.auth.uid == uid;
+    }
+    match /teamRoutines/{id} {
+      allow read:   if companyUser();
+      allow create: if companyUser() && ownerIsSelf() && validNewOwner() && validTeamShape() && validUpdatedAt();
+      allow update: if companyUser() && (ownsTeam() || isAdmin()) && validNewOwner() && validTeamShape() && validUpdatedAt();
+      allow delete: if companyUser() && (ownsTeam() || isAdmin());
+    }
+    match /teamPlans/{id} {
+      allow read:   if companyUser();
+      allow create: if companyUser() && ownerIsSelf() && validNewOwner() && validTeamShape() && validUpdatedAt();
+      allow update: if companyUser() && (ownsTeam() || isAdmin()) && validNewOwner() && validTeamShape() && validUpdatedAt();
+      allow delete: if companyUser() && (ownsTeam() || isAdmin());
+    }
+
+    // NEW — backs the Settings "Team admins" panel. Readable by everyone signed
+    // in (each person's app needs to know whether to show Edit on a teammate's
+    // class); writable ONLY by the owner, so an admin can't promote themselves
+    // further or remove another admin. Doc id = the admin's lowercased email.
+    match /admins/{email} {
+      allow read:  if companyUser();
+      allow write: if companyUser() && isOwner();
+    }
+
+    match /shares/{id} {
+      allow read:   if companyUser();
+      allow create: if companyUser()
+                    && request.resource.data.sharedByEmail is string
+                    && request.resource.data.sharedByEmail.lower() == callerEmail();
+      allow delete: if companyUser() && resource.data.sharedByEmail.lower() == callerEmail();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

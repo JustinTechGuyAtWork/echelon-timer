@@ -121,7 +121,8 @@
     --rest-soft: rgba(224,162,60,0.15);
     --warn: #ffc24d;            /* final-seconds alert: a bright, saturated amber distinct from the teal work color */
     --danger: #e5675f;
-    --radius: 14px;
+    --radius: 14px;            /* cards, modals, big surfaces */
+    --radius-sm: 8px;          /* small controls: inputs, badges, menu items, small cards — was a drift of 7/8/9/10px */
     --shadow: 0 10px 34px rgba(0,0,0,0.5);   /* floating: modals, toast, library cards */
     --shadow-sm: 0 1px 3px rgba(0,0,0,0.28); /* contained sections: block cards, field cards */
     /* Type: one display face (Oswald) for brand surfaces, system stack for everything else */
@@ -179,7 +180,7 @@
   }
   button {
     font: inherit; cursor: pointer; border: 1px solid var(--line);
-    border-radius: 9px; padding: 9px 14px; background: var(--panel-2); color: var(--text);
+    border-radius: var(--radius-sm); padding: 9px 14px; background: var(--panel-2); color: var(--text);
     transition: filter .12s ease, background .12s ease, border-color .12s ease;
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   }
@@ -200,7 +201,7 @@
   button.gold:disabled { background: var(--panel); }
   input, select, textarea {
     font: inherit; background: var(--panel-2); color: var(--text);
-    border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; width: 100%;
+    border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; width: 100%;
   }
   input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
   /* Visible keyboard focus on every interactive element (WCAG 2.4.7); :focus-visible
@@ -293,7 +294,7 @@
   /* Format badge(s) — the class type, the thing that distinguishes one card from the next */
   .routine-card .fmts { display: flex; gap: 6px; flex-wrap: wrap; }
   .routine-card .fmt-badge { font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: .02em; color: var(--accent-text);
-    background: var(--gold-soft); border: 1px solid color-mix(in srgb, var(--gold-dim) 50%, transparent); border-radius: 7px; padding: 2px 8px; }
+    background: var(--gold-soft); border: 1px solid color-mix(in srgb, var(--gold-dim) 50%, transparent); border-radius: var(--radius-sm); padding: 2px 8px; }
   /* "When" — logistics, not identity, so it stays muted (not the accent teal .instructors
      uses) and sits right under the format badges since that's the top of the card. */
   .routine-card .scheduled-badge { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: var(--t-note); }
@@ -309,8 +310,8 @@
   /* Overflow (kebab) menu for the demoted secondary actions */
   .kebab-wrap { position: relative; }
   .kebab-menu { position: absolute; right: 0; bottom: calc(100% + 6px); min-width: 150px; z-index: 5;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 5px; }
-  .kebab-menu button { display: flex; align-items: center; gap: 10px; justify-content: flex-start; width: 100%; text-align: left; border: none; background: transparent; border-radius: 7px; padding: 9px 11px; font-size: var(--t-note); }
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 5px; }
+  .kebab-menu button { display: flex; align-items: center; gap: 10px; justify-content: flex-start; width: 100%; text-align: left; border: none; background: transparent; border-radius: var(--radius-sm); padding: 9px 11px; font-size: var(--t-note); }
   .kebab-menu button:hover { background: var(--panel-2); filter: none; }
   .kebab-menu button.danger { color: var(--danger); }
   .empty { text-align: center; padding: 56px 20px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
@@ -342,7 +343,7 @@
   body.dragging-block { user-select: none; -webkit-user-select: none; cursor: grabbing; }
   .block-head { display: flex; align-items: center; gap: 10px; padding: 6px 4px; flex-wrap: wrap; }
   .block-head .block-badge {
-    width: 26px; height: 26px; border-radius: 7px; background: var(--gold-soft); color: var(--accent-text);
+    width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--gold-soft); color: var(--accent-text);
     display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--t-small); flex-shrink: 0;
   }
   .block-head input.block-name { font-weight: 600; background: transparent; border-color: transparent; flex: 1 1 140px; min-width: 120px; }
@@ -532,10 +533,10 @@
      in the builder — so its rounds read as one repeating unit, not a plain list entry.
      A single-round block stays a plain list item (no wrapper), so this never applies there. */
   .run-order .ro-group { border: 1px solid color-mix(in srgb, var(--accent-text) 32%, var(--line));
-    border-radius: 10px; padding: 10px 10px 6px; margin: 14px 0; background: color-mix(in srgb, var(--panel) 45%, transparent); }
+    border-radius: var(--radius-sm); padding: 10px 10px 6px; margin: 14px 0; background: color-mix(in srgb, var(--panel) 45%, transparent); }
   .run-order .ro-group.active { border-color: var(--accent-text); }
   .run-order .ro-group .ro-block { margin-top: 0; }
-  .run-order .ro-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: 8px;
+  .run-order .ro-row { display: flex; align-items: baseline; gap: 8px; padding: 7px 10px; border-radius: var(--radius-sm);
     color: color-mix(in srgb, var(--text) 78%, transparent); }
   /* Wrap to two lines instead of cutting the name off. A single line ellipsised real
      exercise names roughly in half ("Reverse Kneeling Crunch Left …"), which is worse
@@ -718,7 +719,7 @@
   #toast { position: fixed; bottom: 24px; left: 0; right: 0; margin: 0 auto; transform: translateY(20px);
     width: fit-content; max-width: min(90vw, 480px);
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 12px 20px;
-    border-radius: 10px; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 300; }
+    border-radius: var(--radius-sm); box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 300; }
   #toast.show { opacity: 1; transform: translateY(0); }
   /* Sticky banner shown when a save actually fails (storage full) — unlike the toast,
      it stays put so the user can't keep editing unaware that changes aren't persisting. */
@@ -851,7 +852,7 @@
     <span class="studio" id="studio-label"></span>
   </div>
   <div class="spacer"></div>
-  <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Exercise catalog"><span>Moves</span></button>
+  <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Saved moves"><span>Moves</span></button>
   <button class="ghost small" id="btn-theme" data-ic="contrast" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
   <button class="ghost small" id="btn-settings" data-ic="settings" title="Settings" aria-label="Settings"></button>
 </header>
@@ -937,7 +938,7 @@
   <section id="view-catalog" class="hidden">
     <div class="builder-top">
       <button class="ghost" id="btn-catalog-back" data-ic="arrowLeft">Back</button>
-      <h1>Exercise Catalog</h1>
+      <h1>Moves</h1>
       <button id="btn-import-moves" class="ghost" data-ic="importF">Import from routines</button>
       <button class="gold" id="btn-add-move" data-ic="plus">Add move</button>
     </div>
@@ -949,7 +950,9 @@
     <div class="card" style="padding:8px 6px 4px;">
       <div class="ex-head" id="catalog-head"></div>
       <div id="move-rows"></div>
-      <div class="block-add"><button id="btn-add-move-2" data-ic="plus">Add move</button></div>
+      <!-- Append-at-end button, like "Add exercise" in a block. Hidden while the list is
+           empty so it doesn't stack a second "Add move" under the header's Add move. -->
+      <div class="block-add" id="catalog-add-foot"><button id="btn-add-move-2" data-ic="plus">Add move</button></div>
     </div>
   </section>
 
@@ -2379,7 +2382,7 @@
       // toast — silently doing nothing was indistinguishable from "no move by that name".
       var mv = findMoveByName(ex.name, disciplineKey(block));
       if (mv) {
-        if (exerciseIsDefault(ex)) { applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from catalog: " + mv.name); }
+        if (exerciseIsDefault(ex)) { applyMoveTemplate(ex, mv); renderBlocks(); toast("Filled from a saved move: " + mv.name); }
         else toast("Matches a saved move, but this row already has values — clear them first to autofill");
       }
     };
@@ -2754,12 +2757,15 @@
 
     var moves = state.catalog.filter(function (m) { return m.discipline === catalogDiscipline; });
     var wrap = $("move-rows"); wrap.innerHTML = "";
+    var foot = $("catalog-add-foot");
     if (moves.length === 0) {
+      if (foot) foot.classList.add("hidden");            // header's Add move is the single add path when empty
       var empty = el("div", "empty"); empty.style.margin = "8px";
       empty.innerHTML = '<div class="empty-icon" aria-hidden="true">' + ic("dumbbell") + '</div><h2>No saved moves</h2><p>Add ' + escapeHtml(DISCIPLINES[catalogDiscipline].label) +
         " moves you reuse often, or import the ones already in your routines.</p>";
       wrap.appendChild(empty); return;
     }
+    if (foot) foot.classList.remove("hidden");           // rows exist → offer the append-at-end button
     moves.forEach(function (m) { wrap.appendChild(buildMoveRow(m, fields, cols)); });
   }
 
