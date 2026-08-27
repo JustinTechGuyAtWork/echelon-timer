@@ -159,7 +159,7 @@
     --shadow: 0 8px 26px rgba(13,46,64,0.12);
     --shadow-sm: 0 1px 3px rgba(13,46,64,0.10);
   }
-  html[data-theme="light"] body { background: radial-gradient(1100px 720px at 75% -12%, #e3eef3 0%, var(--bg) 55%); }
+  html[data-theme="light"] body { background: radial-gradient(130% 110% at 50% -12%, #e3eef3 0%, var(--bg) 60%); background-attachment: fixed; }   /* proportional radii (scales) + keep fixed like dark (the shorthand had reset it to scroll) */
   html[data-theme="light"] header.topbar { background: linear-gradient(var(--bg), rgba(244,247,249,0.88)); }
   html[data-theme="light"] input, html[data-theme="light"] select, html[data-theme="light"] textarea { background: #ffffff; }
   html[data-theme="light"] ::placeholder { color: #7d96a1; }
@@ -172,7 +172,10 @@
   body {
     min-height: 100vh;
     -webkit-tap-highlight-color: transparent;   /* cards/chips aren't <button> — kill the grey tap box app-wide */
-    background: radial-gradient(1200px 760px at 72% -12%, #0c3340 0%, var(--bg) 58%);
+    /* Viewport-proportional radii (not fixed px) so the ambient glow scales with the
+       screen. Fixed 1200x760px shrank into an off-centre bright blob with a visible
+       curved edge on large/wall displays; percentages keep it a smooth top-right wash. */
+    background: radial-gradient(130% 110% at 50% -12%, #0c3340 0%, var(--bg) 60%);
     background-attachment: fixed;
     color: var(--text);
     font-family: var(--font-ui);
