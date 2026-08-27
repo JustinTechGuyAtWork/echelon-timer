@@ -71,7 +71,7 @@
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" type="image/png" href="icon-192.png" />
 <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-<meta name="theme-color" content="#06202b" />
+<meta name="theme-color" content="#06202b" />   <!-- kept in sync with the active theme by applyTheme() (light uses #f4f7f9) -->
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -171,6 +171,7 @@
   html, body { margin: 0; padding: 0; overflow-x: hidden; }
   body {
     min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;   /* cards/chips aren't <button> — kill the grey tap box app-wide */
     background: radial-gradient(1200px 760px at 72% -12%, #0c3340 0%, var(--bg) 58%);
     background-attachment: fixed;
     color: var(--text);
@@ -183,6 +184,9 @@
     border-radius: var(--radius-sm); padding: 9px 14px; background: var(--panel-2); color: var(--text);
     transition: filter .12s ease, background .12s ease, border-color .12s ease;
     display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    /* touch-first: kill the 300ms double-tap-zoom delay (fast taps mid-class) and the
+       default grey tap box, so only the app's own :active feedback shows. */
+    touch-action: manipulation; -webkit-tap-highlight-color: transparent;
   }
   /* Inline SVG icons inherit text color + scale with the button's font size. */
   .ic { width: 1.08em; height: 1.08em; flex: none; display: inline-block; }
@@ -286,7 +290,10 @@
     transition: transform .12s ease, border-color .12s ease; }
   /* Cards are the launch surface (tap to run) — a small lift + brighter edge on hover makes that legible. */
   .routine-card:hover { border-color: var(--accent-text); transform: translateY(-2px); }
-  .routine-card h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: var(--t-card); letter-spacing: .3px; }
+  .routine-card h3 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: var(--t-card); letter-spacing: .3px; overflow-wrap: anywhere; }
+  /* User-entered text (name/description/instructors) can be a long unbroken string; let it
+     wrap instead of overflowing the fixed-width card (body clips overflow-x). */
+  .routine-card .desc, .routine-card .instructors { overflow-wrap: anywhere; }
   .routine-card .desc { color: var(--muted); font-size: var(--t-note); }
   /* Distinct from the muted, pill-shaped tags below — this is an identity ("who teaches
      it"), not a generic label, so it gets the brand teal and plain (non-pill) text. */
@@ -315,7 +322,7 @@
   .kebab-menu button:hover { background: var(--panel-2); filter: none; }
   .kebab-menu button.danger { color: var(--danger); }
   .empty { text-align: center; padding: 56px 20px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); }
-  .empty h2 { color: var(--text); margin: 0 0 4px; }
+  .empty h2 { color: var(--text); margin: 0 0 4px; text-wrap: balance; }
   .empty p { margin: 0 auto; max-width: 46ch; }
   /* A soft icon badge makes an empty screen feel intentional and inviting, not just blank. */
   .empty-icon { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
@@ -434,7 +441,7 @@
      ends and the top half becomes unreachable (scrollTop can't go negative). Auto margins
      render identically when content fits, but collapse to 0 on overflow so everything
      stays reachable from the top. */
-  .run-stage { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 4px; }
+  .run-stage { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 4px; }
   /* Weighted spacers (not equal auto margins) bias the resting position toward the top:
      a short routine (one exercise, no note) no longer sits dead-centered with a tall gap
      above it. Still overflow-safe — both spacers have zero content, so on overflow they
@@ -454,7 +461,7 @@
   .is-rest .run-type-pill { color: var(--rest); }
   .is-pause .run-type-pill { color: var(--muted); }
   .run-ex-name { font-family: var(--font-display); font-weight: 600; text-transform: uppercase; letter-spacing: .01em;
-    font-size: clamp(1.9rem, 6vw, 3.8rem); line-height: 1.04; margin: 2px 0; }
+    font-size: clamp(1.9rem, 6vw, 3.8rem); line-height: 1.04; margin: 2px 0; text-wrap: balance; }
   .run-spring { display: flex; gap: 18px; align-items: baseline; justify-content: center; color: var(--muted); font-size: var(--t-body-lg); min-height: 1.4em; flex-wrap: wrap; }
   .run-spring b { color: var(--accent-text); font-size: 1.3rem; font-variant-numeric: tabular-nums; }
   .is-rest .run-spring b { color: var(--rest); }
@@ -511,7 +518,7 @@
 
   /* Running-order panel (large landscape only). A scrollable list of the class's steps,
      grouped by routine/block, with the current step highlighted and auto-scrolled into view. */
-  .run-order { width: 360px; flex-shrink: 0; overflow-y: auto; padding-right: 4px;
+  .run-order { width: 360px; flex-shrink: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px;
     border-left: 1px solid color-mix(in srgb, var(--text) 14%, transparent); padding-left: 22px; }
   .run-order .ro-title { font-family: var(--font-display); text-transform: uppercase; letter-spacing: var(--track-label);
     font-size: var(--t-note-lg); color: color-mix(in srgb, var(--text) 80%, transparent); position: sticky; top: 0;
@@ -684,7 +691,7 @@
 
   /* ---------- Modal ---------- */
   .modal-back { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; box-shadow: var(--shadow); }
+  .modal { width: min(540px, 100%); padding: 22px; max-height: 90vh; overflow: auto; overscroll-behavior: contain; box-shadow: var(--shadow); }
   .modal h2 { margin: 0 0 14px; font-size: var(--t-h2); }   /* adopt the shared heading step */
   .modal .field { margin-bottom: 14px; }
   .tips h3 { margin: 0 0 6px; font-size: var(--t-note-lg); }
@@ -719,8 +726,11 @@
   #toast { position: fixed; bottom: 24px; left: 0; right: 0; margin: 0 auto; transform: translateY(20px);
     width: fit-content; max-width: min(90vw, 480px);
     background: var(--panel-2); color: var(--text); border: 1px solid var(--line); padding: 12px 20px;
-    border-radius: var(--radius-sm); box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 300; }
+    border-radius: var(--radius-sm); box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease; z-index: 300; }
   #toast.show { opacity: 1; transform: translateY(0); }
+  /* Fixed-width digits so these live counters don't shift width as the number changes
+     (e.g. "Step 9 of 12" -> "Step 10 of 12"), which is very visible on the Wall display. */
+  #run-position, #builder-count { font-variant-numeric: tabular-nums; }
   /* Sticky banner shown when a save actually fails (storage full) — unlike the toast,
      it stays put so the user can't keep editing unaware that changes aren't persisting. */
   #save-warning { position: fixed; top: 0; left: 0; right: 0; z-index: 320; background: #7f1d1d; color: #fff;
@@ -814,7 +824,15 @@
     .run-controls button { min-height: 40px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+    /* Zeroing duration alone still lets `infinite` loops (the spinner, the final-seconds
+       countdown pulse) re-run every frame and sample a random phase — a flicker, not calm.
+       Capping iteration-count to 1 lands them on their static end state and stops. */
+    *, *::before, *::after {
+      transition-duration: 0.001ms !important;
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
   }
   /* ---------- Auth gate ---------- */
   #signin-screen { display: none; }
@@ -822,7 +840,7 @@
     align-items: center; justify-content: center; background: var(--bg); padding: 24px; }
   body.signed-out header.topbar, body.signed-out .app { display: none !important; }
   .signin-card { text-align: center; max-width: 360px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
-  .signin-card #signin-logo { height: 40px; }
+  .signin-card #signin-logo { height: 40px; aspect-ratio: 1; }   /* reserve the box before the data-URI decodes (no shift) */
   /* Actually match the top-bar wordmark (.brand .logo) — size, weight, and case, not just the typeface. */
   .signin-card h1 { font-family: var(--font-display); font-size: 1.55rem; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; }
   .signin-card p { color: var(--muted); }
@@ -842,7 +860,7 @@
     <h1>Echelon</h1>
     <p>Sign in with your company Google account to continue.</p>
     <button id="btn-signin" class="gold big">Sign in with Google</button>
-    <p id="signin-error" class="signin-error hidden"></p>
+    <p id="signin-error" class="signin-error hidden" role="alert" aria-live="assertive"></p>
   </div>
 </div>
 
@@ -852,7 +870,7 @@
     <span class="studio" id="studio-label"></span>
   </div>
   <div class="spacer"></div>
-  <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Saved moves"><span>Moves</span></button>
+  <button class="ghost small" id="btn-moves" data-ic="dumbbell" title="Saved moves" aria-label="Saved moves"><span>Moves</span></button>
   <button class="ghost small" id="btn-theme" data-ic="contrast" title="Toggle light / dark" aria-label="Toggle light or dark theme"></button>
   <button class="ghost small" id="btn-settings" data-ic="settings" title="Settings" aria-label="Settings"></button>
 </header>
@@ -879,6 +897,9 @@
     </div>
     <div class="filters" id="instructor-filters"></div>
     <div class="filters" id="tag-filters"></div>
+    <!-- Names the active library section for screen readers so headings go h1 -> h2 -> h3
+         (card titles) with no skipped level. Text is set per tab in renderLibrary(). -->
+    <h2 id="lib-section-heading" class="visually-hidden">My Classes</h2>
     <div id="routine-list"></div>
   </section>
 
@@ -908,7 +929,7 @@
       </div>
       <div>
         <label for="routine-instructors">Instructor(s) (comma separated)</label>
-        <input id="routine-instructors" placeholder="Sarah T., Alex M." style="width:100%;" />
+        <input id="routine-instructors" placeholder="Sarah T., Alex M." autocapitalize="words" autocorrect="off" spellcheck="false" style="width:100%;" />
       </div>
       <div style="margin-top:14px; display:flex; align-items:flex-end; gap:10px;">
         <div style="flex:1;">
@@ -1033,7 +1054,7 @@
         <li><b>Run it</b> — tap a routine card (or <b>Start</b>). A get-ready countdown leads in (set it in Settings below); the timer auto-advances. Use the on-screen buttons or Space / ← / → / Esc.</li>
         <li><b>Moves</b> (top bar) — save go-to exercises per format; while building, start typing a name to auto-fill from a saved move.</li>
         <li><b>Export</b> — from a routine, get a PDF run sheet, spreadsheet, or text.</li>
-        <li><b>Your routines sync across your devices</b> automatically while you're signed in. <b>Backup</b> below also saves a personal copy you can <b>Restore</b> later.</li>
+        <li><b>Your routines sync across your devices</b> automatically while you’re signed in. <b>Backup</b> below also saves a personal copy you can <b>Restore</b> later.</li>
         <li><b>Add to Home Screen</b> (iPhone: Share → Add to Home Screen) to use it like an app.</li>
       </ul>
     </div>
@@ -1075,9 +1096,9 @@
     <div id="admin-section" class="hidden">
       <hr style="border:none; border-top:1px solid var(--line); margin:16px 0;" />
       <label class="section-label">Team admins</label>
-      <p class="muted" style="margin:4px 0 8px; font-size:var(--t-note);">Admins can edit and delete <b>any</b> class in the team library — use it for people you trust to tidy up the shared library. You are always an admin and can't be removed.</p>
+      <p class="muted" style="margin:4px 0 8px; font-size:var(--t-note);">Admins can edit and delete <b>any</b> class in the team library — use it for people you trust to tidy up the shared library. You are always an admin and can’t be removed.</p>
       <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <input id="admin-email" type="email" placeholder="coworker@echelonfit.com" style="flex:1; min-width:200px;" />
+        <input id="admin-email" type="email" aria-label="Coworker's company email" placeholder="coworker@echelonfit.com" autocomplete="email" inputmode="email" autocapitalize="none" autocorrect="off" spellcheck="false" style="flex:1; min-width:200px;" />
         <button id="btn-add-admin" data-ic="plus">Add admin</button>
       </div>
       <div id="admin-list" style="margin-top:10px;"></div>
@@ -1137,7 +1158,7 @@
 </div>
 
 <div id="print-area"></div>
-<div id="save-warning" class="hidden" role="alert">Not saving — your browser's storage is full. Download a backup (Settings) and remove old routines to free space.</div>
+<div id="save-warning" class="hidden" role="alert">Not saving — your browser’s storage is full. Download a backup (Settings) and remove old routines to free space.</div>
 <div id="toast"></div>
 <div id="sr-live" class="visually-hidden" aria-live="polite" role="status"></div>
 <datalist id="move-list"></datalist>
@@ -1855,6 +1876,7 @@
       b.classList.toggle("active", libraryTab === t);
       b.setAttribute("aria-selected", libraryTab === t ? "true" : "false");
     });
+    $("lib-section-heading").textContent = libraryTab === "team" ? "Team Library" : "My Classes";
     // If the active tag/instructor no longer exists (its routine was edited/deleted), drop
     // it so the library doesn't silently show an empty, unexplained list.
     if (activeTag && allTags().indexOf(activeTag) < 0) activeTag = null;
@@ -2196,9 +2218,9 @@
   // The work-time (min:sec) control bound to obj.duration.
   function durNode(obj, onChange) {
     var durWrap = el("div", "dur-input");
-    var min = document.createElement("input"); min.type = "number"; min.min = "0";
+    var min = document.createElement("input"); min.type = "number"; min.min = "0"; min.inputMode = "numeric";
     min.value = Math.floor((obj.duration || 0) / 60); min.setAttribute("aria-label", "Work minutes");
-    var sec = document.createElement("input"); sec.type = "number"; sec.min = "0"; sec.max = "59";
+    var sec = document.createElement("input"); sec.type = "number"; sec.min = "0"; sec.max = "59"; sec.inputMode = "numeric";
     sec.value = (obj.duration || 0) % 60; sec.setAttribute("aria-label", "Work seconds");
     function readDur() {
       var m = parseInt(min.value, 10); if (isNaN(m) || m < 0) m = 0;
@@ -2212,7 +2234,7 @@
   }
   // The rest-seconds control bound to obj.rest.
   function restNode(obj, onChange) {
-    var rest = document.createElement("input"); rest.type = "number"; rest.min = "0";
+    var rest = document.createElement("input"); rest.type = "number"; rest.min = "0"; rest.inputMode = "numeric";
     rest.value = obj.rest || 0; rest.placeholder = "0"; rest.setAttribute("aria-label", "Rest seconds");
     rest.oninput = function () { var v = parseInt(rest.value, 10); if (isNaN(v) || v < 0) v = 0; obj.rest = v; onChange(); };
     return rest;
@@ -2251,6 +2273,7 @@
     var bname = document.createElement("input");
     bname.className = "block-name"; bname.value = block.name; bname.placeholder = "Block name (e.g. Lower Body)";
     bname.setAttribute("aria-label", "Block name");
+    bname.autocapitalize = "words"; bname.spellcheck = false; bname.setAttribute("autocorrect", "off");
     bname.oninput = function () { block.name = bname.value; markDirty(); };
     head.appendChild(bname);
     // Class format for this block — changing it swaps which metric columns show.
@@ -2274,7 +2297,7 @@
     var repWrap = el("div", "block-repeat");
     repWrap.appendChild(el("span", "block-repeat-label", "Repeat ×"));
     var repInput = document.createElement("input");
-    repInput.type = "number"; repInput.min = "1"; repInput.max = "20";
+    repInput.type = "number"; repInput.min = "1"; repInput.max = "20"; repInput.inputMode = "numeric";
     repInput.className = "block-repeat-input"; repInput.value = block.repeat || 1;
     repInput.setAttribute("aria-label", "Number of times to repeat this block");
     repInput.oninput = function () {
@@ -2370,6 +2393,7 @@
 
     var name = document.createElement("input");
     name.value = ex.name; name.placeholder = "Exercise name"; name.setAttribute("aria-label", "Exercise name");
+    name.autocapitalize = "words"; name.spellcheck = false; name.setAttribute("autocorrect", "off");   // a proper-noun move name, not prose
     name.setAttribute("list", "move-list"); // suggest saved catalog moves
     // Scope the shared suggestion list to THIS block's format when the field is focused,
     // so every name offered is one that will actually autofill (autofill is format-matched).
@@ -2779,6 +2803,7 @@
 
     var name = document.createElement("input");
     name.value = m.name; name.placeholder = "Move name"; name.setAttribute("aria-label", "Move name");
+    name.autocapitalize = "words"; name.spellcheck = false; name.setAttribute("autocorrect", "off");
     name.oninput = function () { m.name = name.value; updateMoveDatalist(); markCatalogDirty(m); };
     row.appendChild(fieldCell(name, "Move", "name-cell"));
 
@@ -2963,7 +2988,7 @@
   }
   function releaseWakeLock() { try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {} }
   function closeRun() {
-    if (runInProgress() && !confirm("Exit this class? You'll lose your place.")) return;
+    if (runInProgress() && !confirm("Exit this class? You’ll lose your place.")) return;
     stopTicker(); run.running = false;
     releaseWakeLock();
     closeOverlay("run-overlay");
@@ -3746,14 +3771,20 @@
     var img = document.createElement("img");
     img.src = ECHELON_LOGO;
     img.alt = "Echelon";
-    img.style.height = "26px"; img.style.maxWidth = "190px";
+    img.style.height = "26px"; img.style.maxWidth = "190px"; img.style.aspectRatio = "1";
     img.style.objectFit = "contain"; img.style.display = "block";
     logo.appendChild(img);
     var t = document.createElement("span"); t.textContent = state.settings.studioName || "Echelon"; logo.appendChild(t);
     $("studio-label").textContent = "";
   }
   function applyTheme() {
-    document.documentElement.setAttribute("data-theme", state.settings.theme === "light" ? "light" : "dark");
+    var light = state.settings.theme === "light";
+    document.documentElement.setAttribute("data-theme", light ? "light" : "dark");
+    // Match the installed-PWA chrome (status bar / address bar tint) to the page bg —
+    // these are the same values as --bg in each theme. Without this the light theme
+    // would keep the dark navy chrome from the static <meta>.
+    var tc = document.querySelector('meta[name="theme-color"]');
+    if (tc) tc.setAttribute("content", light ? "#f4f7f9" : "#06202b");
   }
   // Apply the per-device display mode. The classes live on <body> — NOT on the run
   // overlay, whose className is rebuilt wholesale by renderRun/renderReady/renderRunDone
